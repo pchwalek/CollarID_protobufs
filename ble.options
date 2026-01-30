@@ -1,0 +1,31 @@
+# message.options
+# Nanopb per-field options to keep generated C small & static.
+
+# ---- Repeated limits -------------------------------------------------------
+ScheduleConfigPacket.schedules        max_count:5
+
+# ---- Fixed-size credentials (no dynamic allocation) -----------------------
+# OTAA
+RadioOTAA.dev_eui                     max_size:8  fixed_length:true
+RadioOTAA.join_eui                    max_size:8  fixed_length:true
+RadioOTAA.app_key                     max_size:16 fixed_length:true
+
+# ABP
+RadioABP.dev_addr                     max_size:4  fixed_length:true
+RadioABP.nwk_s_key                    max_size:16 fixed_length:true
+RadioABP.app_s_key                    max_size:16 fixed_length:true
+RadioABP.f_nwk_s_int_key              max_size:16 fixed_length:true
+RadioABP.s_nwk_s_int_key              max_size:16 fixed_length:true
+
+# ---- Strings: cap lengths --------------------------------------------------
+# Keep firmware_version short to avoid large buffers.
+SystemStatePacket.firmware_version    max_size:16
+
+# ---- Fixed size for MAC address -------------------------------------------
+PeripheralPacket.mac_address          max_size:6  fixed_length:true
+
+# Notes:
+# - Fixed-length bytes avoid length checks and heap use in embedded targets.
+# - max_count on 'schedules' creates a fixed array in the struct (no malloc).
+# - max_size on strings/bytes prevents unbounded buffers in generated code.
+# - Options don’t change the Protobuf wire format—just the generated C and memory use.

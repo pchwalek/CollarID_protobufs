@@ -1,0 +1,203 @@
+syntax = "proto3";
+
+import "nanopb.proto"; 
+import "common.proto";
+option (nanopb_fileopt).packed_struct = false;
+
+
+// ================== SCHEDULING / CONFIG ==================
+message TimeWindow {          // 2 bytes
+  uint32 start_hour = 1;  // 0 to 23 (inclusive)
+  uint32 end_hour   = 2;  // 0 to 23 (inclusive)
+}
+// Enabled/disabled and sample interval for each sensor
+message SamplingConfig {
+  bool   enabled              = 1;
+  uint32 sample_interval_min  = 2; // minutes
+}
+message GPSConfig {
+  bool   enabled              = 1;
+  uint32 sample_interval_min  = 2;
+  uint32 accuracy = 3;        // 1 to 10
+}
+enum RadioRegion {
+  REGION_US915 = 0;
+  REGION_AU915 = 1;
+  REGION_EU868 = 2;
+}
+enum RadioAuth {
+  AUTH_OTAA = 0;
+  AUTH_ABP  = 1;
+}
+message RadioOTAA {
+  bytes dev_eui  = 1; // 8, fixed_length
+  bytes join_eui = 2; // 8, fixed_length
+  bytes app_key  = 3; // 16, fixed_length
+}
+message RadioABP {
+  bytes dev_addr        = 1; // 4,  fixed_length
+  bytes nwk_s_key       = 2; // 16, fixed_length
+  bytes app_s_key       = 3; // 16, fixed_length
+  bytes f_nwk_s_int_key = 4; // 16, fixed_length
+  bytes s_nwk_s_int_key = 5; // 16, fixed_length
+}
+enum RadioSpreadingFactor {
+  SF7  = 0;
+  SF8  = 1;
+  SF9  = 2;
+  SF10 = 3;
+  SF11 = 4;
+  SF12 = 5;
+}
+enum RadioBandwidth {
+  bw_125  = 0;
+  bw_250  = 1;
+  bw_500  = 2;
+}
+enum RadioCodingRate {
+  cr_4_5  = 0;
+  cr_4_6  = 1;
+  cr_4_7  = 2;
+  cr_4_8  = 3;
+}
+
+message LoRaWANConfig {
+  RadioRegion region                    = 1;
+  RadioAuth   auth                      = 2;
+  oneof credentials {
+    RadioOTAA otaa = 3;
+    RadioABP  abp  = 4;
+  }
+  uint32 transmit_interval_min          = 5;
+  bool   tx_only_on_new_gps_fix         = 6;
+  int32  tx_power_dbm                   = 7;
+}
+
+message LoRaConfig {
+  RadioSpreadingFactor radioSpreadingFactor 	= 1;
+  RadioBandwidth  radioBandwidth		= 2;
+  RadioCodingRate radioCodingRate 		= 3;
+  uint32 transmit_interval_min                  = 4;
+  int32  tx_power_dbm                           = 5;
+  bool   lostMode_enabled        		= 6; 
+  uint32 sync_word			        = 7; //byte value
+}
+
+message LostMode_config{
+  uint32 activation_epoch			= 1;
+  uint32 transmit_interval_min                  = 2;
+  int32  tx_power_dbm                           = 3;
+}
+
+message RadioConfigPacket {
+  LoRaWANConfig    loRaWAN_config	   = 1;
+  LoRaConfig       loRa_config		   = 2;
+  bool 		   lostMode_enabled        = 3;
+  LostMode_config  lostMode_config	   = 4;
+}
+
+message MicrophoneConfig {
+  bool            enabled            = 1;
+  bool            continuous_mode    = 2; // on if true
+  uint32          sample_length_min  = 3;
+  uint32          sample_window_min  = 4;
+}
+enum AccelSampleRate {
+  ACCEL_25HZ = 0;
+  ACCEL_50HZ = 1;
+}
+enum AccelSensitivity {
+  ACCEL_2G = 0;
+  ACCEL_4G = 1;
+  ACCEL_8G = 2;
+}
+message AccelerometerConfig {
+  bool             enabled      = 1;
+  AccelSampleRate  sample_rate  = 2;
+  AccelSensitivity sensitivity  = 3;
+}
+
+message MagnetometerConfig {
+  bool   enabled           = 1;
+  uint32 sample_interval_s = 2; // in seconds
+}
+
+// schedule that is applied during each TimeWindow
+message ScheduleConfig {
+  TimeWindow          window        = 1;
+  SamplingConfig      light         = 2;
+  SamplingConfig      environmental = 3;
+  SamplingConfig      particulate   = 4;
+  GPSConfig           gps           = 5;
+  MicrophoneConfig    microphone    = 6;
+  AccelerometerConfig accelerometer = 7;
+
+  // LoRaWAN behavior within this schedule
+  bool   lorawan_enabled            = 8;
+  uint32 lorawan_send_interval_min  = 9;
+
+  bool   lora_enabled               = 10;
+  uint32 lora_send_interval_min     = 11;
+
+  MagnetometerConfig magnetometer   = 12;
+}
+
+// can include multiple schedules
+message ScheduleConfigPacket {
+  repeated ScheduleConfig schedules = 1; // capped to 5 schedules in options
+}
+
+
+message SimpleSensorReading {
+  uint32 index = 1;
+  float temperature = 2;
+  float humidity = 3;
+  float pressure = 4;
+  float gas = 5;
+  float pm2_5 = 6;
+  uint32 light = 7;
+  Activity activity = 8;
+  uint32 steps = 9;
+  bool particulate_static_obstructed = 10;
+  bool particulate_dynamic_obstructed = 11;
+  bool particulate_outside_detection_limits = 12;
+}
+
+message SystemStatePacket {
+  bool         engage_state = 1;     // engaged/disengaged
+  BatteryState battery = 2;
+  SDCardState  sdcard  = 3;
+  optional GPSData  gps_data  = 4;
+  SimpleSensorReading sensors = 5;
+  string firmware_version = 6;
+}
+
+// ================== PERIPHERAL CONNECTION ==================
+
+enum PeripheralType {
+  PERIPHERAL_SATCOM     = 0;
+  PERIPHERAL_DETACHMENT = 1;
+}
+
+message PeripheralPacket {
+  bytes mac_address = 1;   // 6 bytes, fixed-length in options
+  PeripheralType type = 2;
+}
+
+// ================== PERIPHERAL INFO ==================
+
+message PeripheralInfo {
+  repeated string device_uids = 1;
+}
+
+// ================== WRAPPER ==================
+message BlePacket {
+  PacketHeader header = 1;
+  oneof payload {
+    ScheduleConfigPacket schedule_config_packet = 2;
+    SystemStatePacket    system_state_packet    = 3;
+    RadioConfigPacket    radio_config_packet    = 4;
+    PeripheralPacket     peripheral_packet      = 5;
+    PeripheralInfo       peripheral_info        = 6; 
+  }
+}

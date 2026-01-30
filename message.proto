@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+import "common.proto";
+
+//import "nanopb.proto";
+//option (nanopb_fileopt).packed_struct = true;
+//python generator/nanopb_generator.py ../buzzcam/protobuf/message.proto -I ../buzzcam/protobuf
+//protoc message.proto --python_out=./ -I=./
+/**************/
+
+
+
+
+message SystemInfoPacket{
+    optional SystemSensorSummary system_sensor_summary = 1;
+    optional SDCardState sdcard_state = 2;
+    optional BatteryState battery_state = 3;
+    optional Metadata metadata = 4;
+    optional GPSData gps_data = 5;
+}
+
+message Metadata{
+	float gps_avg_fix_time = 1;
+}
+
+message ConfigPacket{
+    bool engage_system = 1;
+    bool enable_microphone = 2;
+    bool enable_activity = 3;
+    bool enable_particulate = 4;
+    bool enable_environmental = 5;
+    bool enable_light = 6;
+    bool enable_motion = 7;
+    bool enable_lora = 8;
+}
+
+
+
+message GPSData_2{
+    int32 latitude_e7 = 1;
+    int32 longitude_e7 = 2;
+    uint32 altitude_mm = 3;
+    optional uint32 timestamp = 4;
+    optional uint32 gps_avg_fix_time_ms = 5;
+}
+
+
+
+
+
+message SystemSensorSummary{
+    float temperature = 1;
+    float humidity = 2;
+    float pressure = 3;
+    float gas = 4;
+    float pm1 = 5;
+    float pm2_5 = 6;
+    float pm10 = 7;
+    uint32 light = 8;
+    uint32 steps = 9;
+
+    bool particulate_obstructed = 10;
+    bool particulate_outside_detection_limits = 11;
+}
+				
+
+
+
+message AckPacket{
+
+}
+
+message RadioInfo{
+    int32 rssi = 1;
+    int32 snr = 2;
+    int32 rssi_est = 3;
+}
+
+message AccAxis{
+    uint32 x = 1;
+    uint32 y = 2;
+    uint32 z = 3;
+}
+
+message AccStats{
+    uint32 ODBA_mean_x100 = 1;
+    uint32 ODBA_max_x100 = 2;
+    uint32 VeDBA_mean_x100 = 3;
+    uint32 VeDBA_max_x100 = 4;
+    optional AccAxis StdDev_x100 = 5;
+    optional AccAxis Mean_x100 = 6;
+}
+
+message EnvData{
+    optional int32 temperature_x10 = 1;
+    optional uint32 humidity_x10 = 2;
+    optional uint32 gas = 3;
+    optional uint32 pressure = 4;
+    optional uint32 light = 5;
+    optional uint32 timestamp = 6;
+}
+
+message ParticulateData{
+    uint32 pm1 = 1;
+    uint32 pm2_5 = 2;
+    uint32 pm10 = 3;
+    optional uint32 timestamp = 4;
+}
+
+message ErrorFlags{
+    uint32 flag = 1;
+}
+
+message Deployment{
+    optional ParticulateData particulateData = 1;
+
+    optional EnvData envData = 2;
+
+    optional uint32 space_remaining_mb = 3;
+
+    uint32 battery_percentage_x10 = 4;
+
+    optional AccStats accStats= 5;
+
+    optional uint32 steps = 6;
+
+    optional GPSData_2 gps_data = 7;
+
+    optional ErrorFlags errorFlags = 8;
+}
+
+message MessagePacket {
+    PacketHeader header = 1;
+
+    oneof payload {
+        SystemInfoPacket system_info_packet = 2;
+        ConfigPacket config_packet = 3;
+        AckPacket ack_packet = 4;
+	    Deployment system_deployment_packet = 5;
+    }
+
+    optional RadioInfo radio_info = 6;
+}
+
+
+

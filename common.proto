@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+import "nanopb.proto";
+
+// ================== COMMON DEFINITIONS ==================
+// These messages are shared across different communication protocols (BLE, Radio, etc.)
+
+// ---- Header ----
+// A unified header. ms_from_start is from ble.proto, request_ack from message.proto.
+message PacketHeader {
+  uint32 system_uid     = 1;
+  uint32 ms_from_start  = 2;
+  uint32 epoch          = 3;
+  uint32 packet_index   = 4;
+  optional bool request_ack = 5;
+}
+
+// ---- GPS ----
+// Identical definition from both files.
+message GPSData{
+  float latitude = 1;
+  float longitude = 2;
+  float altitude = 3;
+  float speed = 4;
+  float heading = 5;
+}
+
+// ---- Battery ----
+// Unified on float for voltage and percentage for consistency.
+message BatteryState {
+  bool  charging   = 1;
+  float voltage    = 2;
+  optional float percentage = 3;
+}
+
+// ---- SD Card ----
+// Unified on uint64 for sizes to prevent overflow.
+message SDCardState {
+  bool   detected            = 1;
+  uint64 space_remaining     = 2; // bytes
+  uint64 total_space         = 3; // bytes
+}
+
+// ---- Activity ----
+// Identical enum from both files.
+enum Activity {
+  STILL = 0;
+  WALK = 1;
+  RUN = 2;
+}
