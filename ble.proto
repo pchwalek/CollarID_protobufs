@@ -77,10 +77,9 @@ message LoRaConfig {
   RadioSpreadingFactor radioSpreadingFactor 	= 1;
   RadioBandwidth  radioBandwidth		= 2;
   RadioCodingRate radioCodingRate 		= 3;
-  uint32 transmit_interval_min                  = 4;
-  int32  tx_power_dbm                           = 5;
-  bool   lostMode_enabled        		= 6; 
-  uint32 sync_word			        = 7; //byte value
+  int32  tx_power_dbm                           = 4;
+  bool   lostMode_enabled        		= 5; 
+  uint32 sync_word			        = 6; //byte value
 }
 
 message LostMode_config{
