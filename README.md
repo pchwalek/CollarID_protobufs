@@ -18,6 +18,7 @@ Run the following command to update the `.pb.swift` files:
 
 ```bash
 protoc -I . -I ../nanopb/generator/proto --swift_out=. ble.proto common.proto message.proto
+```
 
 ### 2. C Generation (Firmware)
 Used for the embedded system via **Nanopb**. This generates lightweight `.pb.c` and `.pb.h` files.
@@ -26,3 +27,4 @@ Used for the embedded system via **Nanopb**. This generates lightweight `.pb.c` 
 
 ```bash
 python ../nanopb/generator/nanopb_generator.py *.proto --c-style -s packed_struct:false
+```
