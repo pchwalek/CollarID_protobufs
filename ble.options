@@ -9,6 +9,7 @@ ScheduleConfigPacket.schedules        max_count:5
 RadioOTAA.dev_eui                     max_size:8  fixed_length:true
 RadioOTAA.join_eui                    max_size:8  fixed_length:true
 RadioOTAA.app_key                     max_size:16 fixed_length:true
+RadioOTAA.nwk_key                     max_size:16 fixed_length:true
 
 # ABP
 RadioABP.dev_addr                     max_size:4  fixed_length:true
