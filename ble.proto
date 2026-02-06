@@ -33,6 +33,7 @@ message RadioOTAA {
   bytes dev_eui  = 1; // 8, fixed_length
   bytes join_eui = 2; // 8, fixed_length
   bytes app_key  = 3; // 16, fixed_length
+  bytes nwk_key = 4;  // 16, fixed_length
 }
 message RadioABP {
   bytes dev_addr        = 1; // 4,  fixed_length
