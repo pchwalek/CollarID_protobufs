@@ -80,6 +80,7 @@ message LoRaConfig {
   RadioCodingRate radioCodingRate 		= 3;
   int32  tx_power_dbm                           = 4;
   uint32 sync_word			        = 5; //byte value
+  uint32 frequency				= 6;
 }
 
 message LostMode_config{
