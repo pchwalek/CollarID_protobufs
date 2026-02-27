@@ -90,8 +90,8 @@ message LostMode_config{
 }
 
 message RadioConfigPacket {
-  LoRaWANConfig    loRaWAN_config	   = 1;
-  LoRaConfig       loRa_config		   = 2;
+  optional LoRaWANConfig    loRaWAN_config	   = 1;
+  optional LoRaConfig       loRa_config		   = 2;
   bool 		   lostMode_enabled        = 3;
   LostMode_config  lostMode_config	   = 4;
 }
@@ -144,7 +144,9 @@ message ScheduleConfig {
 
 // can include multiple schedules
 message ScheduleConfigPacket {
-  repeated ScheduleConfig schedules = 1; // capped to 5 schedules in options
+  bool engaged = 1;
+  repeated ScheduleConfig schedules = 2; // capped to 5 schedules in options
+  uint32 special_mode = 3;
 }
 
 
