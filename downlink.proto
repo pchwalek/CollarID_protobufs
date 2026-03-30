@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+import "nanopb.proto";
+
+// ================== SERVER → COLLAR DOWNLINK ==================
+// Designed for LoRaWAN RX windows. Keep payloads minimal.
+// At DR2 (SF8/125kHz) max payload is ~125 bytes.
+// At DR0 (SF10/125kHz) max payload is ~11 bytes.
+//
+// Simple commands (reset, dropoff, high-fix) encode to 2-5 bytes.
+// Geofence updates are larger; send one at a time if on low DR.
+
+// ---- Command flags (fits in a single byte on the wire) ----
+enum CommandType {
+  CMD_NONE        = 0;
+  CMD_RESET       = 1;  // Reboot the device
+  CMD_DROP_OFF    = 2;  // Detach the collar (irreversible)
+  CMD_HIGH_FIX_ON = 3;  // Enable high-fix GPS mode (24h)
+  CMD_HIGH_FIX_OFF= 4;  // Disable high-fix GPS mode
+  CMD_SYNC_TIME   = 5;  // Sync RTC to server epoch
+  CMD_BUZZ        = 6;  // Audible locate ping (future)
+}
+
+// ---- Compact geofence (polygon encoded as bounding points) ----
+// Coordinates stored as int32 × 1e-7 to avoid floats (same as GPSData_2).
+// Max 8 vertices per geofence keeps wire size manageable.
+message GeoPoint {
+  int32 latitude_e7  = 1;  // degrees × 1e7
+  int32 longitude_e7 = 2;  // degrees × 1e7
+}
+
+message GeofenceData {
+  uint32 fence_id    = 1;           // server-side ID (for ack/reference)
+  repeated GeoPoint vertices = 2;   // polygon vertices (max 8)
+  bool   active      = 3;           // false = delete this fence on device
+}
+
+// ---- High-fix mode parameters (optional override) ----
+message HighFixParams {
+  uint32 duration_hours       = 1;  // default 24 if omitted
+  uint32 sample_interval_sec  = 2;  // default 300 (5 min) if omitted
+}
+
+// ---- Main downlink envelope ----
+message DownlinkPacket {
+  // Server UTC epoch (seconds) — device can sync its RTC
+  uint32 epoch = 1;
+
+  // Command to execute (if any)
+  CommandType command = 2;
+
+  // Optional high-fix parameters (only relevant when command = HIGH_FIX_ON)
+  optional HighFixParams high_fix_params = 3;
+
+  // Geofence create/update/delete (send one per downlink for size safety)
+  optional GeofenceData geofence = 4;
+}
