@@ -1,0 +1,5 @@
+# downlink.options
+# Nanopb per-field options for server→collar downlink messages.
+
+# Max 8 vertices per geofence (keeps wire size under ~70 bytes per fence)
+GeofenceData.vertices  max_count:8

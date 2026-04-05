@@ -39,9 +39,10 @@ message ConfigPacket{
 message GPSData_2{
     int32 latitude_e7 = 1;
     int32 longitude_e7 = 2;
-    uint32 altitude_mm = 3;
-    optional uint32 timestamp = 4;
+    optional uint32 altitude_mm = 3;
+    uint32 timestamp = 4;
     optional uint32 gps_avg_fix_time_ms = 5;
+    optional uint32 hdop = 6;
 }
 
 
@@ -124,7 +125,7 @@ message Deployment{
 
     optional uint32 steps = 6;
 
-    optional GPSData_2 gps_data = 7;
+    repeated GPSData_2 gps_data = 7;
 
     optional ErrorFlags errorFlags = 8;
 }

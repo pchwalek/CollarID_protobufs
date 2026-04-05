@@ -4,54 +4,147 @@ import "nanopb.proto";
 
 // ================== SERVER → COLLAR DOWNLINK ==================
 // Designed for LoRaWAN RX windows. Keep payloads minimal.
-// At DR2 (SF8/125kHz) max payload is ~125 bytes.
-// At DR0 (SF10/125kHz) max payload is ~11 bytes.
+// At DR2 (SF10/125kHz) max payload is ~51 bytes.
+// At DR5 (SF7/125kHz) max payload is ~222 bytes.
 //
-// Simple commands (reset, dropoff, high-fix) encode to 2-5 bytes.
-// Geofence updates are larger; send one at a time if on low DR.
+// Config updates use a transactional model with integrity checking:
+//   1. CMD_CONFIG_BEGIN  → device snapshots live config into staging buffer
+//   2. Config fragments sent (one per downlink, any order)
+//      Each fragment carries fragment_index and fragment_total for integrity
+//   3. CMD_CONFIG_COMMIT → device verifies all fragments received, then
+//      applies staging → live, persists, notifies threads
+//   If any fragments are missing, commit is rejected (staging discarded).
+//   Device uplinks a config ACK/NACK so the server knows whether to retry.
 
-// ---- Command flags (fits in a single byte on the wire) ----
+// ---- Commands ----
 enum CommandType {
-  CMD_NONE        = 0;
-  CMD_RESET       = 1;  // Reboot the device
-  CMD_DROP_OFF    = 2;  // Detach the collar (irreversible)
-  CMD_HIGH_FIX_ON = 3;  // Enable high-fix GPS mode (24h)
-  CMD_HIGH_FIX_OFF= 4;  // Disable high-fix GPS mode
-  CMD_SYNC_TIME   = 5;  // Sync RTC to server epoch
-  CMD_BUZZ        = 6;  // Audible locate ping (future)
+  CMD_NONE           = 0;
+  CMD_RESET          = 1;   // Reboot the device
+  CMD_DROP_OFF       = 2;   // Detach the collar (irreversible)
+  CMD_HIGH_FIX_ON    = 3;   // Enable high-fix GPS mode
+  CMD_HIGH_FIX_OFF   = 4;   // Disable high-fix GPS mode
+  CMD_SYNC_TIME      = 5;   // Sync RTC to server epoch
+  CMD_BUZZ           = 6;   // Audible locate ping (future)
+  CMD_ENGAGE         = 7;   // Engage the system (start scheduling)
+  CMD_DISENGAGE      = 8;   // Disengage (stop all sensors, idle)
+  CMD_CONFIG_BEGIN   = 9;   // Start config transaction (snapshot live → staging)
+  CMD_CONFIG_COMMIT  = 10;  // Verify + apply staging → live, persist, notify
+  CMD_CONFIG_ABORT   = 11;  // Discard staging buffer
 }
 
-// ---- Compact geofence (polygon encoded as bounding points) ----
-// Coordinates stored as int32 × 1e-7 to avoid floats (same as GPSData_2).
-// Max 8 vertices per geofence keeps wire size manageable.
+// ---- Geofence ----
 message GeoPoint {
-  int32 latitude_e7  = 1;  // degrees × 1e7
-  int32 longitude_e7 = 2;  // degrees × 1e7
+  int32 latitude_e7  = 1;
+  int32 longitude_e7 = 2;
 }
 
 message GeofenceData {
-  uint32 fence_id    = 1;           // server-side ID (for ack/reference)
-  repeated GeoPoint vertices = 2;   // polygon vertices (max 8)
-  bool   active      = 3;           // false = delete this fence on device
+  uint32 fence_id    = 1;
+  repeated GeoPoint vertices = 2;  // max 8
+  bool   active      = 3;
 }
 
-// ---- High-fix mode parameters (optional override) ----
+// ---- High-fix parameters ----
 message HighFixParams {
-  uint32 duration_hours       = 1;  // default 24 if omitted
-  uint32 sample_interval_sec  = 2;  // default 300 (5 min) if omitted
+  uint32 duration_hours       = 1;  // default 24
+  uint32 sample_interval_sec  = 2;  // default 300
+}
+
+// ================== CONFIG FRAGMENTS (STAGED) ==================
+// All fields optional — only present fields overwrite staging.
+// Omitted fields retain their current live value.
+
+// Time window for a schedule slot (~4 bytes)
+message ConfigTimeWindow {
+  optional uint32 start_hour = 1;  // 0-23
+  optional uint32 end_hour   = 2;  // 0-23
+}
+
+// Accelerometer (~4 bytes)
+message ConfigAccelerometer {
+  optional bool   enabled      = 1;
+  optional uint32 sample_rate  = 2;  // 0=25Hz, 1=50Hz
+  optional uint32 sensitivity  = 3;  // 0=2G, 1=4G, 2=8G
+}
+
+// Microphone (~5 bytes)
+message ConfigMicrophone {
+  optional bool   enabled           = 1;
+  optional bool   continuous_mode   = 2;
+  optional uint32 sample_length_min = 3;
+  optional uint32 sample_window_min = 4;
+}
+
+// GPS (~4 bytes)
+message ConfigGPS {
+  optional bool   enabled              = 1;
+  optional uint32 sample_interval_min  = 2;
+  optional uint32 accuracy             = 3;  // 1-10
+}
+
+// Magnetometer (~3 bytes)
+message ConfigMagnetometer {
+  optional bool   enabled           = 1;
+  optional uint32 sample_interval_s = 2;
+}
+
+// Generic sensor: light, environmental, particulate (~3 bytes)
+message ConfigSampling {
+  optional bool   enabled              = 1;
+  optional uint32 sample_interval_min  = 2;
+}
+
+// Per-schedule radio enable/interval (~6 bytes)
+message ConfigRadioTiming {
+  optional bool   lorawan_enabled           = 1;
+  optional uint32 lorawan_send_interval_min = 2;
+  optional bool   lora_enabled              = 3;
+  optional uint32 lora_send_interval_min    = 4;
+  optional int32  tx_power_dbm              = 5;
+}
+
+// Global system flags — not per-schedule (~4 bytes)
+message ConfigSystem {
+  optional bool   verbose_logging       = 1;
+  optional bool   enable_reset_on_error = 2;
+  optional uint32 special_mode          = 3;
+}
+
+// ---- Config fragment wrapper ----
+// Pairs a schedule slot index with exactly one sensor/system config.
+// fragment_index and fragment_total enable integrity checking on commit.
+message ConfigFragment {
+  uint32 schedule_index = 1;  // target schedule slot (0-4)
+  uint32 fragment_index = 2;  // 0-based index of this fragment in the transaction
+  uint32 fragment_total = 3;  // total number of fragments the server will send
+
+  oneof setting {
+    ConfigTimeWindow    cfg_time_window   = 4;
+    ConfigAccelerometer cfg_accelerometer = 5;
+    ConfigMicrophone    cfg_microphone    = 6;
+    ConfigGPS           cfg_gps           = 7;
+    ConfigMagnetometer  cfg_magnetometer  = 8;
+    ConfigSampling      cfg_light         = 9;
+    ConfigSampling      cfg_environmental = 10;
+    ConfigSampling      cfg_particulate   = 11;
+    ConfigRadioTiming   cfg_radio_timing  = 12;
+    ConfigSystem        cfg_system        = 13;  // global, schedule_index ignored
+  }
 }
 
 // ---- Main downlink envelope ----
 message DownlinkPacket {
-  // Server UTC epoch (seconds) — device can sync its RTC
-  uint32 epoch = 1;
+  uint32 epoch = 1;               // server UTC epoch for RTC sync
+  CommandType command = 2;         // command to execute
 
-  // Command to execute (if any)
-  CommandType command = 2;
-
-  // Optional high-fix parameters (only relevant when command = HIGH_FIX_ON)
   optional HighFixParams high_fix_params = 3;
-
-  // Geofence create/update/delete (send one per downlink for size safety)
   optional GeofenceData geofence = 4;
+
+  // Config fragment: one per downlink.
+  // Only processed when a config transaction is open (after CMD_CONFIG_BEGIN).
+  // On CMD_CONFIG_COMMIT, device checks that all fragment_total fragments
+  // were received (via a bitmask indexed by fragment_index). If any are
+  // missing, commit is rejected, staging is discarded, and the device
+  // uplinks a NACK with the missing fragment bitmask so the server can retry.
+  optional ConfigFragment config = 5;
 }
