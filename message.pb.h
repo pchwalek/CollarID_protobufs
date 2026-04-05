@@ -132,7 +132,7 @@ typedef struct deployment {
     bool has_steps;
     uint32_t steps;
     pb_size_t gps_data_count;
-    gps_data_2_t gps_data[10];
+    gps_data_2_t gps_data[5];
     bool has_error_flags;
     error_flags_t error_flags;
 } deployment_t;
@@ -169,7 +169,7 @@ extern "C" {
 #define ENV_DATA_INIT_DEFAULT                    {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define PARTICULATE_DATA_INIT_DEFAULT            {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_DEFAULT                 {0}
-#define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT}
+#define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT}
 #define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT}
 #define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
 #define METADATA_INIT_ZERO                       {0}
@@ -183,7 +183,7 @@ extern "C" {
 #define ENV_DATA_INIT_ZERO                       {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define PARTICULATE_DATA_INIT_ZERO               {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_ZERO                    {0}
-#define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO}
+#define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO}
 #define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -436,11 +436,11 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACC_STATS_SIZE                           64
 #define ACK_PACKET_SIZE                          0
 #define CONFIG_PACKET_SIZE                       16
-#define DEPLOYMENT_SIZE                          641
+#define DEPLOYMENT_SIZE                          401
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          46
-#define MESSAGE_PACKET_SIZE                      707
+#define MESSAGE_PACKET_SIZE                      467
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33
