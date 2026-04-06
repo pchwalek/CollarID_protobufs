@@ -41,7 +41,7 @@ message GPSData_2{
     int32 longitude_e7 = 2;
     optional uint32 altitude_mm = 3;
     uint32 timestamp = 4;
-    optional uint32 gps_avg_fix_time_ms = 5;
+    optional uint32 gps_avg_fix_time_s = 5;
     optional uint32 hdop = 6;
 }
 
