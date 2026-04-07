@@ -32,8 +32,8 @@ typedef struct gps_data_2 {
     bool has_altitude_mm;
     uint32_t altitude_mm;
     uint32_t timestamp;
-    bool has_gps_avg_fix_time_ms;
-    uint32_t gps_avg_fix_time_ms;
+    bool has_gps_avg_fix_time_s;
+    uint32_t gps_avg_fix_time_s;
     bool has_hdop;
     uint32_t hdop;
 } gps_data_2_t;
@@ -293,7 +293,7 @@ X(a, STATIC,   SINGULAR, INT32,    latitude_e7,       1) \
 X(a, STATIC,   SINGULAR, INT32,    longitude_e7,      2) \
 X(a, STATIC,   OPTIONAL, UINT32,   altitude_mm,       3) \
 X(a, STATIC,   SINGULAR, UINT32,   timestamp,         4) \
-X(a, STATIC,   OPTIONAL, UINT32,   gps_avg_fix_time_ms,   5) \
+X(a, STATIC,   OPTIONAL, UINT32,   gps_avg_fix_time_s,   5) \
 X(a, STATIC,   OPTIONAL, UINT32,   hdop,              6)
 #define GPS_DATA_2_CALLBACK NULL
 #define GPS_DATA_2_DEFAULT NULL
