@@ -43,6 +43,7 @@ message GPSData_2{
     uint32 timestamp = 4;
     optional uint32 gps_avg_fix_time_s = 5;
     optional uint32 hdop = 6;
+    optional uint32 h_acc_dm = 7;
 }
 
 
