@@ -19,6 +19,11 @@ message GPSConfig {
   bool   enabled              = 1;
   uint32 sample_interval_min  = 2;
   uint32 accuracy = 3;        // 1 to 10
+  bool   dynamic_sampling_mode                  = 4;
+  uint32 medium_motion_vedba_threshold_x100     = 5;
+  uint32 medium_motion_gps_interval_min         = 6;
+  uint32 high_motion_vedba_threshold_x100       = 7;
+  uint32 high_motion_gps_interval_min           = 8;
 }
 enum RadioRegion {
   REGION_US915 = 0;
