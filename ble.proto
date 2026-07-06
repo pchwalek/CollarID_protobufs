@@ -24,6 +24,8 @@ message GPSConfig {
   uint32 medium_motion_gps_interval_min         = 6;
   uint32 high_motion_vedba_threshold_x100       = 7;
   uint32 high_motion_gps_interval_min           = 8;
+  bool   lorawan_tx_on_gps_fix                  = 9;
+  bool   lora_tx_on_gps_fix                     = 10;
 }
 enum RadioRegion {
   REGION_US915 = 0;
