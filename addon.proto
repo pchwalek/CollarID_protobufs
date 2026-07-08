@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+// Add-on <-> collar rendezvous protocol (detachment mechanism, future
+// SatCom). Carried as CoAP payloads over Thread on the per-animal PAN.
+// Design: collarID_thread/docs/DESIGN_detachment_thread.md §4.4, §5.
+//
+// Replaces the bench-only packed structs (DtStatusV0/DtCmdV0/DtTimeV0).
+
+enum AddonNodeType {
+  ADDON_TYPE_UNKNOWN = 0;
+  ADDON_TYPE_DETACH  = 1;   // detachment mechanism
+  ADDON_TYPE_SATCOM  = 2;   // reserved
+}
+
+enum AddonCommandType {
+  ADDON_CMD_NOP              = 0;
+  ADDON_CMD_SET_DETACH_EPOCH = 1;   // param = epoch (UTC s)
+  ADDON_CMD_DETACH_NOW       = 2;   // param = run timeout s (0 = default)
+  ADDON_CMD_ABORT            = 3;   // clear armed epoch
+  ADDON_CMD_EXTENDED_SESSION = 4;   // param = hold grant, seconds
+  ADDON_CMD_ENABLE_BLE       = 5;   // reserved DFU hook
+  ADDON_CMD_ATTACH_NOW       = 6;   // param = run timeout s (0 = default)
+  ADDON_CMD_MOTOR_STOP       = 7;
+  ADDON_CMD_SET_MODE         = 8;   // param: 0 standalone, 1 linked
+  ADDON_CMD_SET_CHECKIN      = 9;   // param = cadence seconds (>= 60)
+  ADDON_CMD_PAIR             = 10;  // param = collar uid (collar stamps)
+}
+
+enum AddonMotorState {
+  ADDON_MOTOR_IDLE      = 0;
+  ADDON_MOTOR_DETACHING = 1;
+  ADDON_MOTOR_ATTACHING = 2;
+}
+
+// node -> collar, on attach / state change / rate-limited keepalive
+message AddonStatus {
+  uint32 uid            = 1;  // node die UID
+  AddonNodeType node_type = 2;
+  uint32 uptime_s       = 3;
+  uint32 detach_epoch   = 4;  // armed, 0 = none
+  uint32 batt_mv        = 5;  // resting; 0 = unknown
+  AddonMotorState motor_state = 6;
+  uint32 paired_uid     = 7;  // collar this node serves; 0 = unpaired
+  uint32 batt_loaded_mv = 8;  // last under-motor-load reading; 0 = none
+  uint32 fired          = 9;  // 1 = scheduled detach already fired
+}
+
+// collar -> node
+message AddonCommand {
+  AddonCommandType cmd = 1;
+  uint32 param         = 2;
+  uint32 src_uid       = 3;  // sending collar identity (pairing filter)
+  uint32 sender_epoch  = 4;  // optional opportunistic RTC sync (§5.1); 0 = none
+}
+
+// collar -> node (explicit time discipline; any AddonCommand.sender_epoch
+// also disciplines the clock)
+message AddonTime {
+  uint32 epoch   = 1;  // UTC seconds; node gates >= 2026-01-01
+  uint32 src_uid = 2;
+}
