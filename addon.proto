@@ -24,6 +24,8 @@ enum AddonCommandType {
   ADDON_CMD_SET_MODE         = 8;   // param: 0 standalone, 1 linked
   ADDON_CMD_SET_CHECKIN      = 9;   // param = cadence seconds (>= 60)
   ADDON_CMD_PAIR             = 10;  // param = collar uid (collar stamps)
+  ADDON_CMD_UNPAIR           = 11;  // owner/paired only: clear pairing
+  ADDON_CMD_FACTORY_RESET    = 12;  // owner only: defaults + reboot
 }
 
 enum AddonMotorState {

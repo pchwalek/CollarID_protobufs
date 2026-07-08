@@ -27,7 +27,9 @@ typedef enum _AddonCommandType {
     AddonCommandType_ADDON_CMD_MOTOR_STOP = 7,
     AddonCommandType_ADDON_CMD_SET_MODE = 8, /* param: 0 standalone, 1 linked */
     AddonCommandType_ADDON_CMD_SET_CHECKIN = 9, /* param = cadence seconds (>= 60) */
-    AddonCommandType_ADDON_CMD_PAIR = 10 /* param = collar uid (collar stamps) */
+    AddonCommandType_ADDON_CMD_PAIR = 10, /* param = collar uid (collar stamps) */
+    AddonCommandType_ADDON_CMD_UNPAIR = 11, /* owner/paired only: clear pairing */
+    AddonCommandType_ADDON_CMD_FACTORY_RESET = 12 /* owner only: defaults + reboot */
 } AddonCommandType;
 
 typedef enum _AddonMotorState {
@@ -76,8 +78,8 @@ extern "C" {
 #define _AddonNodeType_ARRAYSIZE ((AddonNodeType)(AddonNodeType_ADDON_TYPE_SATCOM+1))
 
 #define _AddonCommandType_MIN AddonCommandType_ADDON_CMD_NOP
-#define _AddonCommandType_MAX AddonCommandType_ADDON_CMD_PAIR
-#define _AddonCommandType_ARRAYSIZE ((AddonCommandType)(AddonCommandType_ADDON_CMD_PAIR+1))
+#define _AddonCommandType_MAX AddonCommandType_ADDON_CMD_FACTORY_RESET
+#define _AddonCommandType_ARRAYSIZE ((AddonCommandType)(AddonCommandType_ADDON_CMD_FACTORY_RESET+1))
 
 #define _AddonMotorState_MIN AddonMotorState_ADDON_MOTOR_IDLE
 #define _AddonMotorState_MAX AddonMotorState_ADDON_MOTOR_ATTACHING
