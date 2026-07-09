@@ -45,6 +45,9 @@ PB_BIND(ERROR_FLAGS, error_flags_t, AUTO)
 PB_BIND(DEPLOYMENT, deployment_t, 2)
 
 
+PB_BIND(ADDON_REPORT, addon_report_t, AUTO)
+
+
 PB_BIND(MESSAGE_PACKET, message_packet_t, 2)
 
 

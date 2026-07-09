@@ -129,6 +129,21 @@ message Deployment{
     repeated GPSData_2 gps_data = 7;
 
     optional ErrorFlags errorFlags = 8;
+
+    // Add-on (detachment/SatCom) relay — optional: absent when the collar
+    // has no paired add-on or nothing new to report. Populated from the
+    // Thread rendezvous seen-nodes report (DESIGN_detachment_thread.md §7).
+    optional AddonReport addon = 9;
+}
+
+message AddonReport {
+    uint32 uid = 1;               // add-on die UID
+    uint32 node_type = 2;         // AddonNodeType (addon.proto)
+    uint32 last_checkin_epoch = 3;// UTC s of the last completed rendezvous
+    optional uint32 batt_mv = 4;
+    optional uint32 detach_epoch = 5;  // armed drop-off time, 0/absent = none
+    optional uint32 fired = 6;         // 1 = scheduled detach already fired
+    optional uint32 motor_state = 7;   // AddonMotorState
 }
 
 message MessagePacket {
