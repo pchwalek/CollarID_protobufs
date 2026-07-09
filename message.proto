@@ -130,10 +130,11 @@ message Deployment{
 
     optional ErrorFlags errorFlags = 8;
 
-    // Add-on (detachment/SatCom) relay — optional: absent when the collar
-    // has no paired add-on or nothing new to report. Populated from the
-    // Thread rendezvous seen-nodes report (DESIGN_detachment_thread.md §7).
-    optional AddonReport addon = 9;
+    // Add-on (detachment/SatCom) relay — empty when the collar has no
+    // paired add-on or nothing new to report. Repeated: one entry per
+    // add-on in the Thread rendezvous seen-nodes report (up to 4; see
+    // DESIGN_detachment_thread.md §7.1 multi-add-on policy).
+    repeated AddonReport addon = 9;
 }
 
 message AddonReport {

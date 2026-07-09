@@ -151,11 +151,12 @@ typedef struct deployment {
     gps_data_2_t gps_data[5];
     bool has_error_flags;
     error_flags_t error_flags;
-    /* Add-on (detachment/SatCom) relay — optional: absent when the collar
- has no paired add-on or nothing new to report. Populated from the
- Thread rendezvous seen-nodes report (DESIGN_detachment_thread.md §7). */
-    bool has_addon;
-    addon_report_t addon;
+    /* Add-on (detachment/SatCom) relay — empty when the collar has no
+ paired add-on or nothing new to report. Repeated: one entry per
+ add-on in the Thread rendezvous seen-nodes report (up to 4; see
+ DESIGN_detachment_thread.md §7.1 multi-add-on policy). */
+    pb_size_t addon_count;
+    addon_report_t addon[4];
 } deployment_t;
 
 typedef struct message_packet {
@@ -190,7 +191,7 @@ extern "C" {
 #define ENV_DATA_INIT_DEFAULT                    {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define PARTICULATE_DATA_INIT_DEFAULT            {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_DEFAULT                 {0}
-#define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, false, ADDON_REPORT_INIT_DEFAULT}
+#define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}}
 #define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0}
 #define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT}
 #define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
@@ -205,7 +206,7 @@ extern "C" {
 #define ENV_DATA_INIT_ZERO                       {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define PARTICULATE_DATA_INIT_ZERO               {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_ZERO                    {0}
-#define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, false, ADDON_REPORT_INIT_ZERO}
+#define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}}
 #define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0}
 #define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO}
 
@@ -409,7 +410,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  acc_stats,         5) \
 X(a, STATIC,   OPTIONAL, UINT32,   steps,             6) \
 X(a, STATIC,   REPEATED, MESSAGE,  gps_data,          7) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  error_flags,       8) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  addon,             9)
+X(a, STATIC,   REPEATED, MESSAGE,  addon,             9)
 #define DEPLOYMENT_CALLBACK NULL
 #define DEPLOYMENT_DEFAULT NULL
 #define deployment_t_particulate_data_MSGTYPE particulate_data_t
@@ -485,11 +486,11 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACK_PACKET_SIZE                          0
 #define ADDON_REPORT_SIZE                        42
 #define CONFIG_PACKET_SIZE                       16
-#define DEPLOYMENT_SIZE                          475
+#define DEPLOYMENT_SIZE                          607
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      541
+#define MESSAGE_PACKET_SIZE                      673
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33
