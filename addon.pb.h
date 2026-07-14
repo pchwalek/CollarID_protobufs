@@ -10,62 +10,62 @@
 #endif
 
 /* Enum definitions */
-typedef enum _AddonNodeType {
-    AddonNodeType_ADDON_TYPE_UNKNOWN = 0,
-    AddonNodeType_ADDON_TYPE_DETACH = 1, /* detachment mechanism */
-    AddonNodeType_ADDON_TYPE_SATCOM = 2 /* reserved */
-} AddonNodeType;
+typedef enum addon_node_type {
+    ADDON_NODE_TYPE_ADDON_TYPE_UNKNOWN = 0,
+    ADDON_NODE_TYPE_ADDON_TYPE_DETACH = 1, /* detachment mechanism */
+    ADDON_NODE_TYPE_ADDON_TYPE_SATCOM = 2 /* reserved */
+} addon_node_type_t;
 
-typedef enum _AddonCommandType {
-    AddonCommandType_ADDON_CMD_NOP = 0,
-    AddonCommandType_ADDON_CMD_SET_DETACH_EPOCH = 1, /* param = epoch (UTC s) */
-    AddonCommandType_ADDON_CMD_DETACH_NOW = 2, /* param = run timeout s (0 = default) */
-    AddonCommandType_ADDON_CMD_ABORT = 3, /* clear armed epoch */
-    AddonCommandType_ADDON_CMD_EXTENDED_SESSION = 4, /* param = hold grant, seconds */
-    AddonCommandType_ADDON_CMD_ENABLE_BLE = 5, /* reserved DFU hook */
-    AddonCommandType_ADDON_CMD_ATTACH_NOW = 6, /* param = run timeout s (0 = default) */
-    AddonCommandType_ADDON_CMD_MOTOR_STOP = 7,
-    AddonCommandType_ADDON_CMD_SET_MODE = 8, /* param: 0 standalone, 1 linked */
-    AddonCommandType_ADDON_CMD_SET_CHECKIN = 9, /* param = cadence seconds (>= 60) */
-    AddonCommandType_ADDON_CMD_PAIR = 10, /* param = collar uid (collar stamps) */
-    AddonCommandType_ADDON_CMD_UNPAIR = 11, /* owner/paired only: clear pairing */
-    AddonCommandType_ADDON_CMD_FACTORY_RESET = 12 /* owner only: defaults + reboot */
-} AddonCommandType;
+typedef enum addon_command_type {
+    ADDON_COMMAND_TYPE_ADDON_CMD_NOP = 0,
+    ADDON_COMMAND_TYPE_ADDON_CMD_SET_DETACH_EPOCH = 1, /* param = epoch (UTC s) */
+    ADDON_COMMAND_TYPE_ADDON_CMD_DETACH_NOW = 2, /* param = run timeout s (0 = default) */
+    ADDON_COMMAND_TYPE_ADDON_CMD_ABORT = 3, /* clear armed epoch */
+    ADDON_COMMAND_TYPE_ADDON_CMD_EXTENDED_SESSION = 4, /* param = hold grant, seconds */
+    ADDON_COMMAND_TYPE_ADDON_CMD_ENABLE_BLE = 5, /* reserved DFU hook */
+    ADDON_COMMAND_TYPE_ADDON_CMD_ATTACH_NOW = 6, /* param = run timeout s (0 = default) */
+    ADDON_COMMAND_TYPE_ADDON_CMD_MOTOR_STOP = 7,
+    ADDON_COMMAND_TYPE_ADDON_CMD_SET_MODE = 8, /* param: 0 standalone, 1 linked */
+    ADDON_COMMAND_TYPE_ADDON_CMD_SET_CHECKIN = 9, /* param = cadence seconds (>= 60) */
+    ADDON_COMMAND_TYPE_ADDON_CMD_PAIR = 10, /* param = collar uid (collar stamps) */
+    ADDON_COMMAND_TYPE_ADDON_CMD_UNPAIR = 11, /* owner/paired only: clear pairing */
+    ADDON_COMMAND_TYPE_ADDON_CMD_FACTORY_RESET = 12 /* owner only: defaults + reboot */
+} addon_command_type_t;
 
-typedef enum _AddonMotorState {
-    AddonMotorState_ADDON_MOTOR_IDLE = 0,
-    AddonMotorState_ADDON_MOTOR_DETACHING = 1,
-    AddonMotorState_ADDON_MOTOR_ATTACHING = 2
-} AddonMotorState;
+typedef enum addon_motor_state {
+    ADDON_MOTOR_STATE_ADDON_MOTOR_IDLE = 0,
+    ADDON_MOTOR_STATE_ADDON_MOTOR_DETACHING = 1,
+    ADDON_MOTOR_STATE_ADDON_MOTOR_ATTACHING = 2
+} addon_motor_state_t;
 
 /* Struct definitions */
 /* node -> collar, on attach / state change / rate-limited keepalive */
-typedef struct _AddonStatus {
+typedef struct addon_status {
     uint32_t uid; /* node die UID */
-    AddonNodeType node_type;
+    addon_node_type_t node_type;
     uint32_t uptime_s;
     uint32_t detach_epoch; /* armed, 0 = none */
     uint32_t batt_mv; /* resting; 0 = unknown */
-    AddonMotorState motor_state;
+    addon_motor_state_t motor_state;
     uint32_t paired_uid; /* collar this node serves; 0 = unpaired */
     uint32_t batt_loaded_mv; /* last under-motor-load reading; 0 = none */
     uint32_t fired; /* 1 = scheduled detach already fired */
-} AddonStatus;
+} addon_status_t;
 
 /* collar -> node */
-typedef struct _AddonCommand {
-    AddonCommandType cmd;
+typedef struct addon_command {
+    addon_command_type_t cmd;
     uint32_t param;
     uint32_t src_uid; /* sending collar identity (pairing filter) */
     uint32_t sender_epoch; /* optional opportunistic RTC sync (§5.1); 0 = none */
-} AddonCommand;
+} addon_command_t;
 
 /* collar -> node (explicit time discipline; any AddonCommand.sender_epoch
  also disciplines the clock) */
-typedef struct _AddonTime {
+typedef struct addon_time {
     uint32_t epoch; /* UTC seconds; node gates >= 2026-01-01 */
     uint32_t src_uid;
-} AddonTime;
+} addon_time_t;
 
 
 #ifdef __cplusplus
@@ -73,52 +73,52 @@ extern "C" {
 #endif
 
 /* Helper constants for enums */
-#define _AddonNodeType_MIN AddonNodeType_ADDON_TYPE_UNKNOWN
-#define _AddonNodeType_MAX AddonNodeType_ADDON_TYPE_SATCOM
-#define _AddonNodeType_ARRAYSIZE ((AddonNodeType)(AddonNodeType_ADDON_TYPE_SATCOM+1))
+#define _ADDON_NODE_TYPE_MIN ADDON_NODE_TYPE_ADDON_TYPE_UNKNOWN
+#define _ADDON_NODE_TYPE_MAX ADDON_NODE_TYPE_ADDON_TYPE_SATCOM
+#define _ADDON_NODE_TYPE_ARRAYSIZE ((addon_node_type_t)(ADDON_NODE_TYPE_ADDON_TYPE_SATCOM+1))
 
-#define _AddonCommandType_MIN AddonCommandType_ADDON_CMD_NOP
-#define _AddonCommandType_MAX AddonCommandType_ADDON_CMD_FACTORY_RESET
-#define _AddonCommandType_ARRAYSIZE ((AddonCommandType)(AddonCommandType_ADDON_CMD_FACTORY_RESET+1))
+#define _ADDON_COMMAND_TYPE_MIN ADDON_COMMAND_TYPE_ADDON_CMD_NOP
+#define _ADDON_COMMAND_TYPE_MAX ADDON_COMMAND_TYPE_ADDON_CMD_FACTORY_RESET
+#define _ADDON_COMMAND_TYPE_ARRAYSIZE ((addon_command_type_t)(ADDON_COMMAND_TYPE_ADDON_CMD_FACTORY_RESET+1))
 
-#define _AddonMotorState_MIN AddonMotorState_ADDON_MOTOR_IDLE
-#define _AddonMotorState_MAX AddonMotorState_ADDON_MOTOR_ATTACHING
-#define _AddonMotorState_ARRAYSIZE ((AddonMotorState)(AddonMotorState_ADDON_MOTOR_ATTACHING+1))
+#define _ADDON_MOTOR_STATE_MIN ADDON_MOTOR_STATE_ADDON_MOTOR_IDLE
+#define _ADDON_MOTOR_STATE_MAX ADDON_MOTOR_STATE_ADDON_MOTOR_ATTACHING
+#define _ADDON_MOTOR_STATE_ARRAYSIZE ((addon_motor_state_t)(ADDON_MOTOR_STATE_ADDON_MOTOR_ATTACHING+1))
 
-#define AddonStatus_node_type_ENUMTYPE AddonNodeType
-#define AddonStatus_motor_state_ENUMTYPE AddonMotorState
+#define addon_status_t_node_type_ENUMTYPE addon_node_type_t
+#define addon_status_t_motor_state_ENUMTYPE addon_motor_state_t
 
-#define AddonCommand_cmd_ENUMTYPE AddonCommandType
+#define addon_command_t_cmd_ENUMTYPE addon_command_type_t
 
 
 
 /* Initializer values for message structs */
-#define AddonStatus_init_default                 {0, _AddonNodeType_MIN, 0, 0, 0, _AddonMotorState_MIN, 0, 0, 0}
-#define AddonCommand_init_default                {_AddonCommandType_MIN, 0, 0, 0}
-#define AddonTime_init_default                   {0, 0}
-#define AddonStatus_init_zero                    {0, _AddonNodeType_MIN, 0, 0, 0, _AddonMotorState_MIN, 0, 0, 0}
-#define AddonCommand_init_zero                   {_AddonCommandType_MIN, 0, 0, 0}
-#define AddonTime_init_zero                      {0, 0}
+#define ADDON_STATUS_INIT_DEFAULT                {0, _ADDON_NODE_TYPE_MIN, 0, 0, 0, _ADDON_MOTOR_STATE_MIN, 0, 0, 0}
+#define ADDON_COMMAND_INIT_DEFAULT               {_ADDON_COMMAND_TYPE_MIN, 0, 0, 0}
+#define ADDON_TIME_INIT_DEFAULT                  {0, 0}
+#define ADDON_STATUS_INIT_ZERO                   {0, _ADDON_NODE_TYPE_MIN, 0, 0, 0, _ADDON_MOTOR_STATE_MIN, 0, 0, 0}
+#define ADDON_COMMAND_INIT_ZERO                  {_ADDON_COMMAND_TYPE_MIN, 0, 0, 0}
+#define ADDON_TIME_INIT_ZERO                     {0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define AddonStatus_uid_tag                      1
-#define AddonStatus_node_type_tag                2
-#define AddonStatus_uptime_s_tag                 3
-#define AddonStatus_detach_epoch_tag             4
-#define AddonStatus_batt_mv_tag                  5
-#define AddonStatus_motor_state_tag              6
-#define AddonStatus_paired_uid_tag               7
-#define AddonStatus_batt_loaded_mv_tag           8
-#define AddonStatus_fired_tag                    9
-#define AddonCommand_cmd_tag                     1
-#define AddonCommand_param_tag                   2
-#define AddonCommand_src_uid_tag                 3
-#define AddonCommand_sender_epoch_tag            4
-#define AddonTime_epoch_tag                      1
-#define AddonTime_src_uid_tag                    2
+#define ADDON_STATUS_UID_TAG                     1
+#define ADDON_STATUS_NODE_TYPE_TAG               2
+#define ADDON_STATUS_UPTIME_S_TAG                3
+#define ADDON_STATUS_DETACH_EPOCH_TAG            4
+#define ADDON_STATUS_BATT_MV_TAG                 5
+#define ADDON_STATUS_MOTOR_STATE_TAG             6
+#define ADDON_STATUS_PAIRED_UID_TAG              7
+#define ADDON_STATUS_BATT_LOADED_MV_TAG          8
+#define ADDON_STATUS_FIRED_TAG                   9
+#define ADDON_COMMAND_CMD_TAG                    1
+#define ADDON_COMMAND_PARAM_TAG                  2
+#define ADDON_COMMAND_SRC_UID_TAG                3
+#define ADDON_COMMAND_SENDER_EPOCH_TAG           4
+#define ADDON_TIME_EPOCH_TAG                     1
+#define ADDON_TIME_SRC_UID_TAG                   2
 
 /* Struct field encoding specification for nanopb */
-#define AddonStatus_FIELDLIST(X, a) \
+#define ADDON_STATUS_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   uid,               1) \
 X(a, STATIC,   SINGULAR, UENUM,    node_type,         2) \
 X(a, STATIC,   SINGULAR, UINT32,   uptime_s,          3) \
@@ -128,36 +128,36 @@ X(a, STATIC,   SINGULAR, UENUM,    motor_state,       6) \
 X(a, STATIC,   SINGULAR, UINT32,   paired_uid,        7) \
 X(a, STATIC,   SINGULAR, UINT32,   batt_loaded_mv,    8) \
 X(a, STATIC,   SINGULAR, UINT32,   fired,             9)
-#define AddonStatus_CALLBACK NULL
-#define AddonStatus_DEFAULT NULL
+#define ADDON_STATUS_CALLBACK NULL
+#define ADDON_STATUS_DEFAULT NULL
 
-#define AddonCommand_FIELDLIST(X, a) \
+#define ADDON_COMMAND_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UENUM,    cmd,               1) \
 X(a, STATIC,   SINGULAR, UINT32,   param,             2) \
 X(a, STATIC,   SINGULAR, UINT32,   src_uid,           3) \
 X(a, STATIC,   SINGULAR, UINT32,   sender_epoch,      4)
-#define AddonCommand_CALLBACK NULL
-#define AddonCommand_DEFAULT NULL
+#define ADDON_COMMAND_CALLBACK NULL
+#define ADDON_COMMAND_DEFAULT NULL
 
-#define AddonTime_FIELDLIST(X, a) \
+#define ADDON_TIME_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
 X(a, STATIC,   SINGULAR, UINT32,   src_uid,           2)
-#define AddonTime_CALLBACK NULL
-#define AddonTime_DEFAULT NULL
+#define ADDON_TIME_CALLBACK NULL
+#define ADDON_TIME_DEFAULT NULL
 
-extern const pb_msgdesc_t AddonStatus_msg;
-extern const pb_msgdesc_t AddonCommand_msg;
-extern const pb_msgdesc_t AddonTime_msg;
+extern const pb_msgdesc_t addon_status_t_msg;
+extern const pb_msgdesc_t addon_command_t_msg;
+extern const pb_msgdesc_t addon_time_t_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
-#define AddonStatus_fields &AddonStatus_msg
-#define AddonCommand_fields &AddonCommand_msg
-#define AddonTime_fields &AddonTime_msg
+#define ADDON_STATUS_FIELDS &addon_status_t_msg
+#define ADDON_COMMAND_FIELDS &addon_command_t_msg
+#define ADDON_TIME_FIELDS &addon_time_t_msg
 
 /* Maximum encoded size of messages (where known) */
-#define AddonCommand_size                        20
-#define AddonStatus_size                         46
-#define AddonTime_size                           12
+#define ADDON_COMMAND_SIZE                       20
+#define ADDON_STATUS_SIZE                        46
+#define ADDON_TIME_SIZE                          12
 
 #ifdef __cplusplus
 } /* extern "C" */

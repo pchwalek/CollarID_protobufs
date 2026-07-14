@@ -145,6 +145,10 @@ message AddonReport {
     optional uint32 detach_epoch = 5;  // armed drop-off time, 0/absent = none
     optional uint32 fired = 6;         // 1 = scheduled detach already fired
     optional uint32 motor_state = 7;   // AddonMotorState
+    // 7.1 durable command queue: the collar's queued command for this add-on,
+    // so the dashboard renders pending/delivered/confirmed truthfully.
+    optional uint32 pending_cmd = 8;   // DtCmd_t numbering; absent = none
+    optional uint32 cmd_state = 9;     // 1 pending, 2 delivered, 3 confirmed
 }
 
 message MessagePacket {

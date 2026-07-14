@@ -6,13 +6,13 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(AddonStatus, AddonStatus, AUTO)
+PB_BIND(ADDON_STATUS, addon_status_t, AUTO)
 
 
-PB_BIND(AddonCommand, AddonCommand, AUTO)
+PB_BIND(ADDON_COMMAND, addon_command_t, AUTO)
 
 
-PB_BIND(AddonTime, AddonTime, AUTO)
+PB_BIND(ADDON_TIME, addon_time_t, AUTO)
 
 
 

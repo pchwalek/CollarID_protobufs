@@ -133,6 +133,12 @@ typedef struct addon_report {
     uint32_t fired; /* 1 = scheduled detach already fired */
     bool has_motor_state;
     uint32_t motor_state; /* AddonMotorState */
+    /* 7.1 durable command queue: the collar's queued command for this add-on,
+ so the dashboard renders pending/delivered/confirmed truthfully. */
+    bool has_pending_cmd;
+    uint32_t pending_cmd; /* DtCmd_t numbering; absent = none */
+    bool has_cmd_state;
+    uint32_t cmd_state; /* 1 pending, 2 delivered, 3 confirmed */
 } addon_report_t;
 
 typedef struct deployment {
@@ -192,7 +198,7 @@ extern "C" {
 #define PARTICULATE_DATA_INIT_DEFAULT            {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_DEFAULT                 {0}
 #define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}}
-#define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0}
+#define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT}
 #define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
 #define METADATA_INIT_ZERO                       {0}
@@ -207,7 +213,7 @@ extern "C" {
 #define PARTICULATE_DATA_INIT_ZERO               {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_ZERO                    {0}
 #define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}}
-#define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0}
+#define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -273,6 +279,8 @@ extern "C" {
 #define ADDON_REPORT_DETACH_EPOCH_TAG            5
 #define ADDON_REPORT_FIRED_TAG                   6
 #define ADDON_REPORT_MOTOR_STATE_TAG             7
+#define ADDON_REPORT_PENDING_CMD_TAG             8
+#define ADDON_REPORT_CMD_STATE_TAG               9
 #define DEPLOYMENT_PARTICULATE_DATA_TAG          1
 #define DEPLOYMENT_ENV_DATA_TAG                  2
 #define DEPLOYMENT_SPACE_REMAINING_MB_TAG        3
@@ -427,7 +435,9 @@ X(a, STATIC,   SINGULAR, UINT32,   last_checkin_epoch,   3) \
 X(a, STATIC,   OPTIONAL, UINT32,   batt_mv,           4) \
 X(a, STATIC,   OPTIONAL, UINT32,   detach_epoch,      5) \
 X(a, STATIC,   OPTIONAL, UINT32,   fired,             6) \
-X(a, STATIC,   OPTIONAL, UINT32,   motor_state,       7)
+X(a, STATIC,   OPTIONAL, UINT32,   motor_state,       7) \
+X(a, STATIC,   OPTIONAL, UINT32,   pending_cmd,       8) \
+X(a, STATIC,   OPTIONAL, UINT32,   cmd_state,         9)
 #define ADDON_REPORT_CALLBACK NULL
 #define ADDON_REPORT_DEFAULT NULL
 
@@ -484,13 +494,13 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACC_AXIS_SIZE                            18
 #define ACC_STATS_SIZE                           64
 #define ACK_PACKET_SIZE                          0
-#define ADDON_REPORT_SIZE                        42
+#define ADDON_REPORT_SIZE                        54
 #define CONFIG_PACKET_SIZE                       16
-#define DEPLOYMENT_SIZE                          607
+#define DEPLOYMENT_SIZE                          655
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      673
+#define MESSAGE_PACKET_SIZE                      721
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33

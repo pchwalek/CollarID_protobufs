@@ -77,6 +77,13 @@ typedef struct gps_config {
     bool enabled;
     uint32_t sample_interval_min;
     uint32_t accuracy; /* 1 to 10 */
+    bool dynamic_sampling_mode;
+    uint32_t medium_motion_vedba_threshold_x100;
+    uint32_t medium_motion_gps_interval_min;
+    uint32_t high_motion_vedba_threshold_x100;
+    uint32_t high_motion_gps_interval_min;
+    bool lorawan_tx_on_gps_fix;
+    bool lora_tx_on_gps_fix;
 } gps_config_t;
 
 typedef struct radio_otaa {
@@ -304,7 +311,7 @@ extern "C" {
 /* Initializer values for message structs */
 #define TIME_WINDOW_INIT_DEFAULT                 {0, 0}
 #define SAMPLING_CONFIG_INIT_DEFAULT             {0, 0}
-#define GPS_CONFIG_INIT_DEFAULT                  {0, 0, 0}
+#define GPS_CONFIG_INIT_DEFAULT                  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define RADIO_OTAA_INIT_DEFAULT                  {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_DEFAULT                   {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_DEFAULT            {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_DEFAULT}, 0, 0, 0}
@@ -323,7 +330,7 @@ extern "C" {
 #define BLE_PACKET_INIT_DEFAULT                  {false, PACKET_HEADER_INIT_DEFAULT, 0, {SCHEDULE_CONFIG_PACKET_INIT_DEFAULT}}
 #define TIME_WINDOW_INIT_ZERO                    {0, 0}
 #define SAMPLING_CONFIG_INIT_ZERO                {0, 0}
-#define GPS_CONFIG_INIT_ZERO                     {0, 0, 0}
+#define GPS_CONFIG_INIT_ZERO                     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define RADIO_OTAA_INIT_ZERO                     {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_ZERO                      {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_ZERO               {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_ZERO}, 0, 0, 0}
@@ -349,6 +356,13 @@ extern "C" {
 #define GPS_CONFIG_ENABLED_TAG                   1
 #define GPS_CONFIG_SAMPLE_INTERVAL_MIN_TAG       2
 #define GPS_CONFIG_ACCURACY_TAG                  3
+#define GPS_CONFIG_DYNAMIC_SAMPLING_MODE_TAG     4
+#define GPS_CONFIG_MEDIUM_MOTION_VEDBA_THRESHOLD_X100_TAG 5
+#define GPS_CONFIG_MEDIUM_MOTION_GPS_INTERVAL_MIN_TAG 6
+#define GPS_CONFIG_HIGH_MOTION_VEDBA_THRESHOLD_X100_TAG 7
+#define GPS_CONFIG_HIGH_MOTION_GPS_INTERVAL_MIN_TAG 8
+#define GPS_CONFIG_LORAWAN_TX_ON_GPS_FIX_TAG     9
+#define GPS_CONFIG_LORA_TX_ON_GPS_FIX_TAG        10
 #define RADIO_OTAA_DEV_EUI_TAG                   1
 #define RADIO_OTAA_JOIN_EUI_TAG                  2
 #define RADIO_OTAA_APP_KEY_TAG                   3
@@ -446,7 +460,14 @@ X(a, STATIC,   SINGULAR, UINT32,   sample_interval_min,   2)
 #define GPS_CONFIG_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, BOOL,     enabled,           1) \
 X(a, STATIC,   SINGULAR, UINT32,   sample_interval_min,   2) \
-X(a, STATIC,   SINGULAR, UINT32,   accuracy,          3)
+X(a, STATIC,   SINGULAR, UINT32,   accuracy,          3) \
+X(a, STATIC,   SINGULAR, BOOL,     dynamic_sampling_mode,   4) \
+X(a, STATIC,   SINGULAR, UINT32,   medium_motion_vedba_threshold_x100,   5) \
+X(a, STATIC,   SINGULAR, UINT32,   medium_motion_gps_interval_min,   6) \
+X(a, STATIC,   SINGULAR, UINT32,   high_motion_vedba_threshold_x100,   7) \
+X(a, STATIC,   SINGULAR, UINT32,   high_motion_gps_interval_min,   8) \
+X(a, STATIC,   SINGULAR, BOOL,     lorawan_tx_on_gps_fix,   9) \
+X(a, STATIC,   SINGULAR, BOOL,     lora_tx_on_gps_fix,  10)
 #define GPS_CONFIG_CALLBACK NULL
 #define GPS_CONFIG_DEFAULT NULL
 
@@ -663,7 +684,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 /* PeripheralInfo_size depends on runtime parameters */
 /* BlePacket_size depends on runtime parameters */
 #define ACCELEROMETER_CONFIG_SIZE                6
-#define GPS_CONFIG_SIZE                          14
+#define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        29
 #define LO_RA_WAN_CONFIG_SIZE                    103
@@ -674,8 +695,8 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 163
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              578
-#define SCHEDULE_CONFIG_SIZE                     112
+#define SCHEDULE_CONFIG_PACKET_SIZE              733
+#define SCHEDULE_CONFIG_SIZE                     142
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 139
 #define TIME_WINDOW_SIZE                         12
