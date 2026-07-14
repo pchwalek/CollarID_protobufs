@@ -30,6 +30,10 @@ enum CommandType {
   CMD_CONFIG_BEGIN   = 9;   // Start config transaction (snapshot live → staging)
   CMD_CONFIG_COMMIT  = 10;  // Verify + apply staging → live, persist, notify
   CMD_CONFIG_ABORT   = 11;  // Discard staging buffer
+  // 7.1 remote add-on control: routed into the collar's durable command
+  // queue and forwarded to the detach add-on at its next rendezvous.
+  CMD_ADDON_ARM      = 13;  // Arm detach at addon_arm_epoch (UTC s)
+  CMD_ADDON_ABORT    = 14;  // Disarm the detach add-on
 }
 
 // ---- Geofence ----
@@ -147,4 +151,8 @@ message DownlinkPacket {
   // missing, commit is rejected, staging is discarded, and the device
   // uplinks a NACK with the missing fragment bitmask so the server can retry.
   optional ConfigFragment config = 5;
+
+  // CMD_ADDON_ARM: the armed drop-off time. Deliberately NOT the epoch
+  // field above — that one is the RTC-sync reference on every downlink.
+  optional uint32 addon_arm_epoch = 6;
 }

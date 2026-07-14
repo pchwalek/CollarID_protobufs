@@ -23,7 +23,11 @@ typedef enum command_type {
     COMMAND_TYPE_CMD_DISENGAGE = 8, /* Disengage (stop all sensors, idle) */
     COMMAND_TYPE_CMD_CONFIG_BEGIN = 9, /* Start config transaction (snapshot live → staging) */
     COMMAND_TYPE_CMD_CONFIG_COMMIT = 10, /* Verify + apply staging → live, persist, notify */
-    COMMAND_TYPE_CMD_CONFIG_ABORT = 11 /* Discard staging buffer */
+    COMMAND_TYPE_CMD_CONFIG_ABORT = 11, /* Discard staging buffer */
+    /* 7.1 remote add-on control: routed into the collar's durable command
+ queue and forwarded to the detach add-on at its next rendezvous. */
+    COMMAND_TYPE_CMD_ADDON_ARM = 13, /* Arm detach at addon_arm_epoch (UTC s) */
+    COMMAND_TYPE_CMD_ADDON_ABORT = 14 /* Disarm the detach add-on */
 } command_type_t;
 
 /* Struct definitions */
@@ -164,6 +168,10 @@ typedef struct downlink_packet {
  uplinks a NACK with the missing fragment bitmask so the server can retry. */
     bool has_config;
     config_fragment_t config;
+    /* CMD_ADDON_ARM: the armed drop-off time. Deliberately NOT the epoch
+ field above — that one is the RTC-sync reference on every downlink. */
+    bool has_addon_arm_epoch;
+    uint32_t addon_arm_epoch;
 } downlink_packet_t;
 
 
@@ -173,8 +181,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_CONFIG_ABORT
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_CONFIG_ABORT+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_ADDON_ABORT
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_ADDON_ABORT+1))
 
 
 
@@ -204,7 +212,7 @@ extern "C" {
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_DEFAULT}}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
@@ -217,7 +225,7 @@ extern "C" {
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_ZERO}}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -269,6 +277,7 @@ extern "C" {
 #define DOWNLINK_PACKET_HIGH_FIX_PARAMS_TAG      3
 #define DOWNLINK_PACKET_GEOFENCE_TAG             4
 #define DOWNLINK_PACKET_CONFIG_TAG               5
+#define DOWNLINK_PACKET_ADDON_ARM_EPOCH_TAG      6
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -379,7 +388,8 @@ X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
 X(a, STATIC,   SINGULAR, UENUM,    command,           2) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  high_fix_params,   3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  geofence,          4) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  config,            5)
+X(a, STATIC,   OPTIONAL, MESSAGE,  config,            5) \
+X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_epoch,   6)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
@@ -425,7 +435,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       10
 #define CONFIG_TIME_WINDOW_SIZE                  12
-#define DOWNLINK_PACKET_SIZE                     274
+#define DOWNLINK_PACKET_SIZE                     280
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12
