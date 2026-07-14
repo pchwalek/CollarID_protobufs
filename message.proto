@@ -149,6 +149,10 @@ message AddonReport {
     // so the dashboard renders pending/delivered/confirmed truthfully.
     optional uint32 pending_cmd = 8;   // DtCmd_t numbering; absent = none
     optional uint32 cmd_state = 9;     // 1 pending, 2 delivered, 3 confirmed
+    // The queued command's parameter — for an arm (pending_cmd=1) this is the
+    // target detach epoch, so the dashboard shows the datetime while the arm
+    // is still in flight (before the node confirms it in detach_epoch).
+    optional uint32 pending_cmd_param = 10;
 }
 
 message MessagePacket {
