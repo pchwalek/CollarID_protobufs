@@ -6,49 +6,49 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(SystemInfoPacket, SystemInfoPacket, AUTO)
+PB_BIND(SYSTEM_INFO_PACKET, system_info_packet_t, AUTO)
 
 
-PB_BIND(Metadata, Metadata, AUTO)
+PB_BIND(METADATA, metadata_t, AUTO)
 
 
-PB_BIND(ConfigPacket, ConfigPacket, AUTO)
+PB_BIND(CONFIG_PACKET, config_packet_t, AUTO)
 
 
-PB_BIND(GPSData_2, GPSData_2, AUTO)
+PB_BIND(GPS_DATA_2, gps_data_2_t, AUTO)
 
 
-PB_BIND(SystemSensorSummary, SystemSensorSummary, AUTO)
+PB_BIND(SYSTEM_SENSOR_SUMMARY, system_sensor_summary_t, AUTO)
 
 
-PB_BIND(AckPacket, AckPacket, AUTO)
+PB_BIND(ACK_PACKET, ack_packet_t, AUTO)
 
 
-PB_BIND(RadioInfo, RadioInfo, AUTO)
+PB_BIND(RADIO_INFO, radio_info_t, AUTO)
 
 
-PB_BIND(AccAxis, AccAxis, AUTO)
+PB_BIND(ACC_AXIS, acc_axis_t, AUTO)
 
 
-PB_BIND(AccStats, AccStats, AUTO)
+PB_BIND(ACC_STATS, acc_stats_t, AUTO)
 
 
-PB_BIND(EnvData, EnvData, AUTO)
+PB_BIND(ENV_DATA, env_data_t, AUTO)
 
 
-PB_BIND(ParticulateData, ParticulateData, AUTO)
+PB_BIND(PARTICULATE_DATA, particulate_data_t, AUTO)
 
 
-PB_BIND(ErrorFlags, ErrorFlags, AUTO)
+PB_BIND(ERROR_FLAGS, error_flags_t, AUTO)
 
 
-PB_BIND(Deployment, Deployment, 2)
+PB_BIND(DEPLOYMENT, deployment_t, 2)
 
 
-PB_BIND(AddonReport, AddonReport, AUTO)
+PB_BIND(ADDON_REPORT, addon_report_t, AUTO)
 
 
-PB_BIND(MessagePacket, MessagePacket, 2)
+PB_BIND(MESSAGE_PACKET, message_packet_t, 2)
 
 
 

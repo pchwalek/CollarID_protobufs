@@ -6,16 +6,16 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(PacketHeader, PacketHeader, AUTO)
+PB_BIND(PACKET_HEADER, packet_header_t, AUTO)
 
 
-PB_BIND(GPSData, GPSData, AUTO)
+PB_BIND(GPS_DATA, gps_data_t, AUTO)
 
 
-PB_BIND(BatteryState, BatteryState, AUTO)
+PB_BIND(BATTERY_STATE, battery_state_t, AUTO)
 
 
-PB_BIND(SDCardState, SDCardState, AUTO)
+PB_BIND(SD_CARD_STATE, sd_card_state_t, AUTO)
 
 
 

@@ -11,11 +11,11 @@
 #endif
 
 /* Struct definitions */
-typedef struct _Metadata {
+typedef struct metadata {
     float gps_avg_fix_time;
-} Metadata;
+} metadata_t;
 
-typedef struct _ConfigPacket {
+typedef struct config_packet {
     bool engage_system;
     bool enable_microphone;
     bool enable_activity;
@@ -24,9 +24,9 @@ typedef struct _ConfigPacket {
     bool enable_light;
     bool enable_motion;
     bool enable_lora;
-} ConfigPacket;
+} config_packet_t;
 
-typedef struct _GPSData_2 {
+typedef struct gps_data_2 {
     int32_t latitude_e7;
     int32_t longitude_e7;
     bool has_altitude_mm;
@@ -38,9 +38,9 @@ typedef struct _GPSData_2 {
     uint32_t hdop;
     bool has_h_acc_dm;
     uint32_t h_acc_dm;
-} GPSData_2;
+} gps_data_2_t;
 
-typedef struct _SystemSensorSummary {
+typedef struct system_sensor_summary {
     float temperature;
     float humidity;
     float pressure;
@@ -52,49 +52,49 @@ typedef struct _SystemSensorSummary {
     uint32_t steps;
     bool particulate_obstructed;
     bool particulate_outside_detection_limits;
-} SystemSensorSummary;
+} system_sensor_summary_t;
 
-typedef struct _SystemInfoPacket {
+typedef struct system_info_packet {
     bool has_system_sensor_summary;
-    SystemSensorSummary system_sensor_summary;
+    system_sensor_summary_t system_sensor_summary;
     bool has_sdcard_state;
-    SDCardState sdcard_state;
+    sd_card_state_t sdcard_state;
     bool has_battery_state;
-    BatteryState battery_state;
+    battery_state_t battery_state;
     bool has_metadata;
-    Metadata metadata;
+    metadata_t metadata;
     bool has_gps_data;
-    GPSData gps_data;
-} SystemInfoPacket;
+    gps_data_t gps_data;
+} system_info_packet_t;
 
-typedef struct _AckPacket {
+typedef struct ack_packet {
     char dummy_field;
-} AckPacket;
+} ack_packet_t;
 
-typedef struct _RadioInfo {
+typedef struct radio_info {
     int32_t rssi;
     int32_t snr;
     int32_t rssi_est;
-} RadioInfo;
+} radio_info_t;
 
-typedef struct _AccAxis {
+typedef struct acc_axis {
     uint32_t x;
     uint32_t y;
     uint32_t z;
-} AccAxis;
+} acc_axis_t;
 
-typedef struct _AccStats {
-    uint32_t ODBA_mean_x100;
-    uint32_t ODBA_max_x100;
-    uint32_t VeDBA_mean_x100;
-    uint32_t VeDBA_max_x100;
-    bool has_StdDev_x100;
-    AccAxis StdDev_x100;
-    bool has_Mean_x100;
-    AccAxis Mean_x100;
-} AccStats;
+typedef struct acc_stats {
+    uint32_t odba_mean_x100;
+    uint32_t odba_max_x100;
+    uint32_t ve_dba_mean_x100;
+    uint32_t ve_dba_max_x100;
+    bool has_std_dev_x100;
+    acc_axis_t std_dev_x100;
+    bool has_mean_x100;
+    acc_axis_t mean_x100;
+} acc_stats_t;
 
-typedef struct _EnvData {
+typedef struct env_data {
     bool has_temperature_x10;
     int32_t temperature_x10;
     bool has_humidity_x10;
@@ -107,21 +107,21 @@ typedef struct _EnvData {
     uint32_t light;
     bool has_timestamp;
     uint32_t timestamp;
-} EnvData;
+} env_data_t;
 
-typedef struct _ParticulateData {
+typedef struct particulate_data {
     uint32_t pm1;
     uint32_t pm2_5;
     uint32_t pm10;
     bool has_timestamp;
     uint32_t timestamp;
-} ParticulateData;
+} particulate_data_t;
 
-typedef struct _ErrorFlags {
+typedef struct error_flags {
     uint32_t flag;
-} ErrorFlags;
+} error_flags_t;
 
-typedef struct _AddonReport {
+typedef struct addon_report {
     uint32_t uid; /* add-on die UID */
     uint32_t node_type; /* AddonNodeType (addon.proto) */
     uint32_t last_checkin_epoch; /* UTC s of the last completed rendezvous */
@@ -144,45 +144,45 @@ typedef struct _AddonReport {
  is still in flight (before the node confirms it in detach_epoch). */
     bool has_pending_cmd_param;
     uint32_t pending_cmd_param;
-} AddonReport;
+} addon_report_t;
 
-typedef struct _Deployment {
-    bool has_particulateData;
-    ParticulateData particulateData;
-    bool has_envData;
-    EnvData envData;
+typedef struct deployment {
+    bool has_particulate_data;
+    particulate_data_t particulate_data;
+    bool has_env_data;
+    env_data_t env_data;
     bool has_space_remaining_mb;
     uint32_t space_remaining_mb;
     uint32_t battery_percentage_x10;
-    bool has_accStats;
-    AccStats accStats;
+    bool has_acc_stats;
+    acc_stats_t acc_stats;
     bool has_steps;
     uint32_t steps;
     pb_size_t gps_data_count;
-    GPSData_2 gps_data[5];
-    bool has_errorFlags;
-    ErrorFlags errorFlags;
+    gps_data_2_t gps_data[5];
+    bool has_error_flags;
+    error_flags_t error_flags;
     /* Add-on (detachment/SatCom) relay — empty when the collar has no
  paired add-on or nothing new to report. Repeated: one entry per
  add-on in the Thread rendezvous seen-nodes report (up to 4; see
  DESIGN_detachment_thread.md §7.1 multi-add-on policy). */
     pb_size_t addon_count;
-    AddonReport addon[4];
-} Deployment;
+    addon_report_t addon[4];
+} deployment_t;
 
-typedef struct _MessagePacket {
+typedef struct message_packet {
     bool has_header;
-    PacketHeader header;
+    packet_header_t header;
     pb_size_t which_payload;
     union {
-        SystemInfoPacket system_info_packet;
-        ConfigPacket config_packet;
-        AckPacket ack_packet;
-        Deployment system_deployment_packet;
+        system_info_packet_t system_info_packet;
+        config_packet_t config_packet;
+        ack_packet_t ack_packet;
+        deployment_t system_deployment_packet;
     } payload;
     bool has_radio_info;
-    RadioInfo radio_info;
-} MessagePacket;
+    radio_info_t radio_info;
+} message_packet_t;
 
 
 #ifdef __cplusplus
@@ -190,140 +190,140 @@ extern "C" {
 #endif
 
 /* Initializer values for message structs */
-#define SystemInfoPacket_init_default            {false, SystemSensorSummary_init_default, false, SDCardState_init_default, false, BatteryState_init_default, false, Metadata_init_default, false, GPSData_init_default}
-#define Metadata_init_default                    {0}
-#define ConfigPacket_init_default                {0, 0, 0, 0, 0, 0, 0, 0}
-#define GPSData_2_init_default                   {0, 0, false, 0, 0, false, 0, false, 0, false, 0}
-#define SystemSensorSummary_init_default         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-#define AckPacket_init_default                   {0}
-#define RadioInfo_init_default                   {0, 0, 0}
-#define AccAxis_init_default                     {0, 0, 0}
-#define AccStats_init_default                    {0, 0, 0, 0, false, AccAxis_init_default, false, AccAxis_init_default}
-#define EnvData_init_default                     {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define ParticulateData_init_default             {0, 0, 0, false, 0}
-#define ErrorFlags_init_default                  {0}
-#define Deployment_init_default                  {false, ParticulateData_init_default, false, EnvData_init_default, false, 0, 0, false, AccStats_init_default, false, 0, 0, {GPSData_2_init_default, GPSData_2_init_default, GPSData_2_init_default, GPSData_2_init_default, GPSData_2_init_default}, false, ErrorFlags_init_default, 0, {AddonReport_init_default, AddonReport_init_default, AddonReport_init_default, AddonReport_init_default}}
-#define AddonReport_init_default                 {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define MessagePacket_init_default               {false, PacketHeader_init_default, 0, {SystemInfoPacket_init_default}, false, RadioInfo_init_default}
-#define SystemInfoPacket_init_zero               {false, SystemSensorSummary_init_zero, false, SDCardState_init_zero, false, BatteryState_init_zero, false, Metadata_init_zero, false, GPSData_init_zero}
-#define Metadata_init_zero                       {0}
-#define ConfigPacket_init_zero                   {0, 0, 0, 0, 0, 0, 0, 0}
-#define GPSData_2_init_zero                      {0, 0, false, 0, 0, false, 0, false, 0, false, 0}
-#define SystemSensorSummary_init_zero            {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-#define AckPacket_init_zero                      {0}
-#define RadioInfo_init_zero                      {0, 0, 0}
-#define AccAxis_init_zero                        {0, 0, 0}
-#define AccStats_init_zero                       {0, 0, 0, 0, false, AccAxis_init_zero, false, AccAxis_init_zero}
-#define EnvData_init_zero                        {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define ParticulateData_init_zero                {0, 0, 0, false, 0}
-#define ErrorFlags_init_zero                     {0}
-#define Deployment_init_zero                     {false, ParticulateData_init_zero, false, EnvData_init_zero, false, 0, 0, false, AccStats_init_zero, false, 0, 0, {GPSData_2_init_zero, GPSData_2_init_zero, GPSData_2_init_zero, GPSData_2_init_zero, GPSData_2_init_zero}, false, ErrorFlags_init_zero, 0, {AddonReport_init_zero, AddonReport_init_zero, AddonReport_init_zero, AddonReport_init_zero}}
-#define AddonReport_init_zero                    {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define MessagePacket_init_zero                  {false, PacketHeader_init_zero, 0, {SystemInfoPacket_init_zero}, false, RadioInfo_init_zero}
+#define SYSTEM_INFO_PACKET_INIT_DEFAULT          {false, SYSTEM_SENSOR_SUMMARY_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, BATTERY_STATE_INIT_DEFAULT, false, METADATA_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT}
+#define METADATA_INIT_DEFAULT                    {0}
+#define CONFIG_PACKET_INIT_DEFAULT               {0, 0, 0, 0, 0, 0, 0, 0}
+#define GPS_DATA_2_INIT_DEFAULT                  {0, 0, false, 0, 0, false, 0, false, 0, false, 0}
+#define SYSTEM_SENSOR_SUMMARY_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define ACK_PACKET_INIT_DEFAULT                  {0}
+#define RADIO_INFO_INIT_DEFAULT                  {0, 0, 0}
+#define ACC_AXIS_INIT_DEFAULT                    {0, 0, 0}
+#define ACC_STATS_INIT_DEFAULT                   {0, 0, 0, 0, false, ACC_AXIS_INIT_DEFAULT, false, ACC_AXIS_INIT_DEFAULT}
+#define ENV_DATA_INIT_DEFAULT                    {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define PARTICULATE_DATA_INIT_DEFAULT            {0, 0, 0, false, 0}
+#define ERROR_FLAGS_INIT_DEFAULT                 {0}
+#define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}}
+#define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT}
+#define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
+#define METADATA_INIT_ZERO                       {0}
+#define CONFIG_PACKET_INIT_ZERO                  {0, 0, 0, 0, 0, 0, 0, 0}
+#define GPS_DATA_2_INIT_ZERO                     {0, 0, false, 0, 0, false, 0, false, 0, false, 0}
+#define SYSTEM_SENSOR_SUMMARY_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define ACK_PACKET_INIT_ZERO                     {0}
+#define RADIO_INFO_INIT_ZERO                     {0, 0, 0}
+#define ACC_AXIS_INIT_ZERO                       {0, 0, 0}
+#define ACC_STATS_INIT_ZERO                      {0, 0, 0, 0, false, ACC_AXIS_INIT_ZERO, false, ACC_AXIS_INIT_ZERO}
+#define ENV_DATA_INIT_ZERO                       {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define PARTICULATE_DATA_INIT_ZERO               {0, 0, 0, false, 0}
+#define ERROR_FLAGS_INIT_ZERO                    {0}
+#define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}}
+#define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define Metadata_gps_avg_fix_time_tag            1
-#define ConfigPacket_engage_system_tag           1
-#define ConfigPacket_enable_microphone_tag       2
-#define ConfigPacket_enable_activity_tag         3
-#define ConfigPacket_enable_particulate_tag      4
-#define ConfigPacket_enable_environmental_tag    5
-#define ConfigPacket_enable_light_tag            6
-#define ConfigPacket_enable_motion_tag           7
-#define ConfigPacket_enable_lora_tag             8
-#define GPSData_2_latitude_e7_tag                1
-#define GPSData_2_longitude_e7_tag               2
-#define GPSData_2_altitude_mm_tag                3
-#define GPSData_2_timestamp_tag                  4
-#define GPSData_2_gps_avg_fix_time_s_tag         5
-#define GPSData_2_hdop_tag                       6
-#define GPSData_2_h_acc_dm_tag                   7
-#define SystemSensorSummary_temperature_tag      1
-#define SystemSensorSummary_humidity_tag         2
-#define SystemSensorSummary_pressure_tag         3
-#define SystemSensorSummary_gas_tag              4
-#define SystemSensorSummary_pm1_tag              5
-#define SystemSensorSummary_pm2_5_tag            6
-#define SystemSensorSummary_pm10_tag             7
-#define SystemSensorSummary_light_tag            8
-#define SystemSensorSummary_steps_tag            9
-#define SystemSensorSummary_particulate_obstructed_tag 10
-#define SystemSensorSummary_particulate_outside_detection_limits_tag 11
-#define SystemInfoPacket_system_sensor_summary_tag 1
-#define SystemInfoPacket_sdcard_state_tag        2
-#define SystemInfoPacket_battery_state_tag       3
-#define SystemInfoPacket_metadata_tag            4
-#define SystemInfoPacket_gps_data_tag            5
-#define RadioInfo_rssi_tag                       1
-#define RadioInfo_snr_tag                        2
-#define RadioInfo_rssi_est_tag                   3
-#define AccAxis_x_tag                            1
-#define AccAxis_y_tag                            2
-#define AccAxis_z_tag                            3
-#define AccStats_ODBA_mean_x100_tag              1
-#define AccStats_ODBA_max_x100_tag               2
-#define AccStats_VeDBA_mean_x100_tag             3
-#define AccStats_VeDBA_max_x100_tag              4
-#define AccStats_StdDev_x100_tag                 5
-#define AccStats_Mean_x100_tag                   6
-#define EnvData_temperature_x10_tag              1
-#define EnvData_humidity_x10_tag                 2
-#define EnvData_gas_tag                          3
-#define EnvData_pressure_tag                     4
-#define EnvData_light_tag                        5
-#define EnvData_timestamp_tag                    6
-#define ParticulateData_pm1_tag                  1
-#define ParticulateData_pm2_5_tag                2
-#define ParticulateData_pm10_tag                 3
-#define ParticulateData_timestamp_tag            4
-#define ErrorFlags_flag_tag                      1
-#define AddonReport_uid_tag                      1
-#define AddonReport_node_type_tag                2
-#define AddonReport_last_checkin_epoch_tag       3
-#define AddonReport_batt_mv_tag                  4
-#define AddonReport_detach_epoch_tag             5
-#define AddonReport_fired_tag                    6
-#define AddonReport_motor_state_tag              7
-#define AddonReport_pending_cmd_tag              8
-#define AddonReport_cmd_state_tag                9
-#define AddonReport_pending_cmd_param_tag        10
-#define Deployment_particulateData_tag           1
-#define Deployment_envData_tag                   2
-#define Deployment_space_remaining_mb_tag        3
-#define Deployment_battery_percentage_x10_tag    4
-#define Deployment_accStats_tag                  5
-#define Deployment_steps_tag                     6
-#define Deployment_gps_data_tag                  7
-#define Deployment_errorFlags_tag                8
-#define Deployment_addon_tag                     9
-#define MessagePacket_header_tag                 1
-#define MessagePacket_system_info_packet_tag     2
-#define MessagePacket_config_packet_tag          3
-#define MessagePacket_ack_packet_tag             4
-#define MessagePacket_system_deployment_packet_tag 5
-#define MessagePacket_radio_info_tag             6
+#define METADATA_GPS_AVG_FIX_TIME_TAG            1
+#define CONFIG_PACKET_ENGAGE_SYSTEM_TAG          1
+#define CONFIG_PACKET_ENABLE_MICROPHONE_TAG      2
+#define CONFIG_PACKET_ENABLE_ACTIVITY_TAG        3
+#define CONFIG_PACKET_ENABLE_PARTICULATE_TAG     4
+#define CONFIG_PACKET_ENABLE_ENVIRONMENTAL_TAG   5
+#define CONFIG_PACKET_ENABLE_LIGHT_TAG           6
+#define CONFIG_PACKET_ENABLE_MOTION_TAG          7
+#define CONFIG_PACKET_ENABLE_LORA_TAG            8
+#define GPS_DATA_2_LATITUDE_E7_TAG               1
+#define GPS_DATA_2_LONGITUDE_E7_TAG              2
+#define GPS_DATA_2_ALTITUDE_MM_TAG               3
+#define GPS_DATA_2_TIMESTAMP_TAG                 4
+#define GPS_DATA_2_GPS_AVG_FIX_TIME_S_TAG        5
+#define GPS_DATA_2_HDOP_TAG                      6
+#define GPS_DATA_2_H_ACC_DM_TAG                  7
+#define SYSTEM_SENSOR_SUMMARY_TEMPERATURE_TAG    1
+#define SYSTEM_SENSOR_SUMMARY_HUMIDITY_TAG       2
+#define SYSTEM_SENSOR_SUMMARY_PRESSURE_TAG       3
+#define SYSTEM_SENSOR_SUMMARY_GAS_TAG            4
+#define SYSTEM_SENSOR_SUMMARY_PM1_TAG            5
+#define SYSTEM_SENSOR_SUMMARY_PM2_5_TAG          6
+#define SYSTEM_SENSOR_SUMMARY_PM10_TAG           7
+#define SYSTEM_SENSOR_SUMMARY_LIGHT_TAG          8
+#define SYSTEM_SENSOR_SUMMARY_STEPS_TAG          9
+#define SYSTEM_SENSOR_SUMMARY_PARTICULATE_OBSTRUCTED_TAG 10
+#define SYSTEM_SENSOR_SUMMARY_PARTICULATE_OUTSIDE_DETECTION_LIMITS_TAG 11
+#define SYSTEM_INFO_PACKET_SYSTEM_SENSOR_SUMMARY_TAG 1
+#define SYSTEM_INFO_PACKET_SDCARD_STATE_TAG      2
+#define SYSTEM_INFO_PACKET_BATTERY_STATE_TAG     3
+#define SYSTEM_INFO_PACKET_METADATA_TAG          4
+#define SYSTEM_INFO_PACKET_GPS_DATA_TAG          5
+#define RADIO_INFO_RSSI_TAG                      1
+#define RADIO_INFO_SNR_TAG                       2
+#define RADIO_INFO_RSSI_EST_TAG                  3
+#define ACC_AXIS_X_TAG                           1
+#define ACC_AXIS_Y_TAG                           2
+#define ACC_AXIS_Z_TAG                           3
+#define ACC_STATS_ODBA_MEAN_X100_TAG             1
+#define ACC_STATS_ODBA_MAX_X100_TAG              2
+#define ACC_STATS_VE_DBA_MEAN_X100_TAG           3
+#define ACC_STATS_VE_DBA_MAX_X100_TAG            4
+#define ACC_STATS_STD_DEV_X100_TAG               5
+#define ACC_STATS_MEAN_X100_TAG                  6
+#define ENV_DATA_TEMPERATURE_X10_TAG             1
+#define ENV_DATA_HUMIDITY_X10_TAG                2
+#define ENV_DATA_GAS_TAG                         3
+#define ENV_DATA_PRESSURE_TAG                    4
+#define ENV_DATA_LIGHT_TAG                       5
+#define ENV_DATA_TIMESTAMP_TAG                   6
+#define PARTICULATE_DATA_PM1_TAG                 1
+#define PARTICULATE_DATA_PM2_5_TAG               2
+#define PARTICULATE_DATA_PM10_TAG                3
+#define PARTICULATE_DATA_TIMESTAMP_TAG           4
+#define ERROR_FLAGS_FLAG_TAG                     1
+#define ADDON_REPORT_UID_TAG                     1
+#define ADDON_REPORT_NODE_TYPE_TAG               2
+#define ADDON_REPORT_LAST_CHECKIN_EPOCH_TAG      3
+#define ADDON_REPORT_BATT_MV_TAG                 4
+#define ADDON_REPORT_DETACH_EPOCH_TAG            5
+#define ADDON_REPORT_FIRED_TAG                   6
+#define ADDON_REPORT_MOTOR_STATE_TAG             7
+#define ADDON_REPORT_PENDING_CMD_TAG             8
+#define ADDON_REPORT_CMD_STATE_TAG               9
+#define ADDON_REPORT_PENDING_CMD_PARAM_TAG       10
+#define DEPLOYMENT_PARTICULATE_DATA_TAG          1
+#define DEPLOYMENT_ENV_DATA_TAG                  2
+#define DEPLOYMENT_SPACE_REMAINING_MB_TAG        3
+#define DEPLOYMENT_BATTERY_PERCENTAGE_X10_TAG    4
+#define DEPLOYMENT_ACC_STATS_TAG                 5
+#define DEPLOYMENT_STEPS_TAG                     6
+#define DEPLOYMENT_GPS_DATA_TAG                  7
+#define DEPLOYMENT_ERROR_FLAGS_TAG               8
+#define DEPLOYMENT_ADDON_TAG                     9
+#define MESSAGE_PACKET_HEADER_TAG                1
+#define MESSAGE_PACKET_SYSTEM_INFO_PACKET_TAG    2
+#define MESSAGE_PACKET_CONFIG_PACKET_TAG         3
+#define MESSAGE_PACKET_ACK_PACKET_TAG            4
+#define MESSAGE_PACKET_SYSTEM_DEPLOYMENT_PACKET_TAG 5
+#define MESSAGE_PACKET_RADIO_INFO_TAG            6
 
 /* Struct field encoding specification for nanopb */
-#define SystemInfoPacket_FIELDLIST(X, a) \
+#define SYSTEM_INFO_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  system_sensor_summary,   1) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  sdcard_state,      2) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  battery_state,     3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  metadata,          4) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  gps_data,          5)
-#define SystemInfoPacket_CALLBACK NULL
-#define SystemInfoPacket_DEFAULT NULL
-#define SystemInfoPacket_system_sensor_summary_MSGTYPE SystemSensorSummary
-#define SystemInfoPacket_sdcard_state_MSGTYPE SDCardState
-#define SystemInfoPacket_battery_state_MSGTYPE BatteryState
-#define SystemInfoPacket_metadata_MSGTYPE Metadata
-#define SystemInfoPacket_gps_data_MSGTYPE GPSData
+#define SYSTEM_INFO_PACKET_CALLBACK NULL
+#define SYSTEM_INFO_PACKET_DEFAULT NULL
+#define system_info_packet_t_system_sensor_summary_MSGTYPE system_sensor_summary_t
+#define system_info_packet_t_sdcard_state_MSGTYPE sd_card_state_t
+#define system_info_packet_t_battery_state_MSGTYPE battery_state_t
+#define system_info_packet_t_metadata_MSGTYPE metadata_t
+#define system_info_packet_t_gps_data_MSGTYPE gps_data_t
 
-#define Metadata_FIELDLIST(X, a) \
+#define METADATA_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FLOAT,    gps_avg_fix_time,   1)
-#define Metadata_CALLBACK NULL
-#define Metadata_DEFAULT NULL
+#define METADATA_CALLBACK NULL
+#define METADATA_DEFAULT NULL
 
-#define ConfigPacket_FIELDLIST(X, a) \
+#define CONFIG_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, BOOL,     engage_system,     1) \
 X(a, STATIC,   SINGULAR, BOOL,     enable_microphone,   2) \
 X(a, STATIC,   SINGULAR, BOOL,     enable_activity,   3) \
@@ -332,10 +332,10 @@ X(a, STATIC,   SINGULAR, BOOL,     enable_environmental,   5) \
 X(a, STATIC,   SINGULAR, BOOL,     enable_light,      6) \
 X(a, STATIC,   SINGULAR, BOOL,     enable_motion,     7) \
 X(a, STATIC,   SINGULAR, BOOL,     enable_lora,       8)
-#define ConfigPacket_CALLBACK NULL
-#define ConfigPacket_DEFAULT NULL
+#define CONFIG_PACKET_CALLBACK NULL
+#define CONFIG_PACKET_DEFAULT NULL
 
-#define GPSData_2_FIELDLIST(X, a) \
+#define GPS_DATA_2_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, INT32,    latitude_e7,       1) \
 X(a, STATIC,   SINGULAR, INT32,    longitude_e7,      2) \
 X(a, STATIC,   OPTIONAL, UINT32,   altitude_mm,       3) \
@@ -343,10 +343,10 @@ X(a, STATIC,   SINGULAR, UINT32,   timestamp,         4) \
 X(a, STATIC,   OPTIONAL, UINT32,   gps_avg_fix_time_s,   5) \
 X(a, STATIC,   OPTIONAL, UINT32,   hdop,              6) \
 X(a, STATIC,   OPTIONAL, UINT32,   h_acc_dm,          7)
-#define GPSData_2_CALLBACK NULL
-#define GPSData_2_DEFAULT NULL
+#define GPS_DATA_2_CALLBACK NULL
+#define GPS_DATA_2_DEFAULT NULL
 
-#define SystemSensorSummary_FIELDLIST(X, a) \
+#define SYSTEM_SENSOR_SUMMARY_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FLOAT,    temperature,       1) \
 X(a, STATIC,   SINGULAR, FLOAT,    humidity,          2) \
 X(a, STATIC,   SINGULAR, FLOAT,    pressure,          3) \
@@ -358,83 +358,83 @@ X(a, STATIC,   SINGULAR, UINT32,   light,             8) \
 X(a, STATIC,   SINGULAR, UINT32,   steps,             9) \
 X(a, STATIC,   SINGULAR, BOOL,     particulate_obstructed,  10) \
 X(a, STATIC,   SINGULAR, BOOL,     particulate_outside_detection_limits,  11)
-#define SystemSensorSummary_CALLBACK NULL
-#define SystemSensorSummary_DEFAULT NULL
+#define SYSTEM_SENSOR_SUMMARY_CALLBACK NULL
+#define SYSTEM_SENSOR_SUMMARY_DEFAULT NULL
 
-#define AckPacket_FIELDLIST(X, a) \
+#define ACK_PACKET_FIELDLIST(X, a) \
 
-#define AckPacket_CALLBACK NULL
-#define AckPacket_DEFAULT NULL
+#define ACK_PACKET_CALLBACK NULL
+#define ACK_PACKET_DEFAULT NULL
 
-#define RadioInfo_FIELDLIST(X, a) \
+#define RADIO_INFO_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, INT32,    rssi,              1) \
 X(a, STATIC,   SINGULAR, INT32,    snr,               2) \
 X(a, STATIC,   SINGULAR, INT32,    rssi_est,          3)
-#define RadioInfo_CALLBACK NULL
-#define RadioInfo_DEFAULT NULL
+#define RADIO_INFO_CALLBACK NULL
+#define RADIO_INFO_DEFAULT NULL
 
-#define AccAxis_FIELDLIST(X, a) \
+#define ACC_AXIS_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   x,                 1) \
 X(a, STATIC,   SINGULAR, UINT32,   y,                 2) \
 X(a, STATIC,   SINGULAR, UINT32,   z,                 3)
-#define AccAxis_CALLBACK NULL
-#define AccAxis_DEFAULT NULL
+#define ACC_AXIS_CALLBACK NULL
+#define ACC_AXIS_DEFAULT NULL
 
-#define AccStats_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, UINT32,   ODBA_mean_x100,    1) \
-X(a, STATIC,   SINGULAR, UINT32,   ODBA_max_x100,     2) \
-X(a, STATIC,   SINGULAR, UINT32,   VeDBA_mean_x100,   3) \
-X(a, STATIC,   SINGULAR, UINT32,   VeDBA_max_x100,    4) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  StdDev_x100,       5) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  Mean_x100,         6)
-#define AccStats_CALLBACK NULL
-#define AccStats_DEFAULT NULL
-#define AccStats_StdDev_x100_MSGTYPE AccAxis
-#define AccStats_Mean_x100_MSGTYPE AccAxis
+#define ACC_STATS_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   odba_mean_x100,    1) \
+X(a, STATIC,   SINGULAR, UINT32,   odba_max_x100,     2) \
+X(a, STATIC,   SINGULAR, UINT32,   ve_dba_mean_x100,   3) \
+X(a, STATIC,   SINGULAR, UINT32,   ve_dba_max_x100,   4) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  std_dev_x100,      5) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  mean_x100,         6)
+#define ACC_STATS_CALLBACK NULL
+#define ACC_STATS_DEFAULT NULL
+#define acc_stats_t_std_dev_x100_MSGTYPE acc_axis_t
+#define acc_stats_t_mean_x100_MSGTYPE acc_axis_t
 
-#define EnvData_FIELDLIST(X, a) \
+#define ENV_DATA_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, INT32,    temperature_x10,   1) \
 X(a, STATIC,   OPTIONAL, UINT32,   humidity_x10,      2) \
 X(a, STATIC,   OPTIONAL, UINT32,   gas,               3) \
 X(a, STATIC,   OPTIONAL, UINT32,   pressure,          4) \
 X(a, STATIC,   OPTIONAL, UINT32,   light,             5) \
 X(a, STATIC,   OPTIONAL, UINT32,   timestamp,         6)
-#define EnvData_CALLBACK NULL
-#define EnvData_DEFAULT NULL
+#define ENV_DATA_CALLBACK NULL
+#define ENV_DATA_DEFAULT NULL
 
-#define ParticulateData_FIELDLIST(X, a) \
+#define PARTICULATE_DATA_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   pm1,               1) \
 X(a, STATIC,   SINGULAR, UINT32,   pm2_5,             2) \
 X(a, STATIC,   SINGULAR, UINT32,   pm10,              3) \
 X(a, STATIC,   OPTIONAL, UINT32,   timestamp,         4)
-#define ParticulateData_CALLBACK NULL
-#define ParticulateData_DEFAULT NULL
+#define PARTICULATE_DATA_CALLBACK NULL
+#define PARTICULATE_DATA_DEFAULT NULL
 
-#define ErrorFlags_FIELDLIST(X, a) \
+#define ERROR_FLAGS_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   flag,              1)
-#define ErrorFlags_CALLBACK NULL
-#define ErrorFlags_DEFAULT NULL
+#define ERROR_FLAGS_CALLBACK NULL
+#define ERROR_FLAGS_DEFAULT NULL
 
-#define Deployment_FIELDLIST(X, a) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  particulateData,   1) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  envData,           2) \
+#define DEPLOYMENT_FIELDLIST(X, a) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  particulate_data,   1) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  env_data,          2) \
 X(a, STATIC,   OPTIONAL, UINT32,   space_remaining_mb,   3) \
 X(a, STATIC,   SINGULAR, UINT32,   battery_percentage_x10,   4) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  accStats,          5) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  acc_stats,         5) \
 X(a, STATIC,   OPTIONAL, UINT32,   steps,             6) \
 X(a, STATIC,   REPEATED, MESSAGE,  gps_data,          7) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  errorFlags,        8) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  error_flags,       8) \
 X(a, STATIC,   REPEATED, MESSAGE,  addon,             9)
-#define Deployment_CALLBACK NULL
-#define Deployment_DEFAULT NULL
-#define Deployment_particulateData_MSGTYPE ParticulateData
-#define Deployment_envData_MSGTYPE EnvData
-#define Deployment_accStats_MSGTYPE AccStats
-#define Deployment_gps_data_MSGTYPE GPSData_2
-#define Deployment_errorFlags_MSGTYPE ErrorFlags
-#define Deployment_addon_MSGTYPE AddonReport
+#define DEPLOYMENT_CALLBACK NULL
+#define DEPLOYMENT_DEFAULT NULL
+#define deployment_t_particulate_data_MSGTYPE particulate_data_t
+#define deployment_t_env_data_MSGTYPE env_data_t
+#define deployment_t_acc_stats_MSGTYPE acc_stats_t
+#define deployment_t_gps_data_MSGTYPE gps_data_2_t
+#define deployment_t_error_flags_MSGTYPE error_flags_t
+#define deployment_t_addon_MSGTYPE addon_report_t
 
-#define AddonReport_FIELDLIST(X, a) \
+#define ADDON_REPORT_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   uid,               1) \
 X(a, STATIC,   SINGULAR, UINT32,   node_type,         2) \
 X(a, STATIC,   SINGULAR, UINT32,   last_checkin_epoch,   3) \
@@ -445,74 +445,74 @@ X(a, STATIC,   OPTIONAL, UINT32,   motor_state,       7) \
 X(a, STATIC,   OPTIONAL, UINT32,   pending_cmd,       8) \
 X(a, STATIC,   OPTIONAL, UINT32,   cmd_state,         9) \
 X(a, STATIC,   OPTIONAL, UINT32,   pending_cmd_param,  10)
-#define AddonReport_CALLBACK NULL
-#define AddonReport_DEFAULT NULL
+#define ADDON_REPORT_CALLBACK NULL
+#define ADDON_REPORT_DEFAULT NULL
 
-#define MessagePacket_FIELDLIST(X, a) \
+#define MESSAGE_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  header,            1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,system_info_packet,payload.system_info_packet),   2) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,config_packet,payload.config_packet),   3) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,ack_packet,payload.ack_packet),   4) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,system_deployment_packet,payload.system_deployment_packet),   5) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  radio_info,        6)
-#define MessagePacket_CALLBACK NULL
-#define MessagePacket_DEFAULT NULL
-#define MessagePacket_header_MSGTYPE PacketHeader
-#define MessagePacket_payload_system_info_packet_MSGTYPE SystemInfoPacket
-#define MessagePacket_payload_config_packet_MSGTYPE ConfigPacket
-#define MessagePacket_payload_ack_packet_MSGTYPE AckPacket
-#define MessagePacket_payload_system_deployment_packet_MSGTYPE Deployment
-#define MessagePacket_radio_info_MSGTYPE RadioInfo
+#define MESSAGE_PACKET_CALLBACK NULL
+#define MESSAGE_PACKET_DEFAULT NULL
+#define message_packet_t_header_MSGTYPE packet_header_t
+#define message_packet_t_payload_system_info_packet_MSGTYPE system_info_packet_t
+#define message_packet_t_payload_config_packet_MSGTYPE config_packet_t
+#define message_packet_t_payload_ack_packet_MSGTYPE ack_packet_t
+#define message_packet_t_payload_system_deployment_packet_MSGTYPE deployment_t
+#define message_packet_t_radio_info_MSGTYPE radio_info_t
 
-extern const pb_msgdesc_t SystemInfoPacket_msg;
-extern const pb_msgdesc_t Metadata_msg;
-extern const pb_msgdesc_t ConfigPacket_msg;
-extern const pb_msgdesc_t GPSData_2_msg;
-extern const pb_msgdesc_t SystemSensorSummary_msg;
-extern const pb_msgdesc_t AckPacket_msg;
-extern const pb_msgdesc_t RadioInfo_msg;
-extern const pb_msgdesc_t AccAxis_msg;
-extern const pb_msgdesc_t AccStats_msg;
-extern const pb_msgdesc_t EnvData_msg;
-extern const pb_msgdesc_t ParticulateData_msg;
-extern const pb_msgdesc_t ErrorFlags_msg;
-extern const pb_msgdesc_t Deployment_msg;
-extern const pb_msgdesc_t AddonReport_msg;
-extern const pb_msgdesc_t MessagePacket_msg;
+extern const pb_msgdesc_t system_info_packet_t_msg;
+extern const pb_msgdesc_t metadata_t_msg;
+extern const pb_msgdesc_t config_packet_t_msg;
+extern const pb_msgdesc_t gps_data_2_t_msg;
+extern const pb_msgdesc_t system_sensor_summary_t_msg;
+extern const pb_msgdesc_t ack_packet_t_msg;
+extern const pb_msgdesc_t radio_info_t_msg;
+extern const pb_msgdesc_t acc_axis_t_msg;
+extern const pb_msgdesc_t acc_stats_t_msg;
+extern const pb_msgdesc_t env_data_t_msg;
+extern const pb_msgdesc_t particulate_data_t_msg;
+extern const pb_msgdesc_t error_flags_t_msg;
+extern const pb_msgdesc_t deployment_t_msg;
+extern const pb_msgdesc_t addon_report_t_msg;
+extern const pb_msgdesc_t message_packet_t_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
-#define SystemInfoPacket_fields &SystemInfoPacket_msg
-#define Metadata_fields &Metadata_msg
-#define ConfigPacket_fields &ConfigPacket_msg
-#define GPSData_2_fields &GPSData_2_msg
-#define SystemSensorSummary_fields &SystemSensorSummary_msg
-#define AckPacket_fields &AckPacket_msg
-#define RadioInfo_fields &RadioInfo_msg
-#define AccAxis_fields &AccAxis_msg
-#define AccStats_fields &AccStats_msg
-#define EnvData_fields &EnvData_msg
-#define ParticulateData_fields &ParticulateData_msg
-#define ErrorFlags_fields &ErrorFlags_msg
-#define Deployment_fields &Deployment_msg
-#define AddonReport_fields &AddonReport_msg
-#define MessagePacket_fields &MessagePacket_msg
+#define SYSTEM_INFO_PACKET_FIELDS &system_info_packet_t_msg
+#define METADATA_FIELDS &metadata_t_msg
+#define CONFIG_PACKET_FIELDS &config_packet_t_msg
+#define GPS_DATA_2_FIELDS &gps_data_2_t_msg
+#define SYSTEM_SENSOR_SUMMARY_FIELDS &system_sensor_summary_t_msg
+#define ACK_PACKET_FIELDS &ack_packet_t_msg
+#define RADIO_INFO_FIELDS &radio_info_t_msg
+#define ACC_AXIS_FIELDS &acc_axis_t_msg
+#define ACC_STATS_FIELDS &acc_stats_t_msg
+#define ENV_DATA_FIELDS &env_data_t_msg
+#define PARTICULATE_DATA_FIELDS &particulate_data_t_msg
+#define ERROR_FLAGS_FIELDS &error_flags_t_msg
+#define DEPLOYMENT_FIELDS &deployment_t_msg
+#define ADDON_REPORT_FIELDS &addon_report_t_msg
+#define MESSAGE_PACKET_FIELDS &message_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
-#define AccAxis_size                             18
-#define AccStats_size                            64
-#define AckPacket_size                           0
-#define AddonReport_size                         60
-#define ConfigPacket_size                        16
-#define Deployment_size                          679
-#define EnvData_size                             41
-#define ErrorFlags_size                          6
-#define GPSData_2_size                           52
-#define MessagePacket_size                       751
-#define Metadata_size                            5
-#define ParticulateData_size                     24
-#define RadioInfo_size                           33
-#define SystemInfoPacket_size                    127
-#define SystemSensorSummary_size                 51
+#define ACC_AXIS_SIZE                            18
+#define ACC_STATS_SIZE                           64
+#define ACK_PACKET_SIZE                          0
+#define ADDON_REPORT_SIZE                        60
+#define CONFIG_PACKET_SIZE                       16
+#define DEPLOYMENT_SIZE                          679
+#define ENV_DATA_SIZE                            41
+#define ERROR_FLAGS_SIZE                         6
+#define GPS_DATA_2_SIZE                          52
+#define MESSAGE_PACKET_SIZE                      751
+#define METADATA_SIZE                            5
+#define PARTICULATE_DATA_SIZE                    24
+#define RADIO_INFO_SIZE                          33
+#define SYSTEM_INFO_PACKET_SIZE                  127
+#define SYSTEM_SENSOR_SUMMARY_SIZE               51
 
 #ifdef __cplusplus
 } /* extern "C" */
