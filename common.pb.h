@@ -12,50 +12,56 @@
 /* Enum definitions */
 /* ---- Activity ----
  Identical enum from both files. */
-typedef enum activity {
-    ACTIVITY_STILL = 0,
-    ACTIVITY_WALK = 1,
-    ACTIVITY_RUN = 2
-} activity_t;
+typedef enum _Activity {
+    Activity_STILL = 0,
+    Activity_WALK = 1,
+    Activity_RUN = 2
+} Activity;
 
 /* Struct definitions */
 /* ---- Header ----
  A unified header. ms_from_start is from ble.proto, request_ack from message.proto. */
-typedef struct packet_header {
+typedef struct _PacketHeader {
     uint32_t system_uid;
     uint32_t ms_from_start;
     uint32_t epoch;
     uint32_t packet_index;
     bool has_request_ack;
     bool request_ack;
-} packet_header_t;
+    /* Firmware build number = `git rev-parse --count HEAD` of collarID_thread,
+ injected at compile time (CMake, next to FIRMWARE_GIT_HASH). Ordered, so
+ the server gates capabilities with simple >= checks; absent on legacy
+ firmware (server treats missing as "capabilities unknown"). ~3 B on air. */
+    bool has_fw_build;
+    uint32_t fw_build;
+} PacketHeader;
 
 /* ---- GPS ----
  Identical definition from both files. */
-typedef struct gps_data {
+typedef struct _GPSData {
     float latitude;
     float longitude;
     float altitude;
     float speed;
     float heading;
-} gps_data_t;
+} GPSData;
 
 /* ---- Battery ----
  Unified on float for voltage and percentage for consistency. */
-typedef struct battery_state {
+typedef struct _BatteryState {
     bool charging;
     float voltage;
     bool has_percentage;
     float percentage;
-} battery_state_t;
+} BatteryState;
 
 /* ---- SD Card ----
  Unified on uint64 for sizes to prevent overflow. */
-typedef struct sd_card_state {
+typedef struct _SDCardState {
     bool detected;
     uint64_t space_remaining; /* bytes */
     uint64_t total_space; /* bytes */
-} sd_card_state_t;
+} SDCardState;
 
 
 #ifdef __cplusplus
@@ -63,9 +69,9 @@ extern "C" {
 #endif
 
 /* Helper constants for enums */
-#define _ACTIVITY_MIN ACTIVITY_STILL
-#define _ACTIVITY_MAX ACTIVITY_RUN
-#define _ACTIVITY_ARRAYSIZE ((activity_t)(ACTIVITY_RUN+1))
+#define _Activity_MIN Activity_STILL
+#define _Activity_MAX Activity_RUN
+#define _Activity_ARRAYSIZE ((Activity)(Activity_RUN+1))
 
 
 
@@ -73,82 +79,84 @@ extern "C" {
 
 
 /* Initializer values for message structs */
-#define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0}
-#define GPS_DATA_INIT_DEFAULT                    {0, 0, 0, 0, 0}
-#define BATTERY_STATE_INIT_DEFAULT               {0, 0, false, 0}
-#define SD_CARD_STATE_INIT_DEFAULT               {0, 0, 0}
-#define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0}
-#define GPS_DATA_INIT_ZERO                       {0, 0, 0, 0, 0}
-#define BATTERY_STATE_INIT_ZERO                  {0, 0, false, 0}
-#define SD_CARD_STATE_INIT_ZERO                  {0, 0, 0}
+#define PacketHeader_init_default                {0, 0, 0, 0, false, 0, false, 0}
+#define GPSData_init_default                     {0, 0, 0, 0, 0}
+#define BatteryState_init_default                {0, 0, false, 0}
+#define SDCardState_init_default                 {0, 0, 0}
+#define PacketHeader_init_zero                   {0, 0, 0, 0, false, 0, false, 0}
+#define GPSData_init_zero                        {0, 0, 0, 0, 0}
+#define BatteryState_init_zero                   {0, 0, false, 0}
+#define SDCardState_init_zero                    {0, 0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define PACKET_HEADER_SYSTEM_UID_TAG             1
-#define PACKET_HEADER_MS_FROM_START_TAG          2
-#define PACKET_HEADER_EPOCH_TAG                  3
-#define PACKET_HEADER_PACKET_INDEX_TAG           4
-#define PACKET_HEADER_REQUEST_ACK_TAG            5
-#define GPS_DATA_LATITUDE_TAG                    1
-#define GPS_DATA_LONGITUDE_TAG                   2
-#define GPS_DATA_ALTITUDE_TAG                    3
-#define GPS_DATA_SPEED_TAG                       4
-#define GPS_DATA_HEADING_TAG                     5
-#define BATTERY_STATE_CHARGING_TAG               1
-#define BATTERY_STATE_VOLTAGE_TAG                2
-#define BATTERY_STATE_PERCENTAGE_TAG             3
-#define SD_CARD_STATE_DETECTED_TAG               1
-#define SD_CARD_STATE_SPACE_REMAINING_TAG        2
-#define SD_CARD_STATE_TOTAL_SPACE_TAG            3
+#define PacketHeader_system_uid_tag              1
+#define PacketHeader_ms_from_start_tag           2
+#define PacketHeader_epoch_tag                   3
+#define PacketHeader_packet_index_tag            4
+#define PacketHeader_request_ack_tag             5
+#define PacketHeader_fw_build_tag                6
+#define GPSData_latitude_tag                     1
+#define GPSData_longitude_tag                    2
+#define GPSData_altitude_tag                     3
+#define GPSData_speed_tag                        4
+#define GPSData_heading_tag                      5
+#define BatteryState_charging_tag                1
+#define BatteryState_voltage_tag                 2
+#define BatteryState_percentage_tag              3
+#define SDCardState_detected_tag                 1
+#define SDCardState_space_remaining_tag          2
+#define SDCardState_total_space_tag              3
 
 /* Struct field encoding specification for nanopb */
-#define PACKET_HEADER_FIELDLIST(X, a) \
+#define PacketHeader_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   system_uid,        1) \
 X(a, STATIC,   SINGULAR, UINT32,   ms_from_start,     2) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             3) \
 X(a, STATIC,   SINGULAR, UINT32,   packet_index,      4) \
-X(a, STATIC,   OPTIONAL, BOOL,     request_ack,       5)
-#define PACKET_HEADER_CALLBACK NULL
-#define PACKET_HEADER_DEFAULT NULL
+X(a, STATIC,   OPTIONAL, BOOL,     request_ack,       5) \
+X(a, STATIC,   OPTIONAL, UINT32,   fw_build,          6)
+#define PacketHeader_CALLBACK NULL
+#define PacketHeader_DEFAULT NULL
 
-#define GPS_DATA_FIELDLIST(X, a) \
+#define GPSData_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FLOAT,    latitude,          1) \
 X(a, STATIC,   SINGULAR, FLOAT,    longitude,         2) \
 X(a, STATIC,   SINGULAR, FLOAT,    altitude,          3) \
 X(a, STATIC,   SINGULAR, FLOAT,    speed,             4) \
 X(a, STATIC,   SINGULAR, FLOAT,    heading,           5)
-#define GPS_DATA_CALLBACK NULL
-#define GPS_DATA_DEFAULT NULL
+#define GPSData_CALLBACK NULL
+#define GPSData_DEFAULT NULL
 
-#define BATTERY_STATE_FIELDLIST(X, a) \
+#define BatteryState_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, BOOL,     charging,          1) \
 X(a, STATIC,   SINGULAR, FLOAT,    voltage,           2) \
 X(a, STATIC,   OPTIONAL, FLOAT,    percentage,        3)
-#define BATTERY_STATE_CALLBACK NULL
-#define BATTERY_STATE_DEFAULT NULL
+#define BatteryState_CALLBACK NULL
+#define BatteryState_DEFAULT NULL
 
-#define SD_CARD_STATE_FIELDLIST(X, a) \
+#define SDCardState_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, BOOL,     detected,          1) \
 X(a, STATIC,   SINGULAR, UINT64,   space_remaining,   2) \
 X(a, STATIC,   SINGULAR, UINT64,   total_space,       3)
-#define SD_CARD_STATE_CALLBACK NULL
-#define SD_CARD_STATE_DEFAULT NULL
+#define SDCardState_CALLBACK NULL
+#define SDCardState_DEFAULT NULL
 
-extern const pb_msgdesc_t packet_header_t_msg;
-extern const pb_msgdesc_t gps_data_t_msg;
-extern const pb_msgdesc_t battery_state_t_msg;
-extern const pb_msgdesc_t sd_card_state_t_msg;
+extern const pb_msgdesc_t PacketHeader_msg;
+extern const pb_msgdesc_t GPSData_msg;
+extern const pb_msgdesc_t BatteryState_msg;
+extern const pb_msgdesc_t SDCardState_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
-#define PACKET_HEADER_FIELDS &packet_header_t_msg
-#define GPS_DATA_FIELDS &gps_data_t_msg
-#define BATTERY_STATE_FIELDS &battery_state_t_msg
-#define SD_CARD_STATE_FIELDS &sd_card_state_t_msg
+#define PacketHeader_fields &PacketHeader_msg
+#define GPSData_fields &GPSData_msg
+#define BatteryState_fields &BatteryState_msg
+#define SDCardState_fields &SDCardState_msg
 
 /* Maximum encoded size of messages (where known) */
-#define BATTERY_STATE_SIZE                       12
-#define GPS_DATA_SIZE                            25
-#define PACKET_HEADER_SIZE                       26
-#define SD_CARD_STATE_SIZE                       24
+#define BatteryState_size                        12
+#define GPSData_size                             25
+#define PacketHeader_size                        32
+#define SDCardState_size                         24
 
 #ifdef __cplusplus
 } /* extern "C" */

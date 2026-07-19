@@ -13,6 +13,11 @@ message PacketHeader {
   uint32 epoch          = 3;
   uint32 packet_index   = 4;
   optional bool request_ack = 5;
+  // Firmware build number = `git rev-parse --count HEAD` of collarID_thread,
+  // injected at compile time (CMake, next to FIRMWARE_GIT_HASH). Ordered, so
+  // the server gates capabilities with simple >= checks; absent on legacy
+  // firmware (server treats missing as "capabilities unknown"). ~3 B on air.
+  optional uint32 fw_build = 6;
 }
 
 // ---- GPS ----
