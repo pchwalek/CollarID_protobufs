@@ -11,65 +11,69 @@
 
 /* Enum definitions */
 /* ---- Commands ---- */
-typedef enum command_type {
-    COMMAND_TYPE_CMD_NONE = 0,
-    COMMAND_TYPE_CMD_RESET = 1, /* Reboot the device */
-    COMMAND_TYPE_CMD_DROP_OFF = 2, /* Detach the collar (irreversible) */
-    COMMAND_TYPE_CMD_HIGH_FIX_ON = 3, /* Enable high-fix GPS mode */
-    COMMAND_TYPE_CMD_HIGH_FIX_OFF = 4, /* Disable high-fix GPS mode */
-    COMMAND_TYPE_CMD_SYNC_TIME = 5, /* Sync RTC to server epoch */
-    COMMAND_TYPE_CMD_BUZZ = 6, /* Audible locate ping (future) */
-    COMMAND_TYPE_CMD_ENGAGE = 7, /* Engage the system (start scheduling) */
-    COMMAND_TYPE_CMD_DISENGAGE = 8, /* Disengage (stop all sensors, idle) */
-    COMMAND_TYPE_CMD_CONFIG_BEGIN = 9, /* Start config transaction (snapshot live → staging) */
-    COMMAND_TYPE_CMD_CONFIG_COMMIT = 10, /* Verify + apply staging → live, persist, notify */
-    COMMAND_TYPE_CMD_CONFIG_ABORT = 11, /* Discard staging buffer */
+typedef enum _CommandType {
+    CommandType_CMD_NONE = 0,
+    CommandType_CMD_RESET = 1, /* Reboot the device */
+    CommandType_CMD_DROP_OFF = 2, /* Detach the collar (irreversible) */
+    CommandType_CMD_HIGH_FIX_ON = 3, /* Enable high-fix GPS mode */
+    CommandType_CMD_HIGH_FIX_OFF = 4, /* Disable high-fix GPS mode */
+    CommandType_CMD_SYNC_TIME = 5, /* Sync RTC to server epoch */
+    CommandType_CMD_BUZZ = 6, /* Audible locate ping (future) */
+    CommandType_CMD_ENGAGE = 7, /* Engage the system (start scheduling) */
+    CommandType_CMD_DISENGAGE = 8, /* Disengage (stop all sensors, idle) */
+    CommandType_CMD_CONFIG_BEGIN = 9, /* Start config transaction (snapshot live → staging) */
+    CommandType_CMD_CONFIG_COMMIT = 10, /* Verify + apply staging → live, persist, notify */
+    CommandType_CMD_CONFIG_ABORT = 11, /* Discard staging buffer */
     /* 7.1 remote add-on control: routed into the collar's durable command
  queue and forwarded to the detach add-on at its next rendezvous. */
-    COMMAND_TYPE_CMD_ADDON_ARM = 13, /* Arm detach at addon_arm_epoch (UTC s) */
-    COMMAND_TYPE_CMD_ADDON_ABORT = 14 /* Disarm the detach add-on */
-} command_type_t;
+    CommandType_CMD_ADDON_ARM = 13, /* Arm detach at addon_arm_epoch (UTC s) */
+    CommandType_CMD_ADDON_ABORT = 14, /* Disarm the detach add-on */
+    /* Missed-packet recovery (DESIGN_lorawan_reliability.md): server detected
+ a gap in packet_header.packet_index and asks the device to replay the
+ stored uplinks verbatim (pure retransmit, fPort 12). */
+    CommandType_CMD_RESEND = 15 /* Replay uplinks named by resend_from/resend_mask */
+} CommandType;
 
 /* Struct definitions */
 /* ---- Geofence ---- */
-typedef struct geo_point {
+typedef struct _GeoPoint {
     int32_t latitude_e7;
     int32_t longitude_e7;
-} geo_point_t;
+} GeoPoint;
 
-typedef struct geofence_data {
+typedef struct _GeofenceData {
     uint32_t fence_id;
     pb_size_t vertices_count;
-    geo_point_t vertices[8]; /* max 8 */
+    GeoPoint vertices[8]; /* max 8 */
     bool active;
-} geofence_data_t;
+} GeofenceData;
 
 /* ---- High-fix parameters ---- */
-typedef struct high_fix_params {
+typedef struct _HighFixParams {
     uint32_t duration_hours; /* default 24 */
     uint32_t sample_interval_sec; /* default 300 */
-} high_fix_params_t;
+} HighFixParams;
 
 /* Time window for a schedule slot (~4 bytes) */
-typedef struct config_time_window {
+typedef struct _ConfigTimeWindow {
     bool has_start_hour;
     uint32_t start_hour; /* 0-23 */
     bool has_end_hour;
     uint32_t end_hour; /* 0-23 */
-} config_time_window_t;
+} ConfigTimeWindow;
 
 /* Accelerometer (~4 bytes) */
-typedef struct config_accelerometer {
+typedef struct _ConfigAccelerometer {
     bool has_enabled;
     bool enabled;
     bool has_sample_rate;
     uint32_t sample_rate; /* 0=25Hz, 1=50Hz */
     bool has_sensitivity;
     uint32_t sensitivity; /* 0=2G, 1=4G, 2=8G */
-} config_accelerometer_t;
+} ConfigAccelerometer;
 
 /* Microphone (~5 bytes) */
-typedef struct config_microphone {
+typedef struct _ConfigMicrophone {
     bool has_enabled;
     bool enabled;
     bool has_continuous_mode;
@@ -78,36 +82,36 @@ typedef struct config_microphone {
     uint32_t sample_length_min;
     bool has_sample_window_min;
     uint32_t sample_window_min;
-} config_microphone_t;
+} ConfigMicrophone;
 
 /* GPS (~4 bytes) */
-typedef struct config_gps {
+typedef struct _ConfigGPS {
     bool has_enabled;
     bool enabled;
     bool has_sample_interval_min;
     uint32_t sample_interval_min;
     bool has_accuracy;
     uint32_t accuracy; /* 1-10 */
-} config_gps_t;
+} ConfigGPS;
 
 /* Magnetometer (~3 bytes) */
-typedef struct config_magnetometer {
+typedef struct _ConfigMagnetometer {
     bool has_enabled;
     bool enabled;
     bool has_sample_interval_s;
     uint32_t sample_interval_s;
-} config_magnetometer_t;
+} ConfigMagnetometer;
 
 /* Generic sensor: light, environmental, particulate (~3 bytes) */
-typedef struct config_sampling {
+typedef struct _ConfigSampling {
     bool has_enabled;
     bool enabled;
     bool has_sample_interval_min;
     uint32_t sample_interval_min;
-} config_sampling_t;
+} ConfigSampling;
 
 /* Per-schedule radio enable/interval (~6 bytes) */
-typedef struct config_radio_timing {
+typedef struct _ConfigRadioTiming {
     bool has_lorawan_enabled;
     bool lorawan_enabled;
     bool has_lorawan_send_interval_min;
@@ -118,48 +122,48 @@ typedef struct config_radio_timing {
     uint32_t lora_send_interval_min;
     bool has_tx_power_dbm;
     int32_t tx_power_dbm;
-} config_radio_timing_t;
+} ConfigRadioTiming;
 
 /* Global system flags — not per-schedule (~4 bytes) */
-typedef struct config_system {
+typedef struct _ConfigSystem {
     bool has_verbose_logging;
     bool verbose_logging;
     bool has_enable_reset_on_error;
     bool enable_reset_on_error;
     bool has_special_mode;
     uint32_t special_mode;
-} config_system_t;
+} ConfigSystem;
 
 /* ---- Config fragment wrapper ----
  Pairs a schedule slot index with exactly one sensor/system config.
  fragment_index and fragment_total enable integrity checking on commit. */
-typedef struct config_fragment {
+typedef struct _ConfigFragment {
     uint32_t schedule_index; /* target schedule slot (0-4) */
     uint32_t fragment_index; /* 0-based index of this fragment in the transaction */
     uint32_t fragment_total; /* total number of fragments the server will send */
     pb_size_t which_setting;
     union {
-        config_time_window_t cfg_time_window;
-        config_accelerometer_t cfg_accelerometer;
-        config_microphone_t cfg_microphone;
-        config_gps_t cfg_gps;
-        config_magnetometer_t cfg_magnetometer;
-        config_sampling_t cfg_light;
-        config_sampling_t cfg_environmental;
-        config_sampling_t cfg_particulate;
-        config_radio_timing_t cfg_radio_timing;
-        config_system_t cfg_system; /* global, schedule_index ignored */
+        ConfigTimeWindow cfg_time_window;
+        ConfigAccelerometer cfg_accelerometer;
+        ConfigMicrophone cfg_microphone;
+        ConfigGPS cfg_gps;
+        ConfigMagnetometer cfg_magnetometer;
+        ConfigSampling cfg_light;
+        ConfigSampling cfg_environmental;
+        ConfigSampling cfg_particulate;
+        ConfigRadioTiming cfg_radio_timing;
+        ConfigSystem cfg_system; /* global, schedule_index ignored */
     } setting;
-} config_fragment_t;
+} ConfigFragment;
 
 /* ---- Main downlink envelope ---- */
-typedef struct downlink_packet {
+typedef struct _DownlinkPacket {
     uint32_t epoch; /* server UTC epoch for RTC sync */
-    command_type_t command; /* command to execute */
+    CommandType command; /* command to execute */
     bool has_high_fix_params;
-    high_fix_params_t high_fix_params;
+    HighFixParams high_fix_params;
     bool has_geofence;
-    geofence_data_t geofence;
+    GeofenceData geofence;
     /* Config fragment: one per downlink.
  Only processed when a config transaction is open (after CMD_CONFIG_BEGIN).
  On CMD_CONFIG_COMMIT, device checks that all fragment_total fragments
@@ -167,12 +171,20 @@ typedef struct downlink_packet {
  missing, commit is rejected, staging is discarded, and the device
  uplinks a NACK with the missing fragment bitmask so the server can retry. */
     bool has_config;
-    config_fragment_t config;
+    ConfigFragment config;
     /* CMD_ADDON_ARM: the armed drop-off time. Deliberately NOT the epoch
  field above — that one is the RTC-sync reference on every downlink. */
     bool has_addon_arm_epoch;
     uint32_t addon_arm_epoch;
-} downlink_packet_t;
+    /* CMD_RESEND: bit i of resend_mask set => replay the stored uplink with
+ packet_index == resend_from + i (bit 0 = resend_from itself), so one
+ command names up to 32 indices. Device replays at most a few per
+ command (duty cycle); the server re-requests the rest later. */
+    bool has_resend_from;
+    uint32_t resend_from;
+    bool has_resend_mask;
+    uint32_t resend_mask;
+} DownlinkPacket;
 
 
 #ifdef __cplusplus
@@ -180,9 +192,9 @@ extern "C" {
 #endif
 
 /* Helper constants for enums */
-#define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_ADDON_ABORT
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_ADDON_ABORT+1))
+#define _CommandType_MIN CommandType_CMD_NONE
+#define _CommandType_MAX CommandType_CMD_RESEND
+#define _CommandType_ARRAYSIZE ((CommandType)(CommandType_CMD_RESEND+1))
 
 
 
@@ -196,167 +208,169 @@ extern "C" {
 
 
 
-#define downlink_packet_t_command_ENUMTYPE command_type_t
+#define DownlinkPacket_command_ENUMTYPE CommandType
 
 
 /* Initializer values for message structs */
-#define GEO_POINT_INIT_DEFAULT                   {0, 0}
-#define GEOFENCE_DATA_INIT_DEFAULT               {0, 0, {GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT}, 0}
-#define HIGH_FIX_PARAMS_INIT_DEFAULT             {0, 0}
-#define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0}
-#define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0}
-#define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0}
-#define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
-#define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0}
-#define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_DEFAULT}}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0}
-#define GEO_POINT_INIT_ZERO                      {0, 0}
-#define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
-#define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
-#define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0}
-#define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0}
-#define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0}
-#define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
-#define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0}
-#define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_ZERO}}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0}
+#define GeoPoint_init_default                    {0, 0}
+#define GeofenceData_init_default                {0, 0, {GeoPoint_init_default, GeoPoint_init_default, GeoPoint_init_default, GeoPoint_init_default, GeoPoint_init_default, GeoPoint_init_default, GeoPoint_init_default, GeoPoint_init_default}, 0}
+#define HighFixParams_init_default               {0, 0}
+#define ConfigTimeWindow_init_default            {false, 0, false, 0}
+#define ConfigAccelerometer_init_default         {false, 0, false, 0, false, 0}
+#define ConfigMicrophone_init_default            {false, 0, false, 0, false, 0, false, 0}
+#define ConfigGPS_init_default                   {false, 0, false, 0, false, 0}
+#define ConfigMagnetometer_init_default          {false, 0, false, 0}
+#define ConfigSampling_init_default              {false, 0, false, 0}
+#define ConfigRadioTiming_init_default           {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define ConfigSystem_init_default                {false, 0, false, 0, false, 0}
+#define ConfigFragment_init_default              {0, 0, 0, 0, {ConfigTimeWindow_init_default}}
+#define DownlinkPacket_init_default              {0, _CommandType_MIN, false, HighFixParams_init_default, false, GeofenceData_init_default, false, ConfigFragment_init_default, false, 0, false, 0, false, 0}
+#define GeoPoint_init_zero                       {0, 0}
+#define GeofenceData_init_zero                   {0, 0, {GeoPoint_init_zero, GeoPoint_init_zero, GeoPoint_init_zero, GeoPoint_init_zero, GeoPoint_init_zero, GeoPoint_init_zero, GeoPoint_init_zero, GeoPoint_init_zero}, 0}
+#define HighFixParams_init_zero                  {0, 0}
+#define ConfigTimeWindow_init_zero               {false, 0, false, 0}
+#define ConfigAccelerometer_init_zero            {false, 0, false, 0, false, 0}
+#define ConfigMicrophone_init_zero               {false, 0, false, 0, false, 0, false, 0}
+#define ConfigGPS_init_zero                      {false, 0, false, 0, false, 0}
+#define ConfigMagnetometer_init_zero             {false, 0, false, 0}
+#define ConfigSampling_init_zero                 {false, 0, false, 0}
+#define ConfigRadioTiming_init_zero              {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define ConfigSystem_init_zero                   {false, 0, false, 0, false, 0}
+#define ConfigFragment_init_zero                 {0, 0, 0, 0, {ConfigTimeWindow_init_zero}}
+#define DownlinkPacket_init_zero                 {0, _CommandType_MIN, false, HighFixParams_init_zero, false, GeofenceData_init_zero, false, ConfigFragment_init_zero, false, 0, false, 0, false, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define GEO_POINT_LATITUDE_E7_TAG                1
-#define GEO_POINT_LONGITUDE_E7_TAG               2
-#define GEOFENCE_DATA_FENCE_ID_TAG               1
-#define GEOFENCE_DATA_VERTICES_TAG               2
-#define GEOFENCE_DATA_ACTIVE_TAG                 3
-#define HIGH_FIX_PARAMS_DURATION_HOURS_TAG       1
-#define HIGH_FIX_PARAMS_SAMPLE_INTERVAL_SEC_TAG  2
-#define CONFIG_TIME_WINDOW_START_HOUR_TAG        1
-#define CONFIG_TIME_WINDOW_END_HOUR_TAG          2
-#define CONFIG_ACCELEROMETER_ENABLED_TAG         1
-#define CONFIG_ACCELEROMETER_SAMPLE_RATE_TAG     2
-#define CONFIG_ACCELEROMETER_SENSITIVITY_TAG     3
-#define CONFIG_MICROPHONE_ENABLED_TAG            1
-#define CONFIG_MICROPHONE_CONTINUOUS_MODE_TAG    2
-#define CONFIG_MICROPHONE_SAMPLE_LENGTH_MIN_TAG  3
-#define CONFIG_MICROPHONE_SAMPLE_WINDOW_MIN_TAG  4
-#define CONFIG_GPS_ENABLED_TAG                   1
-#define CONFIG_GPS_SAMPLE_INTERVAL_MIN_TAG       2
-#define CONFIG_GPS_ACCURACY_TAG                  3
-#define CONFIG_MAGNETOMETER_ENABLED_TAG          1
-#define CONFIG_MAGNETOMETER_SAMPLE_INTERVAL_S_TAG 2
-#define CONFIG_SAMPLING_ENABLED_TAG              1
-#define CONFIG_SAMPLING_SAMPLE_INTERVAL_MIN_TAG  2
-#define CONFIG_RADIO_TIMING_LORAWAN_ENABLED_TAG  1
-#define CONFIG_RADIO_TIMING_LORAWAN_SEND_INTERVAL_MIN_TAG 2
-#define CONFIG_RADIO_TIMING_LORA_ENABLED_TAG     3
-#define CONFIG_RADIO_TIMING_LORA_SEND_INTERVAL_MIN_TAG 4
-#define CONFIG_RADIO_TIMING_TX_POWER_DBM_TAG     5
-#define CONFIG_SYSTEM_VERBOSE_LOGGING_TAG        1
-#define CONFIG_SYSTEM_ENABLE_RESET_ON_ERROR_TAG  2
-#define CONFIG_SYSTEM_SPECIAL_MODE_TAG           3
-#define CONFIG_FRAGMENT_SCHEDULE_INDEX_TAG       1
-#define CONFIG_FRAGMENT_FRAGMENT_INDEX_TAG       2
-#define CONFIG_FRAGMENT_FRAGMENT_TOTAL_TAG       3
-#define CONFIG_FRAGMENT_CFG_TIME_WINDOW_TAG      4
-#define CONFIG_FRAGMENT_CFG_ACCELEROMETER_TAG    5
-#define CONFIG_FRAGMENT_CFG_MICROPHONE_TAG       6
-#define CONFIG_FRAGMENT_CFG_GPS_TAG              7
-#define CONFIG_FRAGMENT_CFG_MAGNETOMETER_TAG     8
-#define CONFIG_FRAGMENT_CFG_LIGHT_TAG            9
-#define CONFIG_FRAGMENT_CFG_ENVIRONMENTAL_TAG    10
-#define CONFIG_FRAGMENT_CFG_PARTICULATE_TAG      11
-#define CONFIG_FRAGMENT_CFG_RADIO_TIMING_TAG     12
-#define CONFIG_FRAGMENT_CFG_SYSTEM_TAG           13
-#define DOWNLINK_PACKET_EPOCH_TAG                1
-#define DOWNLINK_PACKET_COMMAND_TAG              2
-#define DOWNLINK_PACKET_HIGH_FIX_PARAMS_TAG      3
-#define DOWNLINK_PACKET_GEOFENCE_TAG             4
-#define DOWNLINK_PACKET_CONFIG_TAG               5
-#define DOWNLINK_PACKET_ADDON_ARM_EPOCH_TAG      6
+#define GeoPoint_latitude_e7_tag                 1
+#define GeoPoint_longitude_e7_tag                2
+#define GeofenceData_fence_id_tag                1
+#define GeofenceData_vertices_tag                2
+#define GeofenceData_active_tag                  3
+#define HighFixParams_duration_hours_tag         1
+#define HighFixParams_sample_interval_sec_tag    2
+#define ConfigTimeWindow_start_hour_tag          1
+#define ConfigTimeWindow_end_hour_tag            2
+#define ConfigAccelerometer_enabled_tag          1
+#define ConfigAccelerometer_sample_rate_tag      2
+#define ConfigAccelerometer_sensitivity_tag      3
+#define ConfigMicrophone_enabled_tag             1
+#define ConfigMicrophone_continuous_mode_tag     2
+#define ConfigMicrophone_sample_length_min_tag   3
+#define ConfigMicrophone_sample_window_min_tag   4
+#define ConfigGPS_enabled_tag                    1
+#define ConfigGPS_sample_interval_min_tag        2
+#define ConfigGPS_accuracy_tag                   3
+#define ConfigMagnetometer_enabled_tag           1
+#define ConfigMagnetometer_sample_interval_s_tag 2
+#define ConfigSampling_enabled_tag               1
+#define ConfigSampling_sample_interval_min_tag   2
+#define ConfigRadioTiming_lorawan_enabled_tag    1
+#define ConfigRadioTiming_lorawan_send_interval_min_tag 2
+#define ConfigRadioTiming_lora_enabled_tag       3
+#define ConfigRadioTiming_lora_send_interval_min_tag 4
+#define ConfigRadioTiming_tx_power_dbm_tag       5
+#define ConfigSystem_verbose_logging_tag         1
+#define ConfigSystem_enable_reset_on_error_tag   2
+#define ConfigSystem_special_mode_tag            3
+#define ConfigFragment_schedule_index_tag        1
+#define ConfigFragment_fragment_index_tag        2
+#define ConfigFragment_fragment_total_tag        3
+#define ConfigFragment_cfg_time_window_tag       4
+#define ConfigFragment_cfg_accelerometer_tag     5
+#define ConfigFragment_cfg_microphone_tag        6
+#define ConfigFragment_cfg_gps_tag               7
+#define ConfigFragment_cfg_magnetometer_tag      8
+#define ConfigFragment_cfg_light_tag             9
+#define ConfigFragment_cfg_environmental_tag     10
+#define ConfigFragment_cfg_particulate_tag       11
+#define ConfigFragment_cfg_radio_timing_tag      12
+#define ConfigFragment_cfg_system_tag            13
+#define DownlinkPacket_epoch_tag                 1
+#define DownlinkPacket_command_tag               2
+#define DownlinkPacket_high_fix_params_tag       3
+#define DownlinkPacket_geofence_tag              4
+#define DownlinkPacket_config_tag                5
+#define DownlinkPacket_addon_arm_epoch_tag       6
+#define DownlinkPacket_resend_from_tag           7
+#define DownlinkPacket_resend_mask_tag           8
 
 /* Struct field encoding specification for nanopb */
-#define GEO_POINT_FIELDLIST(X, a) \
+#define GeoPoint_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, INT32,    latitude_e7,       1) \
 X(a, STATIC,   SINGULAR, INT32,    longitude_e7,      2)
-#define GEO_POINT_CALLBACK NULL
-#define GEO_POINT_DEFAULT NULL
+#define GeoPoint_CALLBACK NULL
+#define GeoPoint_DEFAULT NULL
 
-#define GEOFENCE_DATA_FIELDLIST(X, a) \
+#define GeofenceData_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   fence_id,          1) \
 X(a, STATIC,   REPEATED, MESSAGE,  vertices,          2) \
 X(a, STATIC,   SINGULAR, BOOL,     active,            3)
-#define GEOFENCE_DATA_CALLBACK NULL
-#define GEOFENCE_DATA_DEFAULT NULL
-#define geofence_data_t_vertices_MSGTYPE geo_point_t
+#define GeofenceData_CALLBACK NULL
+#define GeofenceData_DEFAULT NULL
+#define GeofenceData_vertices_MSGTYPE GeoPoint
 
-#define HIGH_FIX_PARAMS_FIELDLIST(X, a) \
+#define HighFixParams_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   duration_hours,    1) \
 X(a, STATIC,   SINGULAR, UINT32,   sample_interval_sec,   2)
-#define HIGH_FIX_PARAMS_CALLBACK NULL
-#define HIGH_FIX_PARAMS_DEFAULT NULL
+#define HighFixParams_CALLBACK NULL
+#define HighFixParams_DEFAULT NULL
 
-#define CONFIG_TIME_WINDOW_FIELDLIST(X, a) \
+#define ConfigTimeWindow_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, UINT32,   start_hour,        1) \
 X(a, STATIC,   OPTIONAL, UINT32,   end_hour,          2)
-#define CONFIG_TIME_WINDOW_CALLBACK NULL
-#define CONFIG_TIME_WINDOW_DEFAULT NULL
+#define ConfigTimeWindow_CALLBACK NULL
+#define ConfigTimeWindow_DEFAULT NULL
 
-#define CONFIG_ACCELEROMETER_FIELDLIST(X, a) \
+#define ConfigAccelerometer_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_rate,       2) \
 X(a, STATIC,   OPTIONAL, UINT32,   sensitivity,       3)
-#define CONFIG_ACCELEROMETER_CALLBACK NULL
-#define CONFIG_ACCELEROMETER_DEFAULT NULL
+#define ConfigAccelerometer_CALLBACK NULL
+#define ConfigAccelerometer_DEFAULT NULL
 
-#define CONFIG_MICROPHONE_FIELDLIST(X, a) \
+#define ConfigMicrophone_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
 X(a, STATIC,   OPTIONAL, BOOL,     continuous_mode,   2) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_length_min,   3) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_window_min,   4)
-#define CONFIG_MICROPHONE_CALLBACK NULL
-#define CONFIG_MICROPHONE_DEFAULT NULL
+#define ConfigMicrophone_CALLBACK NULL
+#define ConfigMicrophone_DEFAULT NULL
 
-#define CONFIG_GPS_FIELDLIST(X, a) \
+#define ConfigGPS_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_interval_min,   2) \
 X(a, STATIC,   OPTIONAL, UINT32,   accuracy,          3)
-#define CONFIG_GPS_CALLBACK NULL
-#define CONFIG_GPS_DEFAULT NULL
+#define ConfigGPS_CALLBACK NULL
+#define ConfigGPS_DEFAULT NULL
 
-#define CONFIG_MAGNETOMETER_FIELDLIST(X, a) \
+#define ConfigMagnetometer_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_interval_s,   2)
-#define CONFIG_MAGNETOMETER_CALLBACK NULL
-#define CONFIG_MAGNETOMETER_DEFAULT NULL
+#define ConfigMagnetometer_CALLBACK NULL
+#define ConfigMagnetometer_DEFAULT NULL
 
-#define CONFIG_SAMPLING_FIELDLIST(X, a) \
+#define ConfigSampling_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_interval_min,   2)
-#define CONFIG_SAMPLING_CALLBACK NULL
-#define CONFIG_SAMPLING_DEFAULT NULL
+#define ConfigSampling_CALLBACK NULL
+#define ConfigSampling_DEFAULT NULL
 
-#define CONFIG_RADIO_TIMING_FIELDLIST(X, a) \
+#define ConfigRadioTiming_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     lorawan_enabled,   1) \
 X(a, STATIC,   OPTIONAL, UINT32,   lorawan_send_interval_min,   2) \
 X(a, STATIC,   OPTIONAL, BOOL,     lora_enabled,      3) \
 X(a, STATIC,   OPTIONAL, UINT32,   lora_send_interval_min,   4) \
 X(a, STATIC,   OPTIONAL, INT32,    tx_power_dbm,      5)
-#define CONFIG_RADIO_TIMING_CALLBACK NULL
-#define CONFIG_RADIO_TIMING_DEFAULT NULL
+#define ConfigRadioTiming_CALLBACK NULL
+#define ConfigRadioTiming_DEFAULT NULL
 
-#define CONFIG_SYSTEM_FIELDLIST(X, a) \
+#define ConfigSystem_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     verbose_logging,   1) \
 X(a, STATIC,   OPTIONAL, BOOL,     enable_reset_on_error,   2) \
 X(a, STATIC,   OPTIONAL, UINT32,   special_mode,      3)
-#define CONFIG_SYSTEM_CALLBACK NULL
-#define CONFIG_SYSTEM_DEFAULT NULL
+#define ConfigSystem_CALLBACK NULL
+#define ConfigSystem_DEFAULT NULL
 
-#define CONFIG_FRAGMENT_FIELDLIST(X, a) \
+#define ConfigFragment_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   schedule_index,    1) \
 X(a, STATIC,   SINGULAR, UINT32,   fragment_index,    2) \
 X(a, STATIC,   SINGULAR, UINT32,   fragment_total,    3) \
@@ -370,75 +384,77 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_environmental,setting.cfg_enviro
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_particulate,setting.cfg_particulate),  11) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_radio_timing,setting.cfg_radio_timing),  12) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_system,setting.cfg_system),  13)
-#define CONFIG_FRAGMENT_CALLBACK NULL
-#define CONFIG_FRAGMENT_DEFAULT NULL
-#define config_fragment_t_setting_cfg_time_window_MSGTYPE config_time_window_t
-#define config_fragment_t_setting_cfg_accelerometer_MSGTYPE config_accelerometer_t
-#define config_fragment_t_setting_cfg_microphone_MSGTYPE config_microphone_t
-#define config_fragment_t_setting_cfg_gps_MSGTYPE config_gps_t
-#define config_fragment_t_setting_cfg_magnetometer_MSGTYPE config_magnetometer_t
-#define config_fragment_t_setting_cfg_light_MSGTYPE config_sampling_t
-#define config_fragment_t_setting_cfg_environmental_MSGTYPE config_sampling_t
-#define config_fragment_t_setting_cfg_particulate_MSGTYPE config_sampling_t
-#define config_fragment_t_setting_cfg_radio_timing_MSGTYPE config_radio_timing_t
-#define config_fragment_t_setting_cfg_system_MSGTYPE config_system_t
+#define ConfigFragment_CALLBACK NULL
+#define ConfigFragment_DEFAULT NULL
+#define ConfigFragment_setting_cfg_time_window_MSGTYPE ConfigTimeWindow
+#define ConfigFragment_setting_cfg_accelerometer_MSGTYPE ConfigAccelerometer
+#define ConfigFragment_setting_cfg_microphone_MSGTYPE ConfigMicrophone
+#define ConfigFragment_setting_cfg_gps_MSGTYPE ConfigGPS
+#define ConfigFragment_setting_cfg_magnetometer_MSGTYPE ConfigMagnetometer
+#define ConfigFragment_setting_cfg_light_MSGTYPE ConfigSampling
+#define ConfigFragment_setting_cfg_environmental_MSGTYPE ConfigSampling
+#define ConfigFragment_setting_cfg_particulate_MSGTYPE ConfigSampling
+#define ConfigFragment_setting_cfg_radio_timing_MSGTYPE ConfigRadioTiming
+#define ConfigFragment_setting_cfg_system_MSGTYPE ConfigSystem
 
-#define DOWNLINK_PACKET_FIELDLIST(X, a) \
+#define DownlinkPacket_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
 X(a, STATIC,   SINGULAR, UENUM,    command,           2) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  high_fix_params,   3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  geofence,          4) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  config,            5) \
-X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_epoch,   6)
-#define DOWNLINK_PACKET_CALLBACK NULL
-#define DOWNLINK_PACKET_DEFAULT NULL
-#define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
-#define downlink_packet_t_geofence_MSGTYPE geofence_data_t
-#define downlink_packet_t_config_MSGTYPE config_fragment_t
+X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_epoch,   6) \
+X(a, STATIC,   OPTIONAL, UINT32,   resend_from,       7) \
+X(a, STATIC,   OPTIONAL, UINT32,   resend_mask,       8)
+#define DownlinkPacket_CALLBACK NULL
+#define DownlinkPacket_DEFAULT NULL
+#define DownlinkPacket_high_fix_params_MSGTYPE HighFixParams
+#define DownlinkPacket_geofence_MSGTYPE GeofenceData
+#define DownlinkPacket_config_MSGTYPE ConfigFragment
 
-extern const pb_msgdesc_t geo_point_t_msg;
-extern const pb_msgdesc_t geofence_data_t_msg;
-extern const pb_msgdesc_t high_fix_params_t_msg;
-extern const pb_msgdesc_t config_time_window_t_msg;
-extern const pb_msgdesc_t config_accelerometer_t_msg;
-extern const pb_msgdesc_t config_microphone_t_msg;
-extern const pb_msgdesc_t config_gps_t_msg;
-extern const pb_msgdesc_t config_magnetometer_t_msg;
-extern const pb_msgdesc_t config_sampling_t_msg;
-extern const pb_msgdesc_t config_radio_timing_t_msg;
-extern const pb_msgdesc_t config_system_t_msg;
-extern const pb_msgdesc_t config_fragment_t_msg;
-extern const pb_msgdesc_t downlink_packet_t_msg;
+extern const pb_msgdesc_t GeoPoint_msg;
+extern const pb_msgdesc_t GeofenceData_msg;
+extern const pb_msgdesc_t HighFixParams_msg;
+extern const pb_msgdesc_t ConfigTimeWindow_msg;
+extern const pb_msgdesc_t ConfigAccelerometer_msg;
+extern const pb_msgdesc_t ConfigMicrophone_msg;
+extern const pb_msgdesc_t ConfigGPS_msg;
+extern const pb_msgdesc_t ConfigMagnetometer_msg;
+extern const pb_msgdesc_t ConfigSampling_msg;
+extern const pb_msgdesc_t ConfigRadioTiming_msg;
+extern const pb_msgdesc_t ConfigSystem_msg;
+extern const pb_msgdesc_t ConfigFragment_msg;
+extern const pb_msgdesc_t DownlinkPacket_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
-#define GEO_POINT_FIELDS &geo_point_t_msg
-#define GEOFENCE_DATA_FIELDS &geofence_data_t_msg
-#define HIGH_FIX_PARAMS_FIELDS &high_fix_params_t_msg
-#define CONFIG_TIME_WINDOW_FIELDS &config_time_window_t_msg
-#define CONFIG_ACCELEROMETER_FIELDS &config_accelerometer_t_msg
-#define CONFIG_MICROPHONE_FIELDS &config_microphone_t_msg
-#define CONFIG_GPS_FIELDS &config_gps_t_msg
-#define CONFIG_MAGNETOMETER_FIELDS &config_magnetometer_t_msg
-#define CONFIG_SAMPLING_FIELDS &config_sampling_t_msg
-#define CONFIG_RADIO_TIMING_FIELDS &config_radio_timing_t_msg
-#define CONFIG_SYSTEM_FIELDS &config_system_t_msg
-#define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
-#define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
+#define GeoPoint_fields &GeoPoint_msg
+#define GeofenceData_fields &GeofenceData_msg
+#define HighFixParams_fields &HighFixParams_msg
+#define ConfigTimeWindow_fields &ConfigTimeWindow_msg
+#define ConfigAccelerometer_fields &ConfigAccelerometer_msg
+#define ConfigMicrophone_fields &ConfigMicrophone_msg
+#define ConfigGPS_fields &ConfigGPS_msg
+#define ConfigMagnetometer_fields &ConfigMagnetometer_msg
+#define ConfigSampling_fields &ConfigSampling_msg
+#define ConfigRadioTiming_fields &ConfigRadioTiming_msg
+#define ConfigSystem_fields &ConfigSystem_msg
+#define ConfigFragment_fields &ConfigFragment_msg
+#define DownlinkPacket_fields &DownlinkPacket_msg
 
 /* Maximum encoded size of messages (where known) */
-#define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     47
-#define CONFIG_GPS_SIZE                          14
-#define CONFIG_MAGNETOMETER_SIZE                 8
-#define CONFIG_MICROPHONE_SIZE                   16
-#define CONFIG_RADIO_TIMING_SIZE                 27
-#define CONFIG_SAMPLING_SIZE                     8
-#define CONFIG_SYSTEM_SIZE                       10
-#define CONFIG_TIME_WINDOW_SIZE                  12
-#define DOWNLINK_PACKET_SIZE                     280
-#define GEOFENCE_DATA_SIZE                       200
-#define GEO_POINT_SIZE                           22
-#define HIGH_FIX_PARAMS_SIZE                     12
+#define ConfigAccelerometer_size                 14
+#define ConfigFragment_size                      47
+#define ConfigGPS_size                           14
+#define ConfigMagnetometer_size                  8
+#define ConfigMicrophone_size                    16
+#define ConfigRadioTiming_size                   27
+#define ConfigSampling_size                      8
+#define ConfigSystem_size                        10
+#define ConfigTimeWindow_size                    12
+#define DownlinkPacket_size                      292
+#define GeoPoint_size                            22
+#define GeofenceData_size                        200
+#define HighFixParams_size                       12
 
 #ifdef __cplusplus
 } /* extern "C" */

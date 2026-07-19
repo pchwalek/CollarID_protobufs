@@ -34,6 +34,10 @@ enum CommandType {
   // queue and forwarded to the detach add-on at its next rendezvous.
   CMD_ADDON_ARM      = 13;  // Arm detach at addon_arm_epoch (UTC s)
   CMD_ADDON_ABORT    = 14;  // Disarm the detach add-on
+  // Missed-packet recovery (DESIGN_lorawan_reliability.md): server detected
+  // a gap in packet_header.packet_index and asks the device to replay the
+  // stored uplinks verbatim (pure retransmit, fPort 12).
+  CMD_RESEND         = 15;  // Replay uplinks named by resend_from/resend_mask
 }
 
 // ---- Geofence ----
@@ -155,4 +159,11 @@ message DownlinkPacket {
   // CMD_ADDON_ARM: the armed drop-off time. Deliberately NOT the epoch
   // field above — that one is the RTC-sync reference on every downlink.
   optional uint32 addon_arm_epoch = 6;
+
+  // CMD_RESEND: bit i of resend_mask set => replay the stored uplink with
+  // packet_index == resend_from + i (bit 0 = resend_from itself), so one
+  // command names up to 32 indices. Device replays at most a few per
+  // command (duty cycle); the server re-requests the rest later.
+  optional uint32 resend_from = 7;
+  optional uint32 resend_mask = 8;
 }
