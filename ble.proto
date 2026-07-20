@@ -96,11 +96,29 @@ message LostMode_config{
   int32  tx_power_dbm                           = 3;
 }
 
+// Mortality detection (P5). When the collar's accelerometer activity
+// (VeDBA) stays below a fixed firmware threshold for trigger_duration_hours,
+// it flags every uplink and additionally transmits every
+// transmit_interval_min. Alert-only: the configured schedule is unchanged,
+// and the state clears by itself if the animal moves again.
+//
+// Detection rides the accelerometer windows the schedule already provides
+// (the accel is powered down outside them), so this does nothing useful
+// unless at least one schedule enables the accelerometer. The near-zero
+// VeDBA threshold is deliberately NOT exposed: it is the easiest value to
+// get wrong and is tuned in firmware.
+message Mortality_config{
+  uint32 trigger_duration_hours                 = 1;  // 0 = firmware default (48)
+  uint32 transmit_interval_min                  = 2;  // 0 = firmware default (240)
+}
+
 message RadioConfigPacket {
   optional LoRaWANConfig    loRaWAN_config	   = 1;
   optional LoRaConfig       loRa_config		   = 2;
   bool 		   lostMode_enabled        = 3;
   LostMode_config  lostMode_config	   = 4;
+  bool             mortality_enabled       = 5;
+  Mortality_config mortality_config        = 6;
 }
 
 message MicrophoneConfig {
