@@ -129,6 +129,22 @@ typedef struct lost_mode_config {
     int32_t tx_power_dbm;
 } lost_mode_config_t;
 
+/* Mortality detection (P5). When the collar's accelerometer activity
+ (VeDBA) stays below a fixed firmware threshold for trigger_duration_hours,
+ it flags every uplink and additionally transmits every
+ transmit_interval_min. Alert-only: the configured schedule is unchanged,
+ and the state clears by itself if the animal moves again.
+
+ Detection rides the accelerometer windows the schedule already provides
+ (the accel is powered down outside them), so this does nothing useful
+ unless at least one schedule enables the accelerometer. The near-zero
+ VeDBA threshold is deliberately NOT exposed: it is the easiest value to
+ get wrong and is tuned in firmware. */
+typedef struct mortality_config {
+    uint32_t trigger_duration_hours; /* 0 = firmware default (48) */
+    uint32_t transmit_interval_min; /* 0 = firmware default (240) */
+} mortality_config_t;
+
 typedef struct radio_config_packet {
     bool has_lo_ra_wan_config;
     lo_ra_wan_config_t lo_ra_wan_config;
@@ -137,6 +153,9 @@ typedef struct radio_config_packet {
     bool lost_mode_enabled;
     bool has_lost_mode_config;
     lost_mode_config_t lost_mode_config;
+    bool mortality_enabled;
+    bool has_mortality_config;
+    mortality_config_t mortality_config;
 } radio_config_packet_t;
 
 typedef struct microphone_config {
@@ -301,6 +320,7 @@ extern "C" {
 
 
 
+
 #define accelerometer_config_t_sample_rate_ENUMTYPE accel_sample_rate_t
 #define accelerometer_config_t_sensitivity_ENUMTYPE accel_sensitivity_t
 
@@ -324,7 +344,8 @@ extern "C" {
 #define LO_RA_WAN_CONFIG_INIT_DEFAULT            {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_DEFAULT}, 0, 0, 0}
 #define LO_RA_CONFIG_INIT_DEFAULT                {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0}
 #define LOST_MODE_CONFIG_INIT_DEFAULT            {0, 0, 0}
-#define RADIO_CONFIG_PACKET_INIT_DEFAULT         {false, LO_RA_WAN_CONFIG_INIT_DEFAULT, false, LO_RA_CONFIG_INIT_DEFAULT, 0, false, LOST_MODE_CONFIG_INIT_DEFAULT}
+#define MORTALITY_CONFIG_INIT_DEFAULT            {0, 0}
+#define RADIO_CONFIG_PACKET_INIT_DEFAULT         {false, LO_RA_WAN_CONFIG_INIT_DEFAULT, false, LO_RA_CONFIG_INIT_DEFAULT, 0, false, LOST_MODE_CONFIG_INIT_DEFAULT, 0, false, MORTALITY_CONFIG_INIT_DEFAULT}
 #define MICROPHONE_CONFIG_INIT_DEFAULT           {0, 0, 0, 0}
 #define ACCELEROMETER_CONFIG_INIT_DEFAULT        {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0}
@@ -343,7 +364,8 @@ extern "C" {
 #define LO_RA_WAN_CONFIG_INIT_ZERO               {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_ZERO}, 0, 0, 0}
 #define LO_RA_CONFIG_INIT_ZERO                   {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0}
 #define LOST_MODE_CONFIG_INIT_ZERO               {0, 0, 0}
-#define RADIO_CONFIG_PACKET_INIT_ZERO            {false, LO_RA_WAN_CONFIG_INIT_ZERO, false, LO_RA_CONFIG_INIT_ZERO, 0, false, LOST_MODE_CONFIG_INIT_ZERO}
+#define MORTALITY_CONFIG_INIT_ZERO               {0, 0}
+#define RADIO_CONFIG_PACKET_INIT_ZERO            {false, LO_RA_WAN_CONFIG_INIT_ZERO, false, LO_RA_CONFIG_INIT_ZERO, 0, false, LOST_MODE_CONFIG_INIT_ZERO, 0, false, MORTALITY_CONFIG_INIT_ZERO}
 #define MICROPHONE_CONFIG_INIT_ZERO              {0, 0, 0, 0}
 #define ACCELEROMETER_CONFIG_INIT_ZERO           {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0}
@@ -395,10 +417,14 @@ extern "C" {
 #define LOST_MODE_CONFIG_ACTIVATION_EPOCH_TAG    1
 #define LOST_MODE_CONFIG_TRANSMIT_INTERVAL_MIN_TAG 2
 #define LOST_MODE_CONFIG_TX_POWER_DBM_TAG        3
+#define MORTALITY_CONFIG_TRIGGER_DURATION_HOURS_TAG 1
+#define MORTALITY_CONFIG_TRANSMIT_INTERVAL_MIN_TAG 2
 #define RADIO_CONFIG_PACKET_LO_RA_WAN_CONFIG_TAG 1
 #define RADIO_CONFIG_PACKET_LO_RA_CONFIG_TAG     2
 #define RADIO_CONFIG_PACKET_LOST_MODE_ENABLED_TAG 3
 #define RADIO_CONFIG_PACKET_LOST_MODE_CONFIG_TAG 4
+#define RADIO_CONFIG_PACKET_MORTALITY_ENABLED_TAG 5
+#define RADIO_CONFIG_PACKET_MORTALITY_CONFIG_TAG 6
 #define MICROPHONE_CONFIG_ENABLED_TAG            1
 #define MICROPHONE_CONFIG_CONTINUOUS_MODE_TAG    2
 #define MICROPHONE_CONFIG_SAMPLE_LENGTH_MIN_TAG  3
@@ -526,16 +552,25 @@ X(a, STATIC,   SINGULAR, INT32,    tx_power_dbm,      3)
 #define LOST_MODE_CONFIG_CALLBACK NULL
 #define LOST_MODE_CONFIG_DEFAULT NULL
 
+#define MORTALITY_CONFIG_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   trigger_duration_hours,   1) \
+X(a, STATIC,   SINGULAR, UINT32,   transmit_interval_min,   2)
+#define MORTALITY_CONFIG_CALLBACK NULL
+#define MORTALITY_CONFIG_DEFAULT NULL
+
 #define RADIO_CONFIG_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  lo_ra_wan_config,   1) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  lo_ra_config,      2) \
 X(a, STATIC,   SINGULAR, BOOL,     lost_mode_enabled,   3) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  lost_mode_config,   4)
+X(a, STATIC,   OPTIONAL, MESSAGE,  lost_mode_config,   4) \
+X(a, STATIC,   SINGULAR, BOOL,     mortality_enabled,   5) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  mortality_config,   6)
 #define RADIO_CONFIG_PACKET_CALLBACK NULL
 #define RADIO_CONFIG_PACKET_DEFAULT NULL
 #define radio_config_packet_t_lo_ra_wan_config_MSGTYPE lo_ra_wan_config_t
 #define radio_config_packet_t_lo_ra_config_MSGTYPE lo_ra_config_t
 #define radio_config_packet_t_lost_mode_config_MSGTYPE lost_mode_config_t
+#define radio_config_packet_t_mortality_config_MSGTYPE mortality_config_t
 
 #define MICROPHONE_CONFIG_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, BOOL,     enabled,           1) \
@@ -656,6 +691,7 @@ extern const pb_msgdesc_t radio_abp_t_msg;
 extern const pb_msgdesc_t lo_ra_wan_config_t_msg;
 extern const pb_msgdesc_t lo_ra_config_t_msg;
 extern const pb_msgdesc_t lost_mode_config_t_msg;
+extern const pb_msgdesc_t mortality_config_t_msg;
 extern const pb_msgdesc_t radio_config_packet_t_msg;
 extern const pb_msgdesc_t microphone_config_t_msg;
 extern const pb_msgdesc_t accelerometer_config_t_msg;
@@ -677,6 +713,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define LO_RA_WAN_CONFIG_FIELDS &lo_ra_wan_config_t_msg
 #define LO_RA_CONFIG_FIELDS &lo_ra_config_t_msg
 #define LOST_MODE_CONFIG_FIELDS &lost_mode_config_t_msg
+#define MORTALITY_CONFIG_FIELDS &mortality_config_t_msg
 #define RADIO_CONFIG_PACKET_FIELDS &radio_config_packet_t_msg
 #define MICROPHONE_CONFIG_FIELDS &microphone_config_t_msg
 #define ACCELEROMETER_CONFIG_FIELDS &accelerometer_config_t_msg
@@ -699,9 +736,10 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define LO_RA_WAN_CONFIG_SIZE                    103
 #define MAGNETOMETER_CONFIG_SIZE                 8
 #define MICROPHONE_CONFIG_SIZE                   16
+#define MORTALITY_CONFIG_SIZE                    12
 #define PERIPHERAL_PACKET_SIZE                   10
 #define RADIO_ABP_SIZE                           78
-#define RADIO_CONFIG_PACKET_SIZE                 163
+#define RADIO_CONFIG_PACKET_SIZE                 179
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
 #define SCHEDULE_CONFIG_PACKET_SIZE              733

@@ -30,6 +30,9 @@ PB_BIND(LO_RA_CONFIG, lo_ra_config_t, AUTO)
 PB_BIND(LOST_MODE_CONFIG, lost_mode_config_t, AUTO)
 
 
+PB_BIND(MORTALITY_CONFIG, mortality_config_t, AUTO)
+
+
 PB_BIND(RADIO_CONFIG_PACKET, radio_config_packet_t, AUTO)
 
 

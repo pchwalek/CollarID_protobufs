@@ -117,6 +117,15 @@ typedef struct particulate_data {
     uint32_t timestamp;
 } particulate_data_t;
 
+/* Bitmask carried on uplinks while a condition persists.
+   bits 0-6  boot hardware diagnostics, bit set = FAULT (hw_diag.h):
+             0 accel, 1 mag, 2 light, 3 BME688, 4 GPS, 5 particulate, 6 LoRa
+   bit  7    diagnostics ran (validity bit for 0-6)
+   bit  8    MORTALITY: VeDBA has stayed near zero past the configured
+             trigger duration. Not a hardware fault — consumers must mask
+             bits 0-7 before reporting hardware health, or a mortality
+             flag will read as a broken collar.
+   bits 9-31 free */
 typedef struct error_flags {
     uint32_t flag;
 } error_flags_t;
