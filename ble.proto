@@ -179,6 +179,12 @@ message SystemStatePacket {
   optional GPSData  gps_data  = 4;
   SimpleSensorReading sensors = 5;
   string firmware_version = 6;
+  // Boot hardware-diagnostic bitmask (HW_RunDiagnostics, hw_diag.h).
+  // Bit SET = FAULT: 0 accelerometer, 1 magnetometer, 2 light sensor,
+  // 3 BME688, 4 GPS, 5 particulate, 6 LoRa radio. Bit 7 = diagnostics
+  // ran (validity). Same layout mirrored into Deployment.errorFlags.flag
+  // on LoRaWAN uplinks. Absent on older firmware.
+  optional uint32 hw_diag = 7;
 }
 
 // ================== PERIPHERAL CONNECTION ==================

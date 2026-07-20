@@ -216,6 +216,13 @@ typedef struct system_state_packet {
     bool has_sensors;
     simple_sensor_reading_t sensors;
     char firmware_version[16];
+    /* Boot hardware-diagnostic bitmask (HW_RunDiagnostics, hw_diag.h).
+ Bit SET = FAULT: 0 accelerometer, 1 magnetometer, 2 light sensor,
+ 3 BME688, 4 GPS, 5 particulate, 6 LoRa radio. Bit 7 = diagnostics
+ ran (validity). Same layout mirrored into Deployment.errorFlags.flag
+ on LoRaWAN uplinks. Absent on older firmware. */
+    bool has_hw_diag;
+    uint32_t hw_diag;
 } system_state_packet_t;
 
 typedef struct peripheral_packet {
@@ -324,7 +331,7 @@ extern "C" {
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, ""}
+#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
 #define PERIPHERAL_INFO_INIT_DEFAULT             {{{NULL}, NULL}}
 #define BLE_PACKET_INIT_DEFAULT                  {false, PACKET_HEADER_INIT_DEFAULT, 0, {SCHEDULE_CONFIG_PACKET_INIT_DEFAULT}}
@@ -343,7 +350,7 @@ extern "C" {
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, ""}
+#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
 #define PERIPHERAL_INFO_INIT_ZERO                {{{NULL}, NULL}}
 #define BLE_PACKET_INIT_ZERO                     {false, PACKET_HEADER_INIT_ZERO, 0, {SCHEDULE_CONFIG_PACKET_INIT_ZERO}}
@@ -434,6 +441,7 @@ extern "C" {
 #define SYSTEM_STATE_PACKET_GPS_DATA_TAG         4
 #define SYSTEM_STATE_PACKET_SENSORS_TAG          5
 #define SYSTEM_STATE_PACKET_FIRMWARE_VERSION_TAG 6
+#define SYSTEM_STATE_PACKET_HW_DIAG_TAG          7
 #define PERIPHERAL_PACKET_MAC_ADDRESS_TAG        1
 #define PERIPHERAL_PACKET_TYPE_TAG               2
 #define PERIPHERAL_INFO_DEVICE_UIDS_TAG          1
@@ -604,7 +612,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  battery,           2) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  sdcard,            3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  gps_data,          4) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  sensors,           5) \
-X(a, STATIC,   SINGULAR, STRING,   firmware_version,   6)
+X(a, STATIC,   SINGULAR, STRING,   firmware_version,   6) \
+X(a, STATIC,   OPTIONAL, UINT32,   hw_diag,           7)
 #define SYSTEM_STATE_PACKET_CALLBACK NULL
 #define SYSTEM_STATE_PACKET_DEFAULT NULL
 #define system_state_packet_t_battery_MSGTYPE battery_state_t
@@ -698,7 +707,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_PACKET_SIZE              733
 #define SCHEDULE_CONFIG_SIZE                     142
 #define SIMPLE_SENSOR_READING_SIZE               51
-#define SYSTEM_STATE_PACKET_SIZE                 139
+#define SYSTEM_STATE_PACKET_SIZE                 145
 #define TIME_WINDOW_SIZE                         12
 
 #ifdef __cplusplus
