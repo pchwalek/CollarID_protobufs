@@ -18,6 +18,14 @@ message PacketHeader {
   // the server gates capabilities with simple >= checks; absent on legacy
   // firmware (server treats missing as "capabilities unknown"). ~3 B on air.
   optional uint32 fw_build = 6;
+  // CRC-32 over the device's nanopb-encoded schedule config — an OPAQUE
+  // change detector, computed only on-device (never recomputed server-side;
+  // cross-implementation protobuf encoding is not canonical). The server
+  // stores last-seen and reacts to CHANGES: an unexpected new value means
+  // the schedule was edited out-of-band (SD card / BLE) and the stored
+  // config content is stale until the next ConfigPacket uplink. ~3 B on
+  // air, same pattern as fw_build. Absent on legacy firmware.
+  optional uint32 sched_crc = 7;
 }
 
 // ---- GPS ----

@@ -68,8 +68,23 @@ message SystemSensorSummary{
 
 
 
-message AckPacket{
+// Outcome of a config transaction (remote schedule push). Uplinked once
+// after CMD_CONFIG_COMMIT is processed — the server's only visibility into
+// whether a push landed; without it, NACKs died in METADATA.CSV.
+enum ConfigAckStatus {
+  CFG_ACK_NONE            = 0;
+  CFG_ACK_APPLIED         = 1;  // staged config applied + persisted
+  CFG_ACK_MISSING_FRAGS   = 2;  // commit rejected; see cfg_missing_mask
+  CFG_ACK_RAILS_REJECTED  = 3;  // schedule would silence the device (floor/radio rails)
+  CFG_ACK_NO_TXN          = 4;  // commit with no open transaction
+  CFG_ACK_EXPIRED         = 5;  // staging expired before commit arrived
+}
 
+message AckPacket{
+  optional uint32 cfg_txn_id       = 1;  // echoes DownlinkPacket.cfg_txn_id
+  optional ConfigAckStatus cfg_status = 2;
+  optional uint32 cfg_missing_mask = 3;  // bit i = fragment_index i missing
+  optional uint32 sched_crc        = 4;  // schedule identity AFTER the verdict
 }
 
 message RadioInfo{

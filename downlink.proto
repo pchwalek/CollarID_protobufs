@@ -38,6 +38,11 @@ enum CommandType {
   // a gap in packet_header.packet_index and asks the device to replay the
   // stored uplinks verbatim (pure retransmit, fPort 12).
   CMD_RESEND         = 15;  // Replay uplinks named by resend_from/resend_mask
+  // Remote schedule push (DESIGN_remote_schedule_push.md): ask the device to
+  // uplink its full ConfigPacket + sched_crc so the server can (re)learn the
+  // running schedule — the SD-card-edit recovery path, and the freshness
+  // prerequisite for building delta fragments.
+  CMD_CONFIG_REPORT  = 16;  // Uplink current schedule config
 }
 
 // ---- Geofence ----
@@ -166,4 +171,10 @@ message DownlinkPacket {
   // command (duty cycle); the server re-requests the rest later.
   optional uint32 resend_from = 7;
   optional uint32 resend_mask = 8;
+
+  // Config transaction id, present on CMD_CONFIG_BEGIN/COMMIT/ABORT and on
+  // every fragment of that transaction. Echoed back in the device's
+  // AckPacket so a retried COMMIT and a stale ack are distinguishable.
+  // Server-assigned, monotonically increasing per device; 0 = legacy client.
+  optional uint32 cfg_txn_id = 9;
 }

@@ -25,21 +25,21 @@ _sym_db = _symbol_database.Default()
 import nanopb_pb2 as nanopb__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\x1a\x0cnanopb.proto\"\xac\x01\n\x0cPacketHeader\x12\x12\n\nsystem_uid\x18\x01 \x01(\r\x12\x15\n\rms_from_start\x18\x02 \x01(\r\x12\r\n\x05\x65poch\x18\x03 \x01(\r\x12\x14\n\x0cpacket_index\x18\x04 \x01(\r\x12\x18\n\x0brequest_ack\x18\x05 \x01(\x08H\x00\x88\x01\x01\x12\x15\n\x08\x66w_build\x18\x06 \x01(\rH\x01\x88\x01\x01\x42\x0e\n\x0c_request_ackB\x0b\n\t_fw_build\"`\n\x07GPSData\x12\x10\n\x08latitude\x18\x01 \x01(\x02\x12\x11\n\tlongitude\x18\x02 \x01(\x02\x12\x10\n\x08\x61ltitude\x18\x03 \x01(\x02\x12\r\n\x05speed\x18\x04 \x01(\x02\x12\x0f\n\x07heading\x18\x05 \x01(\x02\"Y\n\x0c\x42\x61tteryState\x12\x10\n\x08\x63harging\x18\x01 \x01(\x08\x12\x0f\n\x07voltage\x18\x02 \x01(\x02\x12\x17\n\npercentage\x18\x03 \x01(\x02H\x00\x88\x01\x01\x42\r\n\x0b_percentage\"M\n\x0bSDCardState\x12\x10\n\x08\x64\x65tected\x18\x01 \x01(\x08\x12\x17\n\x0fspace_remaining\x18\x02 \x01(\x04\x12\x13\n\x0btotal_space\x18\x03 \x01(\x04*(\n\x08\x41\x63tivity\x12\t\n\x05STILL\x10\x00\x12\x08\n\x04WALK\x10\x01\x12\x07\n\x03RUN\x10\x02\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\x1a\x0cnanopb.proto\"\xd2\x01\n\x0cPacketHeader\x12\x12\n\nsystem_uid\x18\x01 \x01(\r\x12\x15\n\rms_from_start\x18\x02 \x01(\r\x12\r\n\x05\x65poch\x18\x03 \x01(\r\x12\x14\n\x0cpacket_index\x18\x04 \x01(\r\x12\x18\n\x0brequest_ack\x18\x05 \x01(\x08H\x00\x88\x01\x01\x12\x15\n\x08\x66w_build\x18\x06 \x01(\rH\x01\x88\x01\x01\x12\x16\n\tsched_crc\x18\x07 \x01(\rH\x02\x88\x01\x01\x42\x0e\n\x0c_request_ackB\x0b\n\t_fw_buildB\x0c\n\n_sched_crc\"`\n\x07GPSData\x12\x10\n\x08latitude\x18\x01 \x01(\x02\x12\x11\n\tlongitude\x18\x02 \x01(\x02\x12\x10\n\x08\x61ltitude\x18\x03 \x01(\x02\x12\r\n\x05speed\x18\x04 \x01(\x02\x12\x0f\n\x07heading\x18\x05 \x01(\x02\"Y\n\x0c\x42\x61tteryState\x12\x10\n\x08\x63harging\x18\x01 \x01(\x08\x12\x0f\n\x07voltage\x18\x02 \x01(\x02\x12\x17\n\npercentage\x18\x03 \x01(\x02H\x00\x88\x01\x01\x42\r\n\x0b_percentage\"M\n\x0bSDCardState\x12\x10\n\x08\x64\x65tected\x18\x01 \x01(\x08\x12\x17\n\x0fspace_remaining\x18\x02 \x01(\x04\x12\x13\n\x0btotal_space\x18\x03 \x01(\x04*(\n\x08\x41\x63tivity\x12\t\n\x05STILL\x10\x00\x12\x08\n\x04WALK\x10\x01\x12\x07\n\x03RUN\x10\x02\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'common_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_ACTIVITY']._serialized_start=473
-  _globals['_ACTIVITY']._serialized_end=513
+  _globals['_ACTIVITY']._serialized_start=511
+  _globals['_ACTIVITY']._serialized_end=551
   _globals['_PACKETHEADER']._serialized_start=31
-  _globals['_PACKETHEADER']._serialized_end=203
-  _globals['_GPSDATA']._serialized_start=205
-  _globals['_GPSDATA']._serialized_end=301
-  _globals['_BATTERYSTATE']._serialized_start=303
-  _globals['_BATTERYSTATE']._serialized_end=392
-  _globals['_SDCARDSTATE']._serialized_start=394
-  _globals['_SDCARDSTATE']._serialized_end=471
+  _globals['_PACKETHEADER']._serialized_end=241
+  _globals['_GPSDATA']._serialized_start=243
+  _globals['_GPSDATA']._serialized_end=339
+  _globals['_BATTERYSTATE']._serialized_start=341
+  _globals['_BATTERYSTATE']._serialized_end=430
+  _globals['_SDCARDSTATE']._serialized_start=432
+  _globals['_SDCARDSTATE']._serialized_end=509
 # @@protoc_insertion_point(module_scope)
