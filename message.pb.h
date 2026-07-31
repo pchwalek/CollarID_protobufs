@@ -5,6 +5,7 @@
 #define PB_MESSAGE_PB_H_INCLUDED
 #include <pb.h>
 #include "common.pb.h"
+#include "downlink.pb.h"
 
 #if PB_PROTO_HEADER_VERSION != 40
 #error Regenerate this file with the current version of nanopb generator.
@@ -199,6 +200,22 @@ typedef struct deployment {
     addon_report_t addon[4];
 } deployment_t;
 
+/* Schedule self-report: the device describes its RUNNING config to the
+ server in the same fragment vocabulary the server pushes with
+ (downlink.proto ConfigFragment) — one small fragment per uplink, absolute
+ values (every field present), not deltas. Sent on CMD_CONFIG_REPORT, after
+ a config commit, and when sched_crc changes out-of-band (SD/BLE edit).
+ frag_index/frag_total let the server assemble and detect gaps; sched_crc
+ binds every fragment to the identity it describes, so a mid-report edit
+ invalidates the batch instead of splicing two configs together. */
+typedef struct config_report {
+    uint32_t sched_crc;
+    uint32_t frag_index;
+    uint32_t frag_total;
+    bool has_frag;
+    config_fragment_t frag;
+} config_report_t;
+
 typedef struct message_packet {
     bool has_header;
     packet_header_t header;
@@ -211,6 +228,15 @@ typedef struct message_packet {
     } payload;
     bool has_radio_info;
     radio_info_t radio_info;
+    /* Piggybacked config-transaction verdict / schedule self-report. Sibling
+ fields, NOT oneof members: they ride whatever uplink goes out next
+ (deployment, system info), costing no extra airtime windows. At most
+ one of each per uplink; the sender strips them if the encoded packet
+ would exceed the region's payload budget and retries on the next one. */
+    bool has_cfg_ack;
+    ack_packet_t cfg_ack;
+    bool has_cfg_report;
+    config_report_t cfg_report;
 } message_packet_t;
 
 
@@ -240,6 +266,7 @@ extern "C" {
 
 
 
+
 /* Initializer values for message structs */
 #define SYSTEM_INFO_PACKET_INIT_DEFAULT          {false, SYSTEM_SENSOR_SUMMARY_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, BATTERY_STATE_INIT_DEFAULT, false, METADATA_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT}
 #define METADATA_INIT_DEFAULT                    {0}
@@ -255,7 +282,8 @@ extern "C" {
 #define ERROR_FLAGS_INIT_DEFAULT                 {0}
 #define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}}
 #define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT}
+#define CONFIG_REPORT_INIT_DEFAULT               {0, 0, 0, false, CONFIG_FRAGMENT_INIT_DEFAULT}
+#define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT, false, ACK_PACKET_INIT_DEFAULT, false, CONFIG_REPORT_INIT_DEFAULT}
 #define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
 #define METADATA_INIT_ZERO                       {0}
 #define CONFIG_PACKET_INIT_ZERO                  {0, 0, 0, 0, 0, 0, 0, 0}
@@ -270,7 +298,8 @@ extern "C" {
 #define ERROR_FLAGS_INIT_ZERO                    {0}
 #define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}}
 #define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO}
+#define CONFIG_REPORT_INIT_ZERO                  {0, 0, 0, false, CONFIG_FRAGMENT_INIT_ZERO}
+#define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO, false, ACK_PACKET_INIT_ZERO, false, CONFIG_REPORT_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define METADATA_GPS_AVG_FIX_TIME_TAG            1
@@ -351,12 +380,18 @@ extern "C" {
 #define DEPLOYMENT_GPS_DATA_TAG                  7
 #define DEPLOYMENT_ERROR_FLAGS_TAG               8
 #define DEPLOYMENT_ADDON_TAG                     9
+#define CONFIG_REPORT_SCHED_CRC_TAG              1
+#define CONFIG_REPORT_FRAG_INDEX_TAG             2
+#define CONFIG_REPORT_FRAG_TOTAL_TAG             3
+#define CONFIG_REPORT_FRAG_TAG                   4
 #define MESSAGE_PACKET_HEADER_TAG                1
 #define MESSAGE_PACKET_SYSTEM_INFO_PACKET_TAG    2
 #define MESSAGE_PACKET_CONFIG_PACKET_TAG         3
 #define MESSAGE_PACKET_ACK_PACKET_TAG            4
 #define MESSAGE_PACKET_SYSTEM_DEPLOYMENT_PACKET_TAG 5
 #define MESSAGE_PACKET_RADIO_INFO_TAG            6
+#define MESSAGE_PACKET_CFG_ACK_TAG               9
+#define MESSAGE_PACKET_CFG_REPORT_TAG            10
 
 /* Struct field encoding specification for nanopb */
 #define SYSTEM_INFO_PACKET_FIELDLIST(X, a) \
@@ -506,13 +541,24 @@ X(a, STATIC,   OPTIONAL, UINT32,   pending_cmd_param,  10)
 #define ADDON_REPORT_CALLBACK NULL
 #define ADDON_REPORT_DEFAULT NULL
 
+#define CONFIG_REPORT_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   sched_crc,         1) \
+X(a, STATIC,   SINGULAR, UINT32,   frag_index,        2) \
+X(a, STATIC,   SINGULAR, UINT32,   frag_total,        3) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  frag,              4)
+#define CONFIG_REPORT_CALLBACK NULL
+#define CONFIG_REPORT_DEFAULT NULL
+#define config_report_t_frag_MSGTYPE config_fragment_t
+
 #define MESSAGE_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  header,            1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,system_info_packet,payload.system_info_packet),   2) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,config_packet,payload.config_packet),   3) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,ack_packet,payload.ack_packet),   4) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,system_deployment_packet,payload.system_deployment_packet),   5) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  radio_info,        6)
+X(a, STATIC,   OPTIONAL, MESSAGE,  radio_info,        6) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_ack,           9) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_report,       10)
 #define MESSAGE_PACKET_CALLBACK NULL
 #define MESSAGE_PACKET_DEFAULT NULL
 #define message_packet_t_header_MSGTYPE packet_header_t
@@ -521,6 +567,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  radio_info,        6)
 #define message_packet_t_payload_ack_packet_MSGTYPE ack_packet_t
 #define message_packet_t_payload_system_deployment_packet_MSGTYPE deployment_t
 #define message_packet_t_radio_info_MSGTYPE radio_info_t
+#define message_packet_t_cfg_ack_MSGTYPE ack_packet_t
+#define message_packet_t_cfg_report_MSGTYPE config_report_t
 
 extern const pb_msgdesc_t system_info_packet_t_msg;
 extern const pb_msgdesc_t metadata_t_msg;
@@ -536,6 +584,7 @@ extern const pb_msgdesc_t particulate_data_t_msg;
 extern const pb_msgdesc_t error_flags_t_msg;
 extern const pb_msgdesc_t deployment_t_msg;
 extern const pb_msgdesc_t addon_report_t_msg;
+extern const pb_msgdesc_t config_report_t_msg;
 extern const pb_msgdesc_t message_packet_t_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
@@ -553,6 +602,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ERROR_FLAGS_FIELDS &error_flags_t_msg
 #define DEPLOYMENT_FIELDS &deployment_t_msg
 #define ADDON_REPORT_FIELDS &addon_report_t_msg
+#define CONFIG_REPORT_FIELDS &config_report_t_msg
 #define MESSAGE_PACKET_FIELDS &message_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
@@ -561,11 +611,12 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACK_PACKET_SIZE                          20
 #define ADDON_REPORT_SIZE                        60
 #define CONFIG_PACKET_SIZE                       16
+#define CONFIG_REPORT_SIZE                       67
 #define DEPLOYMENT_SIZE                          679
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      757
+#define MESSAGE_PACKET_SIZE                      848
 #define MESSAGE_PB_H_MAX_SIZE                    MESSAGE_PACKET_SIZE
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24

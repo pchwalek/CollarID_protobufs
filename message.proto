@@ -3,6 +3,7 @@ syntax = "proto3";
 import "common.proto";
 
 //import "nanopb.proto";
+import "downlink.proto";
 //option (nanopb_fileopt).packed_struct = true;
 //python generator/nanopb_generator.py ../buzzcam/protobuf/message.proto -I ../buzzcam/protobuf
 //protoc message.proto --python_out=./ -I=./
@@ -179,6 +180,21 @@ message AddonReport {
     optional uint32 pending_cmd_param = 10;
 }
 
+// Schedule self-report: the device describes its RUNNING config to the
+// server in the same fragment vocabulary the server pushes with
+// (downlink.proto ConfigFragment) — one small fragment per uplink, absolute
+// values (every field present), not deltas. Sent on CMD_CONFIG_REPORT, after
+// a config commit, and when sched_crc changes out-of-band (SD/BLE edit).
+// frag_index/frag_total let the server assemble and detect gaps; sched_crc
+// binds every fragment to the identity it describes, so a mid-report edit
+// invalidates the batch instead of splicing two configs together.
+message ConfigReport {
+    uint32 sched_crc  = 1;
+    uint32 frag_index = 2;
+    uint32 frag_total = 3;
+    ConfigFragment frag = 4;
+}
+
 message MessagePacket {
     PacketHeader header = 1;
 
@@ -190,6 +206,14 @@ message MessagePacket {
     }
 
     optional RadioInfo radio_info = 6;
+
+    // Piggybacked config-transaction verdict / schedule self-report. Sibling
+    // fields, NOT oneof members: they ride whatever uplink goes out next
+    // (deployment, system info), costing no extra airtime windows. At most
+    // one of each per uplink; the sender strips them if the encoded packet
+    // would exceed the region's payload budget and retries on the next one.
+    optional AckPacket    cfg_ack    = 9;
+    optional ConfigReport cfg_report = 10;
 }
 
 
