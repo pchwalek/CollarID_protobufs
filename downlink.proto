@@ -121,6 +121,12 @@ message ConfigSystem {
   optional bool   verbose_logging       = 1;
   optional bool   enable_reset_on_error = 2;
   optional uint32 special_mode          = 3;
+  // Number of active schedule slots (1-5). Lets a remote push add or remove
+  // slots — the per-slot fragments above can only mutate existing ones.
+  // Firmware rails: growing requires the same transaction to configure each
+  // new slot (at minimum its time window); staging zeroes slots beyond the
+  // live count at BEGIN so a stale array entry can never be resurrected.
+  optional uint32 schedules_count       = 4;
 }
 
 // ---- Config fragment wrapper ----
