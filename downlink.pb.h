@@ -129,6 +129,21 @@ typedef struct config_radio_timing {
     int32_t tx_power_dbm;
 } config_radio_timing_t;
 
+/* Mortality detection — collar-wide, lives in the radio config on the
+ device (~6 bytes). Remote-safe by construction: enabling or disabling it
+ can never silence the collar (the beacon is an EXTRA transmission on top
+ of the scheduled radio cadence), so no reachability rail applies. Zero
+ values mean "use firmware defaults" (48 h trigger, 240 min beacon),
+ matching the CONFIG.CSV parser's semantics. */
+typedef struct config_mortality {
+    bool has_enabled;
+    bool enabled;
+    bool has_trigger_duration_hours;
+    uint32_t trigger_duration_hours;
+    bool has_transmit_interval_min;
+    uint32_t transmit_interval_min;
+} config_mortality_t;
+
 /* Global system flags — not per-schedule (~4 bytes) */
 typedef struct config_system {
     bool has_verbose_logging;
@@ -165,6 +180,7 @@ typedef struct config_fragment {
         config_sampling_t cfg_particulate;
         config_radio_timing_t cfg_radio_timing;
         config_system_t cfg_system; /* global, schedule_index ignored */
+        config_mortality_t cfg_mortality; /* global, schedule_index ignored */
     } setting;
 } config_fragment_t;
 
@@ -226,6 +242,7 @@ extern "C" {
 
 
 
+
 #define downlink_packet_t_command_ENUMTYPE command_type_t
 
 
@@ -240,6 +257,7 @@ extern "C" {
 #define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_DEFAULT}}
 #define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0}
@@ -253,6 +271,7 @@ extern "C" {
 #define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_ZERO}}
 #define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0}
@@ -286,6 +305,9 @@ extern "C" {
 #define CONFIG_RADIO_TIMING_LORA_ENABLED_TAG     3
 #define CONFIG_RADIO_TIMING_LORA_SEND_INTERVAL_MIN_TAG 4
 #define CONFIG_RADIO_TIMING_TX_POWER_DBM_TAG     5
+#define CONFIG_MORTALITY_ENABLED_TAG             1
+#define CONFIG_MORTALITY_TRIGGER_DURATION_HOURS_TAG 2
+#define CONFIG_MORTALITY_TRANSMIT_INTERVAL_MIN_TAG 3
 #define CONFIG_SYSTEM_VERBOSE_LOGGING_TAG        1
 #define CONFIG_SYSTEM_ENABLE_RESET_ON_ERROR_TAG  2
 #define CONFIG_SYSTEM_SPECIAL_MODE_TAG           3
@@ -303,6 +325,7 @@ extern "C" {
 #define CONFIG_FRAGMENT_CFG_PARTICULATE_TAG      11
 #define CONFIG_FRAGMENT_CFG_RADIO_TIMING_TAG     12
 #define CONFIG_FRAGMENT_CFG_SYSTEM_TAG           13
+#define CONFIG_FRAGMENT_CFG_MORTALITY_TAG        14
 #define DOWNLINK_PACKET_EPOCH_TAG                1
 #define DOWNLINK_PACKET_COMMAND_TAG              2
 #define DOWNLINK_PACKET_HIGH_FIX_PARAMS_TAG      3
@@ -383,6 +406,13 @@ X(a, STATIC,   OPTIONAL, INT32,    tx_power_dbm,      5)
 #define CONFIG_RADIO_TIMING_CALLBACK NULL
 #define CONFIG_RADIO_TIMING_DEFAULT NULL
 
+#define CONFIG_MORTALITY_FIELDLIST(X, a) \
+X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
+X(a, STATIC,   OPTIONAL, UINT32,   trigger_duration_hours,   2) \
+X(a, STATIC,   OPTIONAL, UINT32,   transmit_interval_min,   3)
+#define CONFIG_MORTALITY_CALLBACK NULL
+#define CONFIG_MORTALITY_DEFAULT NULL
+
 #define CONFIG_SYSTEM_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     verbose_logging,   1) \
 X(a, STATIC,   OPTIONAL, BOOL,     enable_reset_on_error,   2) \
@@ -404,7 +434,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_light,setting.cfg_light),   9) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_environmental,setting.cfg_environmental),  10) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_particulate,setting.cfg_particulate),  11) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_radio_timing,setting.cfg_radio_timing),  12) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_system,setting.cfg_system),  13)
+X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_system,setting.cfg_system),  13) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_mortality,setting.cfg_mortality),  14)
 #define CONFIG_FRAGMENT_CALLBACK NULL
 #define CONFIG_FRAGMENT_DEFAULT NULL
 #define config_fragment_t_setting_cfg_time_window_MSGTYPE config_time_window_t
@@ -417,6 +448,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_system,setting.cfg_system),  13)
 #define config_fragment_t_setting_cfg_particulate_MSGTYPE config_sampling_t
 #define config_fragment_t_setting_cfg_radio_timing_MSGTYPE config_radio_timing_t
 #define config_fragment_t_setting_cfg_system_MSGTYPE config_system_t
+#define config_fragment_t_setting_cfg_mortality_MSGTYPE config_mortality_t
 
 #define DOWNLINK_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
@@ -444,6 +476,7 @@ extern const pb_msgdesc_t config_gps_t_msg;
 extern const pb_msgdesc_t config_magnetometer_t_msg;
 extern const pb_msgdesc_t config_sampling_t_msg;
 extern const pb_msgdesc_t config_radio_timing_t_msg;
+extern const pb_msgdesc_t config_mortality_t_msg;
 extern const pb_msgdesc_t config_system_t_msg;
 extern const pb_msgdesc_t config_fragment_t_msg;
 extern const pb_msgdesc_t downlink_packet_t_msg;
@@ -459,6 +492,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_MAGNETOMETER_FIELDS &config_magnetometer_t_msg
 #define CONFIG_SAMPLING_FIELDS &config_sampling_t_msg
 #define CONFIG_RADIO_TIMING_FIELDS &config_radio_timing_t_msg
+#define CONFIG_MORTALITY_FIELDS &config_mortality_t_msg
 #define CONFIG_SYSTEM_FIELDS &config_system_t_msg
 #define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
 #define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
@@ -469,6 +503,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_GPS_SIZE                          14
 #define CONFIG_MAGNETOMETER_SIZE                 8
 #define CONFIG_MICROPHONE_SIZE                   16
+#define CONFIG_MORTALITY_SIZE                    14
 #define CONFIG_RADIO_TIMING_SIZE                 27
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16

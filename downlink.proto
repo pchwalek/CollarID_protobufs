@@ -116,6 +116,18 @@ message ConfigRadioTiming {
   optional int32  tx_power_dbm              = 5;
 }
 
+// Mortality detection — collar-wide, lives in the radio config on the
+// device (~6 bytes). Remote-safe by construction: enabling or disabling it
+// can never silence the collar (the beacon is an EXTRA transmission on top
+// of the scheduled radio cadence), so no reachability rail applies. Zero
+// values mean "use firmware defaults" (48 h trigger, 240 min beacon),
+// matching the CONFIG.CSV parser's semantics.
+message ConfigMortality {
+  optional bool   enabled               = 1;
+  optional uint32 trigger_duration_hours = 2;
+  optional uint32 transmit_interval_min  = 3;
+}
+
 // Global system flags — not per-schedule (~4 bytes)
 message ConfigSystem {
   optional bool   verbose_logging       = 1;
@@ -148,6 +160,7 @@ message ConfigFragment {
     ConfigSampling      cfg_particulate   = 11;
     ConfigRadioTiming   cfg_radio_timing  = 12;
     ConfigSystem        cfg_system        = 13;  // global, schedule_index ignored
+    ConfigMortality     cfg_mortality     = 14;  // global, schedule_index ignored
   }
 }
 
