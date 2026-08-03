@@ -84,7 +84,11 @@ enum ConfigAckStatus {
 message AckPacket{
   optional uint32 cfg_txn_id       = 1;  // echoes DownlinkPacket.cfg_txn_id
   optional ConfigAckStatus cfg_status = 2;
-  optional uint32 cfg_missing_mask = 3;  // bit i = fragment_index i missing
+  // For MISSING_FRAGS: bit i = fragment_index i missing.
+  // For RAILS_REJECTED (fw 301+): the SCHED_RAIL_* code of the refusing
+  // rule (1 slot-count, 2 grown-slot-bare, 3 radio-off, 4 cadence-floor,
+  // 5 both-radios, 6 window-overlap). 0 = firmware predating the field.
+  optional uint32 cfg_missing_mask = 3;
   optional uint32 sched_crc        = 4;  // schedule identity AFTER the verdict
 }
 
