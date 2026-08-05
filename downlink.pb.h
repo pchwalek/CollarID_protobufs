@@ -36,7 +36,13 @@ typedef enum command_type {
  uplink its full ConfigPacket + sched_crc so the server can (re)learn the
  running schedule — the SD-card-edit recovery path, and the freshness
  prerequisite for building delta fragments. */
-    COMMAND_TYPE_CMD_CONFIG_REPORT = 16 /* Uplink current schedule config */
+    COMMAND_TYPE_CMD_CONFIG_REPORT = 16, /* Uplink current schedule config */
+    /* Bench-only fence tester (DESIGN_geofence_actions.md): feed the geofence
+ engine a synthetic GPS fix so an operator can walk a desk collar through
+ a fence from the dashboard. The fix rides GeofenceData.vertices[0].
+ Compiled OUT of PRODUCTION_BUILD firmware — a production collar ignores
+ it entirely. */
+    COMMAND_TYPE_CMD_TEST_FIX = 17
 } command_type_t;
 
 /* Struct definitions */
@@ -261,8 +267,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_CONFIG_REPORT
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_CONFIG_REPORT+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_TEST_FIX
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_TEST_FIX+1))
 
 
 

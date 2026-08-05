@@ -43,6 +43,12 @@ enum CommandType {
   // running schedule — the SD-card-edit recovery path, and the freshness
   // prerequisite for building delta fragments.
   CMD_CONFIG_REPORT  = 16;  // Uplink current schedule config
+  // Bench-only fence tester (DESIGN_geofence_actions.md): feed the geofence
+  // engine a synthetic GPS fix so an operator can walk a desk collar through
+  // a fence from the dashboard. The fix rides GeofenceData.vertices[0].
+  // Compiled OUT of PRODUCTION_BUILD firmware — a production collar ignores
+  // it entirely.
+  CMD_TEST_FIX       = 17;
 }
 
 // ---- Geofence ----
