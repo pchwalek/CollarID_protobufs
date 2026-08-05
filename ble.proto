@@ -172,6 +172,69 @@ message ScheduleConfigPacket {
   bool engaged = 1;
   repeated ScheduleConfig schedules = 2; // capped to 5 schedules in options
   uint32 special_mode = 3;
+
+  // ---- BLE config tunnel (fw 305+) ----
+  // Carries one serialized DownlinkPacket (downlink.proto) over the BLE
+  // settings characteristic, giving collars WITHOUT LoRaWAN the full remote
+  // config vocabulary (config transactions, geofences, CMD_TEST_FIX) through
+  // the same rails/verification engine as the radio path.
+  //
+  // Deliberately `bytes`, not a typed import: ble.proto stays self-contained
+  // (the Swift/WB toolchains never see downlink.proto), and both deployed WB
+  // chips (WB5M + frozen WB15) tag-gate writes on THIS payload arm before
+  // storing the raw blob — riding the schedule arm is what makes the tunnel
+  // work with zero WB firmware changes. Their stale schemas skip these
+  // unknown fields by standard protobuf rules.
+  //
+  // Receiver contract: when cfg_downlink is non-empty, `schedules`/`engaged`
+  // are IGNORED (this packet is a tunnel frame, not a schedule write).
+  // Old firmware (< 305) would misread a tunnel frame as an empty schedule,
+  // so the webapp hard-gates tunnel writes on the reported fw build.
+  bytes cfg_downlink = 4;   // one serialized DownlinkPacket (max 96 B)
+
+  // BLE-native read-back requests (no radio involved). The collar answers by
+  // pushing an echo packet (cfg_echo below) into the settings blob for the
+  // webapp to poll.
+  //   0        = none
+  //   1        = echo status only (masks, last verdict)
+  //   2|(N<<8) = echo geofence slot N (0..3) as a binary record
+  uint32 ble_query = 5;
+
+  // Collar -> webapp echo. Pushed after a tunnel frame that produced a
+  // verdict, and after every ble_query. Deliberately a FIELD on this message,
+  // not its own BlePacket arm: the WB chips refresh the readable
+  // characteristic value only for blobs that decode to the schedule arm
+  // (system_schedule_updated is set inside their tag check) — an unknown arm
+  // would reach the blob store but never the characteristic. The collar
+  // re-pushes the canonical schedule blob ~10 s later so the resting value
+  // an old webapp reads is always a real schedule.
+  CfgEchoPacket cfg_echo = 6;
+}
+
+// The BLE tunnel echo body. fence_report (ble_query=2 responses) is a
+// version-tagged fixed binary record, NOT ConfigFragment framing: GeoPoint
+// coordinates are plain int32, so a negative (western/southern) coordinate
+// encodes as a 10-byte varint and a fragment-framed 8-vertex fence (~330 B)
+// would blow the 350 B characteristic cap the deployed WB chips enforce.
+// Layout (little-endian): [0]=0x01 format version, then
+//   [1]=fence_id [2]=action [3]=zone_slot [4]=confirm_fixes [5]=min_dwell_min
+//   [6]=max_hacc_m [7]=n_verts [8]=flags(bit0=consumed)
+//   [9..12]=start_epoch [13..16]=expiry_epoch
+//   then n_verts × (int32 lat_e7, int32 lon_e7) pairs = 8 B/vertex.
+message CfgEchoPacket {
+  uint32 txn_id = 1;            // echoes DownlinkPacket.cfg_txn_id
+  uint32 ack_status = 2;        // ConfigAckStatus values (message.proto)
+  uint32 missing_mask = 3;      // missing-fragment bitmask / rails reason code
+  uint32 fence_used_mask = 4;   // bit N: fence slot N holds a definition
+  uint32 fence_active_mask = 5; // bit N: collar is currently inside fence N+1
+  uint32 fence_fired_mask = 6;  // bit N: detach fence N+1 has fired (consumed)
+  uint32 sched_crc = 7;         // current config identity (schedule+mortality+fences)
+  bytes fence_report = 8;       // one fence slot, binary record above (max 88 B)
+  // Bumps on every echo push. The webapp paces the tunnel on it: each frame
+  // is written only after the previous frame's echo shows a new echo_seq —
+  // the settings blob is a single mailbox, so an unpaced second write would
+  // overwrite a frame the collar hadn't drained yet.
+  uint32 echo_seq = 9;
 }
 
 
@@ -231,6 +294,6 @@ message BlePacket {
     SystemStatePacket    system_state_packet    = 3;
     RadioConfigPacket    radio_config_packet    = 4;
     PeripheralPacket     peripheral_packet      = 5;
-    PeripheralInfo       peripheral_info        = 6; 
+    PeripheralInfo       peripheral_info        = 6;
   }
 }

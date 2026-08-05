@@ -4,6 +4,16 @@
 # ---- Repeated limits -------------------------------------------------------
 ScheduleConfigPacket.schedules        max_count:5
 
+# ---- BLE config tunnel (fw 305+) -------------------------------------------
+# cfg_downlink: one DownlinkPacket. Largest tunneled frame is a ConfigFragment
+# downlink (~80 B encoded); 96 leaves margin without bloating the BlePacket
+# union (these fields live on the schedule arm, which every sender allocates).
+# fence_report: version byte + one fence's fixed binary record
+# (1 + 16 + 8 verts x 8 B = 81 B worst case). The whole echo BlePacket stays
+# well under the 350 B characteristic cap the deployed WB chips enforce.
+ScheduleConfigPacket.cfg_downlink     max_size:96
+CfgEchoPacket.fence_report            max_size:88
+
 # ---- Fixed-size credentials (no dynamic allocation) -----------------------
 # OTAA
 RadioOTAA.dev_eui                     max_size:8  fixed_length:true

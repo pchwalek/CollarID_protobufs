@@ -374,6 +374,20 @@ struct GPSConfig: Sendable {
   /// 1 to 10
   var accuracy: UInt32 = 0
 
+  var dynamicSamplingMode: Bool = false
+
+  var mediumMotionVedbaThresholdX100: UInt32 = 0
+
+  var mediumMotionGpsIntervalMin: UInt32 = 0
+
+  var highMotionVedbaThresholdX100: UInt32 = 0
+
+  var highMotionGpsIntervalMin: UInt32 = 0
+
+  var lorawanTxOnGpsFix: Bool = false
+
+  var loraTxOnGpsFix: Bool = false
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -509,6 +523,33 @@ struct LostMode_config: Sendable {
   init() {}
 }
 
+/// Mortality detection (P5). When the collar's accelerometer activity
+/// (VeDBA) stays below a fixed firmware threshold for trigger_duration_hours,
+/// it flags every uplink and additionally transmits every
+/// transmit_interval_min. Alert-only: the configured schedule is unchanged,
+/// and the state clears by itself if the animal moves again.
+///
+/// Detection rides the accelerometer windows the schedule already provides
+/// (the accel is powered down outside them), so this does nothing useful
+/// unless at least one schedule enables the accelerometer. The near-zero
+/// VeDBA threshold is deliberately NOT exposed: it is the easiest value to
+/// get wrong and is tuned in firmware.
+struct Mortality_config: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// 0 = firmware default (48)
+  var triggerDurationHours: UInt32 = 0
+
+  /// 0 = firmware default (240)
+  var transmitIntervalMin: UInt32 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 struct RadioConfigPacket: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -545,6 +586,20 @@ struct RadioConfigPacket: @unchecked Sendable {
   var hasLostModeConfig: Bool {return _storage._lostModeConfig != nil}
   /// Clears the value of `lostModeConfig`. Subsequent reads from it will return its default value.
   mutating func clearLostModeConfig() {_uniqueStorage()._lostModeConfig = nil}
+
+  var mortalityEnabled: Bool {
+    get {return _storage._mortalityEnabled}
+    set {_uniqueStorage()._mortalityEnabled = newValue}
+  }
+
+  var mortalityConfig: Mortality_config {
+    get {return _storage._mortalityConfig ?? Mortality_config()}
+    set {_uniqueStorage()._mortalityConfig = newValue}
+  }
+  /// Returns true if `mortalityConfig` has been explicitly set.
+  var hasMortalityConfig: Bool {return _storage._mortalityConfig != nil}
+  /// Clears the value of `mortalityConfig`. Subsequent reads from it will return its default value.
+  mutating func clearMortalityConfig() {_uniqueStorage()._mortalityConfig = nil}
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -710,7 +765,7 @@ struct ScheduleConfig: @unchecked Sendable {
 }
 
 /// can include multiple schedules
-struct ScheduleConfigPacket: Sendable {
+struct ScheduleConfigPacket: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -721,6 +776,102 @@ struct ScheduleConfigPacket: Sendable {
   var schedules: [ScheduleConfig] = []
 
   var specialMode: UInt32 = 0
+
+  /// ---- BLE config tunnel (fw 305+) ----
+  /// Carries one serialized DownlinkPacket (downlink.proto) over the BLE
+  /// settings characteristic, giving collars WITHOUT LoRaWAN the full remote
+  /// config vocabulary (config transactions, geofences, CMD_TEST_FIX) through
+  /// the same rails/verification engine as the radio path.
+  ///
+  /// Deliberately `bytes`, not a typed import: ble.proto stays self-contained
+  /// (the Swift/WB toolchains never see downlink.proto), and both deployed WB
+  /// chips (WB5M + frozen WB15) tag-gate writes on THIS payload arm before
+  /// storing the raw blob — riding the schedule arm is what makes the tunnel
+  /// work with zero WB firmware changes. Their stale schemas skip these
+  /// unknown fields by standard protobuf rules.
+  ///
+  /// Receiver contract: when cfg_downlink is non-empty, `schedules`/`engaged`
+  /// are IGNORED (this packet is a tunnel frame, not a schedule write).
+  /// Old firmware (< 305) would misread a tunnel frame as an empty schedule,
+  /// so the webapp hard-gates tunnel writes on the reported fw build.
+  var cfgDownlink: Data = Data()
+
+  /// BLE-native read-back requests (no radio involved). The collar answers by
+  /// pushing an echo packet (cfg_echo below) into the settings blob for the
+  /// webapp to poll.
+  ///   0        = none
+  ///   1        = echo status only (masks, last verdict)
+  ///   2|(N<<8) = echo geofence slot N (0..3) as a binary record
+  var bleQuery: UInt32 = 0
+
+  /// Collar -> webapp echo. Pushed after a tunnel frame that produced a
+  /// verdict, and after every ble_query. Deliberately a FIELD on this message,
+  /// not its own BlePacket arm: the WB chips refresh the readable
+  /// characteristic value only for blobs that decode to the schedule arm
+  /// (system_schedule_updated is set inside their tag check) — an unknown arm
+  /// would reach the blob store but never the characteristic. The collar
+  /// re-pushes the canonical schedule blob ~10 s later so the resting value
+  /// an old webapp reads is always a real schedule.
+  var cfgEcho: CfgEchoPacket {
+    get {return _cfgEcho ?? CfgEchoPacket()}
+    set {_cfgEcho = newValue}
+  }
+  /// Returns true if `cfgEcho` has been explicitly set.
+  var hasCfgEcho: Bool {return self._cfgEcho != nil}
+  /// Clears the value of `cfgEcho`. Subsequent reads from it will return its default value.
+  mutating func clearCfgEcho() {self._cfgEcho = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _cfgEcho: CfgEchoPacket? = nil
+}
+
+/// The BLE tunnel echo body. fence_report (ble_query=2 responses) is a
+/// version-tagged fixed binary record, NOT ConfigFragment framing: GeoPoint
+/// coordinates are plain int32, so a negative (western/southern) coordinate
+/// encodes as a 10-byte varint and a fragment-framed 8-vertex fence (~330 B)
+/// would blow the 350 B characteristic cap the deployed WB chips enforce.
+/// Layout (little-endian): [0]=0x01 format version, then
+///   [1]=fence_id [2]=action [3]=zone_slot [4]=confirm_fixes [5]=min_dwell_min
+///   [6]=max_hacc_m [7]=n_verts [8]=flags(bit0=consumed)
+///   [9..12]=start_epoch [13..16]=expiry_epoch
+///   then n_verts × (int32 lat_e7, int32 lon_e7) pairs = 8 B/vertex.
+struct CfgEchoPacket: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// echoes DownlinkPacket.cfg_txn_id
+  var txnID: UInt32 = 0
+
+  /// ConfigAckStatus values (message.proto)
+  var ackStatus: UInt32 = 0
+
+  /// missing-fragment bitmask / rails reason code
+  var missingMask: UInt32 = 0
+
+  /// bit N: fence slot N holds a definition
+  var fenceUsedMask: UInt32 = 0
+
+  /// bit N: collar is currently inside fence N+1
+  var fenceActiveMask: UInt32 = 0
+
+  /// bit N: detach fence N+1 has fired (consumed)
+  var fenceFiredMask: UInt32 = 0
+
+  /// current config identity (schedule+mortality+fences)
+  var schedCrc: UInt32 = 0
+
+  /// one fence slot, binary record above (max 88 B)
+  var fenceReport: Data = Data()
+
+  /// Bumps on every echo push. The webapp paces the tunnel on it: each frame
+  /// is written only after the previous frame's echo shows a new echo_seq —
+  /// the settings blob is a single mailbox, so an unpaced second write would
+  /// overwrite a frame the collar hadn't drained yet.
+  var echoSeq: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -813,6 +964,20 @@ struct SystemStatePacket: @unchecked Sendable {
     set {_uniqueStorage()._firmwareVersion = newValue}
   }
 
+  /// Boot hardware-diagnostic bitmask (HW_RunDiagnostics, hw_diag.h).
+  /// Bit SET = FAULT: 0 accelerometer, 1 magnetometer, 2 light sensor,
+  /// 3 BME688, 4 GPS, 5 particulate, 6 LoRa radio. Bit 7 = diagnostics
+  /// ran (validity). Same layout mirrored into Deployment.errorFlags.flag
+  /// on LoRaWAN uplinks. Absent on older firmware.
+  var hwDiag: UInt32 {
+    get {return _storage._hwDiag ?? 0}
+    set {_uniqueStorage()._hwDiag = newValue}
+  }
+  /// Returns true if `hwDiag` has been explicitly set.
+  var hasHwDiag: Bool {return _storage._hwDiag != nil}
+  /// Clears the value of `hwDiag`. Subsequent reads from it will return its default value.
+  mutating func clearHwDiag() {_uniqueStorage()._hwDiag = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -848,60 +1013,63 @@ struct PeripheralInfo: Sendable {
 }
 
 /// ================== WRAPPER ==================
-struct BlePacket: Sendable {
+struct BlePacket: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
   var header: PacketHeader {
-    get {return _header ?? PacketHeader()}
-    set {_header = newValue}
+    get {return _storage._header ?? PacketHeader()}
+    set {_uniqueStorage()._header = newValue}
   }
   /// Returns true if `header` has been explicitly set.
-  var hasHeader: Bool {return self._header != nil}
+  var hasHeader: Bool {return _storage._header != nil}
   /// Clears the value of `header`. Subsequent reads from it will return its default value.
-  mutating func clearHeader() {self._header = nil}
+  mutating func clearHeader() {_uniqueStorage()._header = nil}
 
-  var payload: BlePacket.OneOf_Payload? = nil
+  var payload: OneOf_Payload? {
+    get {return _storage._payload}
+    set {_uniqueStorage()._payload = newValue}
+  }
 
   var scheduleConfigPacket: ScheduleConfigPacket {
     get {
-      if case .scheduleConfigPacket(let v)? = payload {return v}
+      if case .scheduleConfigPacket(let v)? = _storage._payload {return v}
       return ScheduleConfigPacket()
     }
-    set {payload = .scheduleConfigPacket(newValue)}
+    set {_uniqueStorage()._payload = .scheduleConfigPacket(newValue)}
   }
 
   var systemStatePacket: SystemStatePacket {
     get {
-      if case .systemStatePacket(let v)? = payload {return v}
+      if case .systemStatePacket(let v)? = _storage._payload {return v}
       return SystemStatePacket()
     }
-    set {payload = .systemStatePacket(newValue)}
+    set {_uniqueStorage()._payload = .systemStatePacket(newValue)}
   }
 
   var radioConfigPacket: RadioConfigPacket {
     get {
-      if case .radioConfigPacket(let v)? = payload {return v}
+      if case .radioConfigPacket(let v)? = _storage._payload {return v}
       return RadioConfigPacket()
     }
-    set {payload = .radioConfigPacket(newValue)}
+    set {_uniqueStorage()._payload = .radioConfigPacket(newValue)}
   }
 
   var peripheralPacket: PeripheralPacket {
     get {
-      if case .peripheralPacket(let v)? = payload {return v}
+      if case .peripheralPacket(let v)? = _storage._payload {return v}
       return PeripheralPacket()
     }
-    set {payload = .peripheralPacket(newValue)}
+    set {_uniqueStorage()._payload = .peripheralPacket(newValue)}
   }
 
   var peripheralInfo: PeripheralInfo {
     get {
-      if case .peripheralInfo(let v)? = payload {return v}
+      if case .peripheralInfo(let v)? = _storage._payload {return v}
       return PeripheralInfo()
     }
-    set {payload = .peripheralInfo(newValue)}
+    set {_uniqueStorage()._payload = .peripheralInfo(newValue)}
   }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -917,7 +1085,7 @@ struct BlePacket: Sendable {
 
   init() {}
 
-  fileprivate var _header: PacketHeader? = nil
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
@@ -1069,6 +1237,13 @@ extension GPSConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     1: .same(proto: "enabled"),
     2: .standard(proto: "sample_interval_min"),
     3: .same(proto: "accuracy"),
+    4: .standard(proto: "dynamic_sampling_mode"),
+    5: .standard(proto: "medium_motion_vedba_threshold_x100"),
+    6: .standard(proto: "medium_motion_gps_interval_min"),
+    7: .standard(proto: "high_motion_vedba_threshold_x100"),
+    8: .standard(proto: "high_motion_gps_interval_min"),
+    9: .standard(proto: "lorawan_tx_on_gps_fix"),
+    10: .standard(proto: "lora_tx_on_gps_fix"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1080,6 +1255,13 @@ extension GPSConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
       case 1: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       case 2: try { try decoder.decodeSingularUInt32Field(value: &self.sampleIntervalMin) }()
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.accuracy) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.dynamicSamplingMode) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.mediumMotionVedbaThresholdX100) }()
+      case 6: try { try decoder.decodeSingularUInt32Field(value: &self.mediumMotionGpsIntervalMin) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self.highMotionVedbaThresholdX100) }()
+      case 8: try { try decoder.decodeSingularUInt32Field(value: &self.highMotionGpsIntervalMin) }()
+      case 9: try { try decoder.decodeSingularBoolField(value: &self.lorawanTxOnGpsFix) }()
+      case 10: try { try decoder.decodeSingularBoolField(value: &self.loraTxOnGpsFix) }()
       default: break
       }
     }
@@ -1095,6 +1277,27 @@ extension GPSConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     if self.accuracy != 0 {
       try visitor.visitSingularUInt32Field(value: self.accuracy, fieldNumber: 3)
     }
+    if self.dynamicSamplingMode != false {
+      try visitor.visitSingularBoolField(value: self.dynamicSamplingMode, fieldNumber: 4)
+    }
+    if self.mediumMotionVedbaThresholdX100 != 0 {
+      try visitor.visitSingularUInt32Field(value: self.mediumMotionVedbaThresholdX100, fieldNumber: 5)
+    }
+    if self.mediumMotionGpsIntervalMin != 0 {
+      try visitor.visitSingularUInt32Field(value: self.mediumMotionGpsIntervalMin, fieldNumber: 6)
+    }
+    if self.highMotionVedbaThresholdX100 != 0 {
+      try visitor.visitSingularUInt32Field(value: self.highMotionVedbaThresholdX100, fieldNumber: 7)
+    }
+    if self.highMotionGpsIntervalMin != 0 {
+      try visitor.visitSingularUInt32Field(value: self.highMotionGpsIntervalMin, fieldNumber: 8)
+    }
+    if self.lorawanTxOnGpsFix != false {
+      try visitor.visitSingularBoolField(value: self.lorawanTxOnGpsFix, fieldNumber: 9)
+    }
+    if self.loraTxOnGpsFix != false {
+      try visitor.visitSingularBoolField(value: self.loraTxOnGpsFix, fieldNumber: 10)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1102,6 +1305,13 @@ extension GPSConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     if lhs.enabled != rhs.enabled {return false}
     if lhs.sampleIntervalMin != rhs.sampleIntervalMin {return false}
     if lhs.accuracy != rhs.accuracy {return false}
+    if lhs.dynamicSamplingMode != rhs.dynamicSamplingMode {return false}
+    if lhs.mediumMotionVedbaThresholdX100 != rhs.mediumMotionVedbaThresholdX100 {return false}
+    if lhs.mediumMotionGpsIntervalMin != rhs.mediumMotionGpsIntervalMin {return false}
+    if lhs.highMotionVedbaThresholdX100 != rhs.highMotionVedbaThresholdX100 {return false}
+    if lhs.highMotionGpsIntervalMin != rhs.highMotionGpsIntervalMin {return false}
+    if lhs.lorawanTxOnGpsFix != rhs.lorawanTxOnGpsFix {return false}
+    if lhs.loraTxOnGpsFix != rhs.loraTxOnGpsFix {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1419,6 +1629,44 @@ extension LostMode_config: SwiftProtobuf.Message, SwiftProtobuf._MessageImplemen
   }
 }
 
+extension Mortality_config: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "Mortality_config"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .standard(proto: "trigger_duration_hours"),
+    2: .standard(proto: "transmit_interval_min"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.triggerDurationHours) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.transmitIntervalMin) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.triggerDurationHours != 0 {
+      try visitor.visitSingularUInt32Field(value: self.triggerDurationHours, fieldNumber: 1)
+    }
+    if self.transmitIntervalMin != 0 {
+      try visitor.visitSingularUInt32Field(value: self.transmitIntervalMin, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: Mortality_config, rhs: Mortality_config) -> Bool {
+    if lhs.triggerDurationHours != rhs.triggerDurationHours {return false}
+    if lhs.transmitIntervalMin != rhs.transmitIntervalMin {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 extension RadioConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = "RadioConfigPacket"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
@@ -1426,6 +1674,8 @@ extension RadioConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     2: .standard(proto: "loRa_config"),
     3: .standard(proto: "lostMode_enabled"),
     4: .standard(proto: "lostMode_config"),
+    5: .standard(proto: "mortality_enabled"),
+    6: .standard(proto: "mortality_config"),
   ]
 
   fileprivate class _StorageClass {
@@ -1433,6 +1683,8 @@ extension RadioConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     var _loRaConfig: LoRaConfig? = nil
     var _lostModeEnabled: Bool = false
     var _lostModeConfig: LostMode_config? = nil
+    var _mortalityEnabled: Bool = false
+    var _mortalityConfig: Mortality_config? = nil
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -1451,6 +1703,8 @@ extension RadioConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       _loRaConfig = source._loRaConfig
       _lostModeEnabled = source._lostModeEnabled
       _lostModeConfig = source._lostModeConfig
+      _mortalityEnabled = source._mortalityEnabled
+      _mortalityConfig = source._mortalityConfig
     }
   }
 
@@ -1473,6 +1727,8 @@ extension RadioConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         case 2: try { try decoder.decodeSingularMessageField(value: &_storage._loRaConfig) }()
         case 3: try { try decoder.decodeSingularBoolField(value: &_storage._lostModeEnabled) }()
         case 4: try { try decoder.decodeSingularMessageField(value: &_storage._lostModeConfig) }()
+        case 5: try { try decoder.decodeSingularBoolField(value: &_storage._mortalityEnabled) }()
+        case 6: try { try decoder.decodeSingularMessageField(value: &_storage._mortalityConfig) }()
         default: break
         }
       }
@@ -1497,6 +1753,12 @@ extension RadioConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       try { if let v = _storage._lostModeConfig {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
       } }()
+      if _storage._mortalityEnabled != false {
+        try visitor.visitSingularBoolField(value: _storage._mortalityEnabled, fieldNumber: 5)
+      }
+      try { if let v = _storage._mortalityConfig {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -1510,6 +1772,8 @@ extension RadioConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         if _storage._loRaConfig != rhs_storage._loRaConfig {return false}
         if _storage._lostModeEnabled != rhs_storage._lostModeEnabled {return false}
         if _storage._lostModeConfig != rhs_storage._lostModeConfig {return false}
+        if _storage._mortalityEnabled != rhs_storage._mortalityEnabled {return false}
+        if _storage._mortalityConfig != rhs_storage._mortalityConfig {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -1821,6 +2085,9 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     1: .same(proto: "engaged"),
     2: .same(proto: "schedules"),
     3: .standard(proto: "special_mode"),
+    4: .standard(proto: "cfg_downlink"),
+    5: .standard(proto: "ble_query"),
+    6: .standard(proto: "cfg_echo"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1832,12 +2099,19 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
       case 1: try { try decoder.decodeSingularBoolField(value: &self.engaged) }()
       case 2: try { try decoder.decodeRepeatedMessageField(value: &self.schedules) }()
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.specialMode) }()
+      case 4: try { try decoder.decodeSingularBytesField(value: &self.cfgDownlink) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.bleQuery) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._cfgEcho) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if self.engaged != false {
       try visitor.visitSingularBoolField(value: self.engaged, fieldNumber: 1)
     }
@@ -1847,6 +2121,15 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     if self.specialMode != 0 {
       try visitor.visitSingularUInt32Field(value: self.specialMode, fieldNumber: 3)
     }
+    if !self.cfgDownlink.isEmpty {
+      try visitor.visitSingularBytesField(value: self.cfgDownlink, fieldNumber: 4)
+    }
+    if self.bleQuery != 0 {
+      try visitor.visitSingularUInt32Field(value: self.bleQuery, fieldNumber: 5)
+    }
+    try { if let v = self._cfgEcho {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1854,6 +2137,89 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     if lhs.engaged != rhs.engaged {return false}
     if lhs.schedules != rhs.schedules {return false}
     if lhs.specialMode != rhs.specialMode {return false}
+    if lhs.cfgDownlink != rhs.cfgDownlink {return false}
+    if lhs.bleQuery != rhs.bleQuery {return false}
+    if lhs._cfgEcho != rhs._cfgEcho {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "CfgEchoPacket"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .standard(proto: "txn_id"),
+    2: .standard(proto: "ack_status"),
+    3: .standard(proto: "missing_mask"),
+    4: .standard(proto: "fence_used_mask"),
+    5: .standard(proto: "fence_active_mask"),
+    6: .standard(proto: "fence_fired_mask"),
+    7: .standard(proto: "sched_crc"),
+    8: .standard(proto: "fence_report"),
+    9: .standard(proto: "echo_seq"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.txnID) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.ackStatus) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.missingMask) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.fenceUsedMask) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.fenceActiveMask) }()
+      case 6: try { try decoder.decodeSingularUInt32Field(value: &self.fenceFiredMask) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self.schedCrc) }()
+      case 8: try { try decoder.decodeSingularBytesField(value: &self.fenceReport) }()
+      case 9: try { try decoder.decodeSingularUInt32Field(value: &self.echoSeq) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.txnID != 0 {
+      try visitor.visitSingularUInt32Field(value: self.txnID, fieldNumber: 1)
+    }
+    if self.ackStatus != 0 {
+      try visitor.visitSingularUInt32Field(value: self.ackStatus, fieldNumber: 2)
+    }
+    if self.missingMask != 0 {
+      try visitor.visitSingularUInt32Field(value: self.missingMask, fieldNumber: 3)
+    }
+    if self.fenceUsedMask != 0 {
+      try visitor.visitSingularUInt32Field(value: self.fenceUsedMask, fieldNumber: 4)
+    }
+    if self.fenceActiveMask != 0 {
+      try visitor.visitSingularUInt32Field(value: self.fenceActiveMask, fieldNumber: 5)
+    }
+    if self.fenceFiredMask != 0 {
+      try visitor.visitSingularUInt32Field(value: self.fenceFiredMask, fieldNumber: 6)
+    }
+    if self.schedCrc != 0 {
+      try visitor.visitSingularUInt32Field(value: self.schedCrc, fieldNumber: 7)
+    }
+    if !self.fenceReport.isEmpty {
+      try visitor.visitSingularBytesField(value: self.fenceReport, fieldNumber: 8)
+    }
+    if self.echoSeq != 0 {
+      try visitor.visitSingularUInt32Field(value: self.echoSeq, fieldNumber: 9)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: CfgEchoPacket, rhs: CfgEchoPacket) -> Bool {
+    if lhs.txnID != rhs.txnID {return false}
+    if lhs.ackStatus != rhs.ackStatus {return false}
+    if lhs.missingMask != rhs.missingMask {return false}
+    if lhs.fenceUsedMask != rhs.fenceUsedMask {return false}
+    if lhs.fenceActiveMask != rhs.fenceActiveMask {return false}
+    if lhs.fenceFiredMask != rhs.fenceFiredMask {return false}
+    if lhs.schedCrc != rhs.schedCrc {return false}
+    if lhs.fenceReport != rhs.fenceReport {return false}
+    if lhs.echoSeq != rhs.echoSeq {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1966,6 +2332,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     4: .standard(proto: "gps_data"),
     5: .same(proto: "sensors"),
     6: .standard(proto: "firmware_version"),
+    7: .standard(proto: "hw_diag"),
   ]
 
   fileprivate class _StorageClass {
@@ -1975,6 +2342,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     var _gpsData: GPSData? = nil
     var _sensors: SimpleSensorReading? = nil
     var _firmwareVersion: String = String()
+    var _hwDiag: UInt32? = nil
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -1995,6 +2363,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       _gpsData = source._gpsData
       _sensors = source._sensors
       _firmwareVersion = source._firmwareVersion
+      _hwDiag = source._hwDiag
     }
   }
 
@@ -2019,6 +2388,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         case 4: try { try decoder.decodeSingularMessageField(value: &_storage._gpsData) }()
         case 5: try { try decoder.decodeSingularMessageField(value: &_storage._sensors) }()
         case 6: try { try decoder.decodeSingularStringField(value: &_storage._firmwareVersion) }()
+        case 7: try { try decoder.decodeSingularUInt32Field(value: &_storage._hwDiag) }()
         default: break
         }
       }
@@ -2049,6 +2419,9 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       if !_storage._firmwareVersion.isEmpty {
         try visitor.visitSingularStringField(value: _storage._firmwareVersion, fieldNumber: 6)
       }
+      try { if let v = _storage._hwDiag {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 7)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2064,6 +2437,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         if _storage._gpsData != rhs_storage._gpsData {return false}
         if _storage._sensors != rhs_storage._sensors {return false}
         if _storage._firmwareVersion != rhs_storage._firmwareVersion {return false}
+        if _storage._hwDiag != rhs_storage._hwDiag {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -2154,120 +2528,162 @@ extension BlePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     6: .standard(proto: "peripheral_info"),
   ]
 
+  fileprivate class _StorageClass {
+    var _header: PacketHeader? = nil
+    var _payload: BlePacket.OneOf_Payload?
+
+    #if swift(>=5.10)
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+    #else
+      static let defaultInstance = _StorageClass()
+    #endif
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _header = source._header
+      _payload = source._payload
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularMessageField(value: &self._header) }()
-      case 2: try {
-        var v: ScheduleConfigPacket?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .scheduleConfigPacket(let m) = current {v = m}
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularMessageField(value: &_storage._header) }()
+        case 2: try {
+          var v: ScheduleConfigPacket?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .scheduleConfigPacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .scheduleConfigPacket(v)
+          }
+        }()
+        case 3: try {
+          var v: SystemStatePacket?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .systemStatePacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .systemStatePacket(v)
+          }
+        }()
+        case 4: try {
+          var v: RadioConfigPacket?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .radioConfigPacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .radioConfigPacket(v)
+          }
+        }()
+        case 5: try {
+          var v: PeripheralPacket?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .peripheralPacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .peripheralPacket(v)
+          }
+        }()
+        case 6: try {
+          var v: PeripheralInfo?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .peripheralInfo(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .peripheralInfo(v)
+          }
+        }()
+        default: break
         }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .scheduleConfigPacket(v)
-        }
-      }()
-      case 3: try {
-        var v: SystemStatePacket?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .systemStatePacket(let m) = current {v = m}
-        }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .systemStatePacket(v)
-        }
-      }()
-      case 4: try {
-        var v: RadioConfigPacket?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .radioConfigPacket(let m) = current {v = m}
-        }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .radioConfigPacket(v)
-        }
-      }()
-      case 5: try {
-        var v: PeripheralPacket?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .peripheralPacket(let m) = current {v = m}
-        }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .peripheralPacket(v)
-        }
-      }()
-      case 6: try {
-        var v: PeripheralInfo?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .peripheralInfo(let m) = current {v = m}
-        }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .peripheralInfo(v)
-        }
-      }()
-      default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    try { if let v = self._header {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
-    } }()
-    switch self.payload {
-    case .scheduleConfigPacket?: try {
-      guard case .scheduleConfigPacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
-    }()
-    case .systemStatePacket?: try {
-      guard case .systemStatePacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
-    }()
-    case .radioConfigPacket?: try {
-      guard case .radioConfigPacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
-    }()
-    case .peripheralPacket?: try {
-      guard case .peripheralPacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
-    }()
-    case .peripheralInfo?: try {
-      guard case .peripheralInfo(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
-    }()
-    case nil: break
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      try { if let v = _storage._header {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+      } }()
+      switch _storage._payload {
+      case .scheduleConfigPacket?: try {
+        guard case .scheduleConfigPacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+      }()
+      case .systemStatePacket?: try {
+        guard case .systemStatePacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+      }()
+      case .radioConfigPacket?: try {
+        guard case .radioConfigPacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+      }()
+      case .peripheralPacket?: try {
+        guard case .peripheralPacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
+      }()
+      case .peripheralInfo?: try {
+        guard case .peripheralInfo(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      }()
+      case nil: break
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: BlePacket, rhs: BlePacket) -> Bool {
-    if lhs._header != rhs._header {return false}
-    if lhs.payload != rhs.payload {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._header != rhs_storage._header {return false}
+        if _storage._payload != rhs_storage._payload {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
