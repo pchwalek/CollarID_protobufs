@@ -161,6 +161,39 @@ typedef struct config_system {
     uint32_t schedules_count;
 } config_system_t;
 
+/* Geofence definition, delivered through the config transaction one
+ fragment per vertex plus one meta fragment (DESIGN_geofence_actions.md —
+ a worst-case vertex is ~14 B against the 33 B RX2 floor). The meta
+ fragment carries every scalar; vertex fragments carry vertex_index +
+ vertex. vertex_count = 0 on a meta fragment deletes the fence. The same
+ message is the self-report vocabulary (consumed reports a fired detach
+ fence). Rails: R7 shape, R8 zone slot, R9 GPS off, R10 detach safety. */
+typedef struct config_geofence {
+    uint32_t fence_id; /* 1..4 */
+    bool has_action;
+    uint32_t action; /* 0=SCHEDULE_OVERRIDE 1=DETACH 2=REPORT_ONLY */
+    bool has_zone_slot;
+    uint32_t zone_slot; /* SCHEDULE_OVERRIDE: slot to preempt with */
+    bool has_confirm_fixes;
+    uint32_t confirm_fixes; /* default 2 */
+    bool has_min_dwell_min;
+    uint32_t min_dwell_min; /* default 15; state lock after transitions */
+    bool has_max_hacc_m;
+    uint32_t max_hacc_m; /* 0 = no accuracy gate */
+    bool has_start_epoch;
+    uint32_t start_epoch; /* 0 = armed on delivery */
+    bool has_expiry_epoch;
+    uint32_t expiry_epoch; /* mandatory for DETACH (<= start+30 d) */
+    bool has_vertex_count;
+    uint32_t vertex_count; /* meta fragment; 0 = delete fence */
+    bool has_vertex_index;
+    uint32_t vertex_index; /* vertex fragment */
+    bool has_vertex;
+    geo_point_t vertex; /* vertex fragment */
+    bool has_consumed;
+    bool consumed; /* report only: detach fence has fired */
+} config_geofence_t;
+
 /* ---- Config fragment wrapper ----
  Pairs a schedule slot index with exactly one sensor/system config.
  fragment_index and fragment_total enable integrity checking on commit. */
@@ -181,6 +214,7 @@ typedef struct config_fragment {
         config_radio_timing_t cfg_radio_timing;
         config_system_t cfg_system; /* global, schedule_index ignored */
         config_mortality_t cfg_mortality; /* global, schedule_index ignored */
+        config_geofence_t cfg_geofence; /* global, schedule_index ignored */
     } setting;
 } config_fragment_t;
 
@@ -243,6 +277,7 @@ extern "C" {
 
 
 
+
 #define downlink_packet_t_command_ENUMTYPE command_type_t
 
 
@@ -259,6 +294,7 @@ extern "C" {
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_DEFAULT}}
 #define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
@@ -273,6 +309,7 @@ extern "C" {
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_ZERO}}
 #define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0}
 
@@ -312,6 +349,18 @@ extern "C" {
 #define CONFIG_SYSTEM_ENABLE_RESET_ON_ERROR_TAG  2
 #define CONFIG_SYSTEM_SPECIAL_MODE_TAG           3
 #define CONFIG_SYSTEM_SCHEDULES_COUNT_TAG        4
+#define CONFIG_GEOFENCE_FENCE_ID_TAG             1
+#define CONFIG_GEOFENCE_ACTION_TAG               2
+#define CONFIG_GEOFENCE_ZONE_SLOT_TAG            3
+#define CONFIG_GEOFENCE_CONFIRM_FIXES_TAG        4
+#define CONFIG_GEOFENCE_MIN_DWELL_MIN_TAG        5
+#define CONFIG_GEOFENCE_MAX_HACC_M_TAG           6
+#define CONFIG_GEOFENCE_START_EPOCH_TAG          7
+#define CONFIG_GEOFENCE_EXPIRY_EPOCH_TAG         8
+#define CONFIG_GEOFENCE_VERTEX_COUNT_TAG         9
+#define CONFIG_GEOFENCE_VERTEX_INDEX_TAG         10
+#define CONFIG_GEOFENCE_VERTEX_TAG               11
+#define CONFIG_GEOFENCE_CONSUMED_TAG             12
 #define CONFIG_FRAGMENT_SCHEDULE_INDEX_TAG       1
 #define CONFIG_FRAGMENT_FRAGMENT_INDEX_TAG       2
 #define CONFIG_FRAGMENT_FRAGMENT_TOTAL_TAG       3
@@ -326,6 +375,7 @@ extern "C" {
 #define CONFIG_FRAGMENT_CFG_RADIO_TIMING_TAG     12
 #define CONFIG_FRAGMENT_CFG_SYSTEM_TAG           13
 #define CONFIG_FRAGMENT_CFG_MORTALITY_TAG        14
+#define CONFIG_FRAGMENT_CFG_GEOFENCE_TAG         15
 #define DOWNLINK_PACKET_EPOCH_TAG                1
 #define DOWNLINK_PACKET_COMMAND_TAG              2
 #define DOWNLINK_PACKET_HIGH_FIX_PARAMS_TAG      3
@@ -421,6 +471,23 @@ X(a, STATIC,   OPTIONAL, UINT32,   schedules_count,   4)
 #define CONFIG_SYSTEM_CALLBACK NULL
 #define CONFIG_SYSTEM_DEFAULT NULL
 
+#define CONFIG_GEOFENCE_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   fence_id,          1) \
+X(a, STATIC,   OPTIONAL, UINT32,   action,            2) \
+X(a, STATIC,   OPTIONAL, UINT32,   zone_slot,         3) \
+X(a, STATIC,   OPTIONAL, UINT32,   confirm_fixes,     4) \
+X(a, STATIC,   OPTIONAL, UINT32,   min_dwell_min,     5) \
+X(a, STATIC,   OPTIONAL, UINT32,   max_hacc_m,        6) \
+X(a, STATIC,   OPTIONAL, UINT32,   start_epoch,       7) \
+X(a, STATIC,   OPTIONAL, UINT32,   expiry_epoch,      8) \
+X(a, STATIC,   OPTIONAL, UINT32,   vertex_count,      9) \
+X(a, STATIC,   OPTIONAL, UINT32,   vertex_index,     10) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  vertex,           11) \
+X(a, STATIC,   OPTIONAL, BOOL,     consumed,         12)
+#define CONFIG_GEOFENCE_CALLBACK NULL
+#define CONFIG_GEOFENCE_DEFAULT NULL
+#define config_geofence_t_vertex_MSGTYPE geo_point_t
+
 #define CONFIG_FRAGMENT_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   schedule_index,    1) \
 X(a, STATIC,   SINGULAR, UINT32,   fragment_index,    2) \
@@ -435,7 +502,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_environmental,setting.cfg_enviro
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_particulate,setting.cfg_particulate),  11) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_radio_timing,setting.cfg_radio_timing),  12) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_system,setting.cfg_system),  13) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_mortality,setting.cfg_mortality),  14)
+X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_mortality,setting.cfg_mortality),  14) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_geofence,setting.cfg_geofence),  15)
 #define CONFIG_FRAGMENT_CALLBACK NULL
 #define CONFIG_FRAGMENT_DEFAULT NULL
 #define config_fragment_t_setting_cfg_time_window_MSGTYPE config_time_window_t
@@ -449,6 +517,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_mortality,setting.cfg_mortality)
 #define config_fragment_t_setting_cfg_radio_timing_MSGTYPE config_radio_timing_t
 #define config_fragment_t_setting_cfg_system_MSGTYPE config_system_t
 #define config_fragment_t_setting_cfg_mortality_MSGTYPE config_mortality_t
+#define config_fragment_t_setting_cfg_geofence_MSGTYPE config_geofence_t
 
 #define DOWNLINK_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
@@ -478,6 +547,7 @@ extern const pb_msgdesc_t config_sampling_t_msg;
 extern const pb_msgdesc_t config_radio_timing_t_msg;
 extern const pb_msgdesc_t config_mortality_t_msg;
 extern const pb_msgdesc_t config_system_t_msg;
+extern const pb_msgdesc_t config_geofence_t_msg;
 extern const pb_msgdesc_t config_fragment_t_msg;
 extern const pb_msgdesc_t downlink_packet_t_msg;
 
@@ -494,12 +564,14 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_RADIO_TIMING_FIELDS &config_radio_timing_t_msg
 #define CONFIG_MORTALITY_FIELDS &config_mortality_t_msg
 #define CONFIG_SYSTEM_FIELDS &config_system_t_msg
+#define CONFIG_GEOFENCE_FIELDS &config_geofence_t_msg
 #define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
 #define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     47
+#define CONFIG_FRAGMENT_SIZE                     106
+#define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          14
 #define CONFIG_MAGNETOMETER_SIZE                 8
 #define CONFIG_MICROPHONE_SIZE                   16
@@ -508,7 +580,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16
 #define CONFIG_TIME_WINDOW_SIZE                  12
-#define DOWNLINK_PACKET_SIZE                     298
+#define DOWNLINK_PACKET_SIZE                     357
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12

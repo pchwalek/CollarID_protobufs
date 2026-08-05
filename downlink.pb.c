@@ -42,10 +42,13 @@ PB_BIND(CONFIG_MORTALITY, config_mortality_t, AUTO)
 PB_BIND(CONFIG_SYSTEM, config_system_t, AUTO)
 
 
+PB_BIND(CONFIG_GEOFENCE, config_geofence_t, AUTO)
+
+
 PB_BIND(CONFIG_FRAGMENT, config_fragment_t, AUTO)
 
 
-PB_BIND(DOWNLINK_PACKET, downlink_packet_t, AUTO)
+PB_BIND(DOWNLINK_PACKET, downlink_packet_t, 2)
 
 
 

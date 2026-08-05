@@ -26,6 +26,13 @@ message PacketHeader {
   // config content is stale until the next ConfigPacket uplink. ~3 B on
   // air, same pattern as fw_build. Absent on legacy firmware.
   optional uint32 sched_crc = 7;
+  // Geofence membership bitmask: bit (fence_id-1) set while the collar's
+  // confirmed-inside state holds for that fence (DESIGN_geofence_actions.md).
+  // Absent on firmware predating fences AND on collars with no fences
+  // resident — absence means "no zones", never an error (same contract as
+  // errorFlags). Server derives entry/exit events from bit transitions,
+  // with the uplink's own GPS fix as the audit trail. ~2 B on air.
+  optional uint32 active_fences = 8;
 }
 
 // ---- GPS ----

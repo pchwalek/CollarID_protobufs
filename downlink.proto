@@ -141,6 +141,28 @@ message ConfigSystem {
   optional uint32 schedules_count       = 4;
 }
 
+// Geofence definition, delivered through the config transaction one
+// fragment per vertex plus one meta fragment (DESIGN_geofence_actions.md —
+// a worst-case vertex is ~14 B against the 33 B RX2 floor). The meta
+// fragment carries every scalar; vertex fragments carry vertex_index +
+// vertex. vertex_count = 0 on a meta fragment deletes the fence. The same
+// message is the self-report vocabulary (consumed reports a fired detach
+// fence). Rails: R7 shape, R8 zone slot, R9 GPS off, R10 detach safety.
+message ConfigGeofence {
+  uint32 fence_id = 1;                     // 1..4
+  optional uint32 action = 2;              // 0=SCHEDULE_OVERRIDE 1=DETACH 2=REPORT_ONLY
+  optional uint32 zone_slot = 3;           // SCHEDULE_OVERRIDE: slot to preempt with
+  optional uint32 confirm_fixes = 4;       // default 2
+  optional uint32 min_dwell_min = 5;       // default 15; state lock after transitions
+  optional uint32 max_hacc_m = 6;          // 0 = no accuracy gate
+  optional uint32 start_epoch = 7;         // 0 = armed on delivery
+  optional uint32 expiry_epoch = 8;        // mandatory for DETACH (<= start+30 d)
+  optional uint32 vertex_count = 9;        // meta fragment; 0 = delete fence
+  optional uint32 vertex_index = 10;       // vertex fragment
+  optional GeoPoint vertex = 11;           // vertex fragment
+  optional bool consumed = 12;             // report only: detach fence has fired
+}
+
 // ---- Config fragment wrapper ----
 // Pairs a schedule slot index with exactly one sensor/system config.
 // fragment_index and fragment_total enable integrity checking on commit.
@@ -161,6 +183,7 @@ message ConfigFragment {
     ConfigRadioTiming   cfg_radio_timing  = 12;
     ConfigSystem        cfg_system        = 13;  // global, schedule_index ignored
     ConfigMortality     cfg_mortality     = 14;  // global, schedule_index ignored
+    ConfigGeofence      cfg_geofence      = 15;  // global, schedule_index ignored
   }
 }
 
