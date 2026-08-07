@@ -226,6 +226,12 @@ typedef struct cfg_echo_packet {
  the settings blob is a single mailbox, so an unpaced second write would
  overwrite a frame the collar hadn't drained yet. */
     uint32_t echo_seq;
+    /* CMD_FACTORY_RESET outcome, so the webapp reports what actually happened
+ instead of assuming the command's delivery meant success:
+ 0 none, 1 contents deleted, 2 error, 3 SD not mounted, 4 timed out,
+ 5 card reformatted (the clean outcome). */
+    uint32_t wipe_status;
+    uint32_t wipe_removed; /* files/directories removed on the delete path */
 } cfg_echo_packet_t;
 
 typedef PB_BYTES_ARRAY_T(96) schedule_config_packet_cfg_downlink_t;
@@ -417,7 +423,7 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT}
-#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0}
+#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
@@ -438,7 +444,7 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO}
-#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0}
+#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
@@ -523,6 +529,8 @@ extern "C" {
 #define CFG_ECHO_PACKET_SCHED_CRC_TAG            7
 #define CFG_ECHO_PACKET_FENCE_REPORT_TAG         8
 #define CFG_ECHO_PACKET_ECHO_SEQ_TAG             9
+#define CFG_ECHO_PACKET_WIPE_STATUS_TAG          10
+#define CFG_ECHO_PACKET_WIPE_REMOVED_TAG         11
 #define SCHEDULE_CONFIG_PACKET_ENGAGED_TAG       1
 #define SCHEDULE_CONFIG_PACKET_SCHEDULES_TAG     2
 #define SCHEDULE_CONFIG_PACKET_SPECIAL_MODE_TAG  3
@@ -718,7 +726,9 @@ X(a, STATIC,   SINGULAR, UINT32,   fence_active_mask,   5) \
 X(a, STATIC,   SINGULAR, UINT32,   fence_fired_mask,   6) \
 X(a, STATIC,   SINGULAR, UINT32,   sched_crc,         7) \
 X(a, STATIC,   SINGULAR, BYTES,    fence_report,      8) \
-X(a, STATIC,   SINGULAR, UINT32,   echo_seq,          9)
+X(a, STATIC,   SINGULAR, UINT32,   echo_seq,          9) \
+X(a, STATIC,   SINGULAR, UINT32,   wipe_status,      10) \
+X(a, STATIC,   SINGULAR, UINT32,   wipe_removed,     11)
 #define CFG_ECHO_PACKET_CALLBACK NULL
 #define CFG_ECHO_PACKET_DEFAULT NULL
 
@@ -829,7 +839,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 /* PeripheralInfo_size depends on runtime parameters */
 /* BlePacket_size depends on runtime parameters */
 #define ACCELEROMETER_CONFIG_SIZE                6
-#define CFG_ECHO_PACKET_SIZE                     138
+#define CFG_ECHO_PACKET_SIZE                     150
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        29
@@ -842,7 +852,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 179
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              978
+#define SCHEDULE_CONFIG_PACKET_SIZE              990
 #define SCHEDULE_CONFIG_SIZE                     142
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 145

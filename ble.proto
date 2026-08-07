@@ -235,6 +235,12 @@ message CfgEchoPacket {
   // the settings blob is a single mailbox, so an unpaced second write would
   // overwrite a frame the collar hadn't drained yet.
   uint32 echo_seq = 9;
+  // CMD_FACTORY_RESET outcome, so the webapp reports what actually happened
+  // instead of assuming the command's delivery meant success:
+  // 0 none, 1 contents deleted, 2 error, 3 SD not mounted, 4 timed out,
+  // 5 card reformatted (the clean outcome).
+  uint32 wipe_status = 10;
+  uint32 wipe_removed = 11;     // files/directories removed on the delete path
 }
 
 

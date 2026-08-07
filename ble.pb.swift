@@ -873,6 +873,15 @@ struct CfgEchoPacket: @unchecked Sendable {
   /// overwrite a frame the collar hadn't drained yet.
   var echoSeq: UInt32 = 0
 
+  /// CMD_FACTORY_RESET outcome, so the webapp reports what actually happened
+  /// instead of assuming the command's delivery meant success:
+  /// 0 none, 1 contents deleted, 2 error, 3 SD not mounted, 4 timed out,
+  /// 5 card reformatted (the clean outcome).
+  var wipeStatus: UInt32 = 0
+
+  /// files/directories removed on the delete path
+  var wipeRemoved: UInt32 = 0
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -2159,6 +2168,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     7: .standard(proto: "sched_crc"),
     8: .standard(proto: "fence_report"),
     9: .standard(proto: "echo_seq"),
+    10: .standard(proto: "wipe_status"),
+    11: .standard(proto: "wipe_removed"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -2176,6 +2187,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       case 7: try { try decoder.decodeSingularUInt32Field(value: &self.schedCrc) }()
       case 8: try { try decoder.decodeSingularBytesField(value: &self.fenceReport) }()
       case 9: try { try decoder.decodeSingularUInt32Field(value: &self.echoSeq) }()
+      case 10: try { try decoder.decodeSingularUInt32Field(value: &self.wipeStatus) }()
+      case 11: try { try decoder.decodeSingularUInt32Field(value: &self.wipeRemoved) }()
       default: break
       }
     }
@@ -2209,6 +2222,12 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     if self.echoSeq != 0 {
       try visitor.visitSingularUInt32Field(value: self.echoSeq, fieldNumber: 9)
     }
+    if self.wipeStatus != 0 {
+      try visitor.visitSingularUInt32Field(value: self.wipeStatus, fieldNumber: 10)
+    }
+    if self.wipeRemoved != 0 {
+      try visitor.visitSingularUInt32Field(value: self.wipeRemoved, fieldNumber: 11)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2222,6 +2241,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     if lhs.schedCrc != rhs.schedCrc {return false}
     if lhs.fenceReport != rhs.fenceReport {return false}
     if lhs.echoSeq != rhs.echoSeq {return false}
+    if lhs.wipeStatus != rhs.wipeStatus {return false}
+    if lhs.wipeRemoved != rhs.wipeRemoved {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
