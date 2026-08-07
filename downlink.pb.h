@@ -42,7 +42,15 @@ typedef enum command_type {
  a fence from the dashboard. The fix rides GeofenceData.vertices[0].
  Compiled OUT of PRODUCTION_BUILD firmware — a production collar ignores
  it entirely. */
-    COMMAND_TYPE_CMD_TEST_FIX = 17
+    COMMAND_TYPE_CMD_TEST_FIX = 17,
+    /* Pre-ship factory reset (fw 305+). Wipes recorded data (METADATA.CSV and
+ the whole date tree of audio/accel/GPS files), clears the uplink replay
+ ring and LoRa session state, and resets every setting to stock:
+ disengaged, default schedules, no radio credentials, no geofences.
+ Accepted ONLY over the BLE config tunnel — physical possession is the
+ authority. A radio downlink carrying this command is logged and ignored,
+ so no server bug or spoofed downlink can wipe a deployed collar. */
+    COMMAND_TYPE_CMD_FACTORY_RESET = 18
 } command_type_t;
 
 /* Struct definitions */
@@ -267,8 +275,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_TEST_FIX
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_TEST_FIX+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_FACTORY_RESET
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_FACTORY_RESET+1))
 
 
 

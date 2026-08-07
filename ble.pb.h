@@ -300,8 +300,10 @@ typedef struct system_state_packet {
     char firmware_version[16];
     /* Boot hardware-diagnostic bitmask (HW_RunDiagnostics, hw_diag.h).
  Bit SET = FAULT: 0 accelerometer, 1 magnetometer, 2 light sensor,
- 3 BME688, 4 GPS, 5 particulate, 6 LoRa radio. Bit 7 = diagnostics
- ran (validity). Same layout mirrored into Deployment.errorFlags.flag
+ 3 BME688, 4 GPS, 5 particulate, 6 LoRa radio, 8 microphone (PDM
+ capture flat/silent — bit 7 was already the validity flag when the
+ mic check arrived, so mic jumps over it). Bit 7 = diagnostics ran
+ (validity). Same layout mirrored into Deployment.errorFlags.flag
  on LoRaWAN uplinks. Absent on older firmware. */
     bool has_hw_diag;
     uint32_t hw_diag;
