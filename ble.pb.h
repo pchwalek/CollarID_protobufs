@@ -121,6 +121,14 @@ typedef struct lo_ra_config {
     int32_t tx_power_dbm;
     uint32_t sync_word; /* byte value */
     uint32_t frequency;
+    /* Post-TX receive window ("rx listen"). When true, the collar opens a
+ short RX window immediately after every raw-LoRa transmission (both the
+ deployment packet and the lost-mode beacon) so a nearby handheld can
+ answer it — the raw-LoRa analogue of a LoRaWAN Class A RX slot. The
+ radio still never listens at any other time; the cost is bounded by the
+ window (~250 ms per TX). proto3 default false = OFF, so every existing
+ config, CSV, and fielded collar keeps today's TX-then-sleep behavior. */
+    bool rx_listen;
 } lo_ra_config_t;
 
 typedef struct lost_mode_config {
@@ -414,7 +422,7 @@ extern "C" {
 #define RADIO_OTAA_INIT_DEFAULT                  {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_DEFAULT                   {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_DEFAULT            {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_DEFAULT}, 0, 0, 0}
-#define LO_RA_CONFIG_INIT_DEFAULT                {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0}
+#define LO_RA_CONFIG_INIT_DEFAULT                {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0}
 #define LOST_MODE_CONFIG_INIT_DEFAULT            {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_DEFAULT            {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_DEFAULT         {false, LO_RA_WAN_CONFIG_INIT_DEFAULT, false, LO_RA_CONFIG_INIT_DEFAULT, 0, false, LOST_MODE_CONFIG_INIT_DEFAULT, 0, false, MORTALITY_CONFIG_INIT_DEFAULT}
@@ -435,7 +443,7 @@ extern "C" {
 #define RADIO_OTAA_INIT_ZERO                     {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_ZERO                      {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_ZERO               {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_ZERO}, 0, 0, 0}
-#define LO_RA_CONFIG_INIT_ZERO                   {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0}
+#define LO_RA_CONFIG_INIT_ZERO                   {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0}
 #define LOST_MODE_CONFIG_INIT_ZERO               {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_ZERO               {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_ZERO            {false, LO_RA_WAN_CONFIG_INIT_ZERO, false, LO_RA_CONFIG_INIT_ZERO, 0, false, LOST_MODE_CONFIG_INIT_ZERO, 0, false, MORTALITY_CONFIG_INIT_ZERO}
@@ -488,6 +496,7 @@ extern "C" {
 #define LO_RA_CONFIG_TX_POWER_DBM_TAG            4
 #define LO_RA_CONFIG_SYNC_WORD_TAG               5
 #define LO_RA_CONFIG_FREQUENCY_TAG               6
+#define LO_RA_CONFIG_RX_LISTEN_TAG               7
 #define LOST_MODE_CONFIG_ACTIVATION_EPOCH_TAG    1
 #define LOST_MODE_CONFIG_TRANSMIT_INTERVAL_MIN_TAG 2
 #define LOST_MODE_CONFIG_TX_POWER_DBM_TAG        3
@@ -629,7 +638,8 @@ X(a, STATIC,   SINGULAR, UENUM,    radio_bandwidth,   2) \
 X(a, STATIC,   SINGULAR, UENUM,    radio_coding_rate,   3) \
 X(a, STATIC,   SINGULAR, INT32,    tx_power_dbm,      4) \
 X(a, STATIC,   SINGULAR, UINT32,   sync_word,         5) \
-X(a, STATIC,   SINGULAR, UINT32,   frequency,         6)
+X(a, STATIC,   SINGULAR, UINT32,   frequency,         6) \
+X(a, STATIC,   SINGULAR, BOOL,     rx_listen,         7)
 #define LO_RA_CONFIG_CALLBACK NULL
 #define LO_RA_CONFIG_DEFAULT NULL
 
@@ -842,14 +852,14 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define CFG_ECHO_PACKET_SIZE                     150
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
-#define LO_RA_CONFIG_SIZE                        29
+#define LO_RA_CONFIG_SIZE                        31
 #define LO_RA_WAN_CONFIG_SIZE                    103
 #define MAGNETOMETER_CONFIG_SIZE                 8
 #define MICROPHONE_CONFIG_SIZE                   16
 #define MORTALITY_CONFIG_SIZE                    12
 #define PERIPHERAL_PACKET_SIZE                   10
 #define RADIO_ABP_SIZE                           78
-#define RADIO_CONFIG_PACKET_SIZE                 179
+#define RADIO_CONFIG_PACKET_SIZE                 181
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
 #define SCHEDULE_CONFIG_PACKET_SIZE              990

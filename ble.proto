@@ -88,6 +88,14 @@ message LoRaConfig {
   int32  tx_power_dbm                           = 4;
   uint32 sync_word			        = 5; //byte value
   uint32 frequency				= 6;
+  // Post-TX receive window ("rx listen"). When true, the collar opens a
+  // short RX window immediately after every raw-LoRa transmission (both the
+  // deployment packet and the lost-mode beacon) so a nearby handheld can
+  // answer it — the raw-LoRa analogue of a LoRaWAN Class A RX slot. The
+  // radio still never listens at any other time; the cost is bounded by the
+  // window (~250 ms per TX). proto3 default false = OFF, so every existing
+  // config, CSV, and fielded collar keeps today's TX-then-sleep behavior.
+  bool rx_listen				= 7;
 }
 
 message LostMode_config{
