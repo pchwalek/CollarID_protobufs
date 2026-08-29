@@ -129,11 +129,39 @@ message RadioConfigPacket {
   Mortality_config mortality_config        = 6;
 }
 
+// Microphone acquisition format.
+//
+// These are enums, not raw Hz/bit counts, because the ADF can only produce
+// rates of 3.072 MHz / (decimation x 4 x 4) and each one needs its own
+// bench-calibrated filter gain (the SINC5 CIC's DC gain scales as
+// decimation^5). A rate is therefore a firmware-supported format, not a free
+// parameter — adding one means adding a calibrated table entry, so it also
+// means adding an enum value here.
+//
+// Value 0 is the historical behaviour on purpose. Collars, configs, and
+// clients predating these fields decode as 16 kHz / 16-bit, which is exactly
+// what every deployed unit already records.
+enum MicSampleRate {
+  MIC_RATE_16KHZ = 0;  // legacy default: ADF decimation 12
+  MIC_RATE_8KHZ  = 1;  // ADF decimation 24
+  // Room to grow: 32 kHz (decimation 6), 48 kHz (decimation 4), 4 kHz
+  // (decimation 48). Each needs a calibrated gain before it is offered.
+}
+
+enum MicBitDepth {
+  MIC_DEPTH_16BIT = 0;  // legacy default: signed 16-bit PCM
+  MIC_DEPTH_8BIT  = 1;  // unsigned 8-bit PCM (WAV stores 8-bit as offset binary)
+  // Note: 12-bit is deliberately absent — it is not a representable WAV
+  // sample format, so no standard tool would read the resulting files.
+}
+
 message MicrophoneConfig {
   bool            enabled            = 1;
   bool            continuous_mode    = 2; // on if true
   uint32          sample_length_min  = 3;
   uint32          sample_window_min  = 4;
+  MicSampleRate   sample_rate        = 5; // 0 = 16 kHz (pre-field default)
+  MicBitDepth     bit_depth          = 6; // 0 = 16-bit (pre-field default)
 }
 enum AccelSampleRate {
   ACCEL_25HZ = 0;

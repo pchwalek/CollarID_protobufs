@@ -223,6 +223,94 @@ enum RadioCodingRate: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+/// Microphone acquisition format.
+///
+/// These are enums, not raw Hz/bit counts, because the ADF can only produce
+/// rates of 3.072 MHz / (decimation x 4 x 4) and each one needs its own
+/// bench-calibrated filter gain (the SINC5 CIC's DC gain scales as
+/// decimation^5). A rate is therefore a firmware-supported format, not a free
+/// parameter — adding one means adding a calibrated table entry, so it also
+/// means adding an enum value here.
+///
+/// Value 0 is the historical behaviour on purpose. Collars, configs, and
+/// clients predating these fields decode as 16 kHz / 16-bit, which is exactly
+/// what every deployed unit already records.
+enum MicSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// legacy default: ADF decimation 12
+  case micRate16Khz // = 0
+
+  /// ADF decimation 24
+  case micRate8Khz // = 1
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .micRate16Khz
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .micRate16Khz
+    case 1: self = .micRate8Khz
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .micRate16Khz: return 0
+    case .micRate8Khz: return 1
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [MicSampleRate] = [
+    .micRate16Khz,
+    .micRate8Khz,
+  ]
+
+}
+
+enum MicBitDepth: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// legacy default: signed 16-bit PCM
+  case micDepth16Bit // = 0
+
+  /// unsigned 8-bit PCM (WAV stores 8-bit as offset binary)
+  case micDepth8Bit // = 1
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .micDepth16Bit
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .micDepth16Bit
+    case 1: self = .micDepth8Bit
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .micDepth16Bit: return 0
+    case .micDepth8Bit: return 1
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [MicBitDepth] = [
+    .micDepth16Bit,
+    .micDepth8Bit,
+  ]
+
+}
+
 enum AccelSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case accel25Hz // = 0
@@ -502,6 +590,15 @@ struct LoRaConfig: Sendable {
 
   var frequency: UInt32 = 0
 
+  /// Post-TX receive window ("rx listen"). When true, the collar opens a
+  /// short RX window immediately after every raw-LoRa transmission (both the
+  /// deployment packet and the lost-mode beacon) so a nearby handheld can
+  /// answer it — the raw-LoRa analogue of a LoRaWAN Class A RX slot. The
+  /// radio still never listens at any other time; the cost is bounded by the
+  /// window (~250 ms per TX). proto3 default false = OFF, so every existing
+  /// config, CSV, and fielded collar keeps today's TX-then-sleep behavior.
+  var rxListen: Bool = false
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -621,6 +718,12 @@ struct MicrophoneConfig: Sendable {
   var sampleLengthMin: UInt32 = 0
 
   var sampleWindowMin: UInt32 = 0
+
+  /// 0 = 16 kHz (pre-field default)
+  var sampleRate: MicSampleRate = .micRate16Khz
+
+  /// 0 = 16-bit (pre-field default)
+  var bitDepth: MicBitDepth = .micDepth16Bit
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1144,6 +1247,20 @@ extension RadioCodingRate: SwiftProtobuf._ProtoNameProviding {
   ]
 }
 
+extension MicSampleRate: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "MIC_RATE_16KHZ"),
+    1: .same(proto: "MIC_RATE_8KHZ"),
+  ]
+}
+
+extension MicBitDepth: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "MIC_DEPTH_16BIT"),
+    1: .same(proto: "MIC_DEPTH_8BIT"),
+  ]
+}
+
 extension AccelSampleRate: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     0: .same(proto: "ACCEL_25HZ"),
@@ -1543,6 +1660,7 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     4: .standard(proto: "tx_power_dbm"),
     5: .standard(proto: "sync_word"),
     6: .same(proto: "frequency"),
+    7: .standard(proto: "rx_listen"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1557,6 +1675,7 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       case 4: try { try decoder.decodeSingularInt32Field(value: &self.txPowerDbm) }()
       case 5: try { try decoder.decodeSingularUInt32Field(value: &self.syncWord) }()
       case 6: try { try decoder.decodeSingularUInt32Field(value: &self.frequency) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.rxListen) }()
       default: break
       }
     }
@@ -1581,6 +1700,9 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if self.frequency != 0 {
       try visitor.visitSingularUInt32Field(value: self.frequency, fieldNumber: 6)
     }
+    if self.rxListen != false {
+      try visitor.visitSingularBoolField(value: self.rxListen, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1591,6 +1713,7 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if lhs.txPowerDbm != rhs.txPowerDbm {return false}
     if lhs.syncWord != rhs.syncWord {return false}
     if lhs.frequency != rhs.frequency {return false}
+    if lhs.rxListen != rhs.rxListen {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1801,6 +1924,8 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     2: .standard(proto: "continuous_mode"),
     3: .standard(proto: "sample_length_min"),
     4: .standard(proto: "sample_window_min"),
+    5: .standard(proto: "sample_rate"),
+    6: .standard(proto: "bit_depth"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1813,6 +1938,8 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
       case 2: try { try decoder.decodeSingularBoolField(value: &self.continuousMode) }()
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.sampleLengthMin) }()
       case 4: try { try decoder.decodeSingularUInt32Field(value: &self.sampleWindowMin) }()
+      case 5: try { try decoder.decodeSingularEnumField(value: &self.sampleRate) }()
+      case 6: try { try decoder.decodeSingularEnumField(value: &self.bitDepth) }()
       default: break
       }
     }
@@ -1831,6 +1958,12 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     if self.sampleWindowMin != 0 {
       try visitor.visitSingularUInt32Field(value: self.sampleWindowMin, fieldNumber: 4)
     }
+    if self.sampleRate != .micRate16Khz {
+      try visitor.visitSingularEnumField(value: self.sampleRate, fieldNumber: 5)
+    }
+    if self.bitDepth != .micDepth16Bit {
+      try visitor.visitSingularEnumField(value: self.bitDepth, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1839,6 +1972,8 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     if lhs.continuousMode != rhs.continuousMode {return false}
     if lhs.sampleLengthMin != rhs.sampleLengthMin {return false}
     if lhs.sampleWindowMin != rhs.sampleWindowMin {return false}
+    if lhs.sampleRate != rhs.sampleRate {return false}
+    if lhs.bitDepth != rhs.bitDepth {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

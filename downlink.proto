@@ -95,12 +95,20 @@ message ConfigAccelerometer {
   optional uint32 sensitivity  = 3;  // 0=2G, 1=4G, 2=8G
 }
 
-// Microphone (~5 bytes)
+// Microphone (~9 bytes)
+//
+// sample_rate/bit_depth mirror ble.proto's MicSampleRate/MicBitDepth. They
+// are uint32 here (as ConfigAccelerometer.sample_rate already is) because
+// downlink.proto does not import ble.proto. Both are optional, so a server
+// that never sets them costs zero extra bytes and a collar predating them
+// skips the unknown fields and keeps its 16 kHz / 16-bit default.
 message ConfigMicrophone {
   optional bool   enabled           = 1;
   optional bool   continuous_mode   = 2;
   optional uint32 sample_length_min = 3;
   optional uint32 sample_window_min = 4;
+  optional uint32 sample_rate       = 5;  // 0=16kHz, 1=8kHz
+  optional uint32 bit_depth         = 6;  // 0=16-bit, 1=8-bit
 }
 
 // GPS (~4 bytes)

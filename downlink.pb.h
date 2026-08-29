@@ -91,7 +91,13 @@ typedef struct config_accelerometer {
     uint32_t sensitivity; /* 0=2G, 1=4G, 2=8G */
 } config_accelerometer_t;
 
-/* Microphone (~5 bytes) */
+/* Microphone (~9 bytes)
+
+ sample_rate/bit_depth mirror ble.proto's MicSampleRate/MicBitDepth. They
+ are uint32 here (as ConfigAccelerometer.sample_rate already is) because
+ downlink.proto does not import ble.proto. Both are optional, so a server
+ that never sets them costs zero extra bytes and a collar predating them
+ skips the unknown fields and keeps its 16 kHz / 16-bit default. */
 typedef struct config_microphone {
     bool has_enabled;
     bool enabled;
@@ -101,6 +107,10 @@ typedef struct config_microphone {
     uint32_t sample_length_min;
     bool has_sample_window_min;
     uint32_t sample_window_min;
+    bool has_sample_rate;
+    uint32_t sample_rate; /* 0=16kHz, 1=8kHz */
+    bool has_bit_depth;
+    uint32_t bit_depth; /* 0=16-bit, 1=8-bit */
 } config_microphone_t;
 
 /* GPS (~4 bytes) */
@@ -301,7 +311,7 @@ extern "C" {
 #define HIGH_FIX_PARAMS_INIT_DEFAULT             {0, 0}
 #define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
@@ -316,7 +326,7 @@ extern "C" {
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
 #define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
@@ -344,6 +354,8 @@ extern "C" {
 #define CONFIG_MICROPHONE_CONTINUOUS_MODE_TAG    2
 #define CONFIG_MICROPHONE_SAMPLE_LENGTH_MIN_TAG  3
 #define CONFIG_MICROPHONE_SAMPLE_WINDOW_MIN_TAG  4
+#define CONFIG_MICROPHONE_SAMPLE_RATE_TAG        5
+#define CONFIG_MICROPHONE_BIT_DEPTH_TAG          6
 #define CONFIG_GPS_ENABLED_TAG                   1
 #define CONFIG_GPS_SAMPLE_INTERVAL_MIN_TAG       2
 #define CONFIG_GPS_ACCURACY_TAG                  3
@@ -438,7 +450,9 @@ X(a, STATIC,   OPTIONAL, UINT32,   sensitivity,       3)
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
 X(a, STATIC,   OPTIONAL, BOOL,     continuous_mode,   2) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_length_min,   3) \
-X(a, STATIC,   OPTIONAL, UINT32,   sample_window_min,   4)
+X(a, STATIC,   OPTIONAL, UINT32,   sample_window_min,   4) \
+X(a, STATIC,   OPTIONAL, UINT32,   sample_rate,       5) \
+X(a, STATIC,   OPTIONAL, UINT32,   bit_depth,         6)
 #define CONFIG_MICROPHONE_CALLBACK NULL
 #define CONFIG_MICROPHONE_DEFAULT NULL
 
@@ -588,7 +602,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          14
 #define CONFIG_MAGNETOMETER_SIZE                 8
-#define CONFIG_MICROPHONE_SIZE                   16
+#define CONFIG_MICROPHONE_SIZE                   28
 #define CONFIG_MORTALITY_SIZE                    14
 #define CONFIG_RADIO_TIMING_SIZE                 27
 #define CONFIG_SAMPLING_SIZE                     8
