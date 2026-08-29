@@ -238,11 +238,22 @@ enum RadioCodingRate: SwiftProtobuf.Enum, Swift.CaseIterable {
 enum MicSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
 
-  /// legacy default: ADF decimation 12
+  /// legacy default: divider 4, decimation 12 (mic in low-power mode)
   case micRate16Khz // = 0
 
-  /// ADF decimation 24
+  /// divider 4, decimation 24 (low-power mode)
   case micRate8Khz // = 1
+
+  /// fw 341+. All three are exact integer divisions of the 3.072 MHz ADF
+  /// kernel clock; the divider moves the microphone between its clock-selected
+  /// modes (Knowles SPH0641LU4H-1).
+  case micRate48Khz // = 2
+
+  /// divider 1, decimation 8 (ultrasonic mode, two-step bring-up)
+  case micRate96Khz // = 3
+
+  /// divider 1, decimation 16, reshape filter OFF
+  case micRate192Khz // = 4
   case UNRECOGNIZED(Int)
 
   init() {
@@ -253,6 +264,9 @@ enum MicSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
     switch rawValue {
     case 0: self = .micRate16Khz
     case 1: self = .micRate8Khz
+    case 2: self = .micRate48Khz
+    case 3: self = .micRate96Khz
+    case 4: self = .micRate192Khz
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -261,6 +275,9 @@ enum MicSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
     switch self {
     case .micRate16Khz: return 0
     case .micRate8Khz: return 1
+    case .micRate48Khz: return 2
+    case .micRate96Khz: return 3
+    case .micRate192Khz: return 4
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -269,6 +286,9 @@ enum MicSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
   static let allCases: [MicSampleRate] = [
     .micRate16Khz,
     .micRate8Khz,
+    .micRate48Khz,
+    .micRate96Khz,
+    .micRate192Khz,
   ]
 
 }
@@ -1251,6 +1271,9 @@ extension MicSampleRate: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     0: .same(proto: "MIC_RATE_16KHZ"),
     1: .same(proto: "MIC_RATE_8KHZ"),
+    2: .same(proto: "MIC_RATE_48KHZ"),
+    3: .same(proto: "MIC_RATE_96KHZ"),
+    4: .same(proto: "MIC_RATE_192KHZ"),
   ]
 }
 

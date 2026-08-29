@@ -142,10 +142,19 @@ message RadioConfigPacket {
 // clients predating these fields decode as 16 kHz / 16-bit, which is exactly
 // what every deployed unit already records.
 enum MicSampleRate {
-  MIC_RATE_16KHZ = 0;  // legacy default: ADF decimation 12
-  MIC_RATE_8KHZ  = 1;  // ADF decimation 24
-  // Room to grow: 32 kHz (decimation 6), 48 kHz (decimation 4), 4 kHz
-  // (decimation 48). Each needs a calibrated gain before it is offered.
+  MIC_RATE_16KHZ  = 0;  // legacy default: divider 4, decimation 12 (mic in low-power mode)
+  MIC_RATE_8KHZ   = 1;  // divider 4, decimation 24 (low-power mode)
+  // fw 341+. All three are exact integer divisions of the 3.072 MHz ADF
+  // kernel clock; the divider moves the microphone between its clock-selected
+  // modes (Knowles SPH0641LU4H-1).
+  MIC_RATE_48KHZ  = 2;  // divider 2, decimation 8 (standard mode)
+  MIC_RATE_96KHZ  = 3;  // divider 1, decimation 8 (ultrasonic mode, two-step bring-up)
+  MIC_RATE_192KHZ = 4;  // divider 1, decimation 16, reshape filter OFF
+                        // (ultrasonic; reshape-on would need gain +28 > the
+                        // MDF's +24 ceiling)
+  // 44.1 kHz is deliberately excluded: it is not an integer division of any
+  // MSIK range (it would need a fractional PLL running through every
+  // recording) and 48 kHz is a strict scientific superset. Resample offline.
 }
 
 enum MicBitDepth {

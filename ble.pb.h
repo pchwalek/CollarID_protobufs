@@ -57,8 +57,14 @@ typedef enum radio_coding_rate {
  clients predating these fields decode as 16 kHz / 16-bit, which is exactly
  what every deployed unit already records. */
 typedef enum mic_sample_rate {
-    MIC_SAMPLE_RATE_MIC_RATE_16_KHZ = 0, /* legacy default: ADF decimation 12 */
-    MIC_SAMPLE_RATE_MIC_RATE_8_KHZ = 1 /* ADF decimation 24 */
+    MIC_SAMPLE_RATE_MIC_RATE_16_KHZ = 0, /* legacy default: divider 4, decimation 12 (mic in low-power mode) */
+    MIC_SAMPLE_RATE_MIC_RATE_8_KHZ = 1, /* divider 4, decimation 24 (low-power mode) */
+    /* fw 341+. All three are exact integer divisions of the 3.072 MHz ADF
+ kernel clock; the divider moves the microphone between its clock-selected
+ modes (Knowles SPH0641LU4H-1). */
+    MIC_SAMPLE_RATE_MIC_RATE_48_KHZ = 2, /* divider 2, decimation 8 (standard mode) */
+    MIC_SAMPLE_RATE_MIC_RATE_96_KHZ = 3, /* divider 1, decimation 8 (ultrasonic mode, two-step bring-up) */
+    MIC_SAMPLE_RATE_MIC_RATE_192_KHZ = 4 /* divider 1, decimation 16, reshape filter OFF */
 } mic_sample_rate_t;
 
 typedef enum mic_bit_depth {
@@ -397,8 +403,8 @@ extern "C" {
 #define _RADIO_CODING_RATE_ARRAYSIZE ((radio_coding_rate_t)(RADIO_CODING_RATE_CR_4_8+1))
 
 #define _MIC_SAMPLE_RATE_MIN MIC_SAMPLE_RATE_MIC_RATE_16_KHZ
-#define _MIC_SAMPLE_RATE_MAX MIC_SAMPLE_RATE_MIC_RATE_8_KHZ
-#define _MIC_SAMPLE_RATE_ARRAYSIZE ((mic_sample_rate_t)(MIC_SAMPLE_RATE_MIC_RATE_8_KHZ+1))
+#define _MIC_SAMPLE_RATE_MAX MIC_SAMPLE_RATE_MIC_RATE_192_KHZ
+#define _MIC_SAMPLE_RATE_ARRAYSIZE ((mic_sample_rate_t)(MIC_SAMPLE_RATE_MIC_RATE_192_KHZ+1))
 
 #define _MIC_BIT_DEPTH_MIN MIC_BIT_DEPTH_MIC_DEPTH_16_BIT
 #define _MIC_BIT_DEPTH_MAX MIC_BIT_DEPTH_MIC_DEPTH_8_BIT
