@@ -331,6 +331,54 @@ enum MicBitDepth: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+/// Digital gain boost over the per-rate calibrated baseline, in the ADF's
+/// ~3 dB steps: +0 / +6 / +12 dB. Value 0 is the historical calibration, so
+/// collars and clients predating the field are unchanged. Firmware clamps the
+/// summed gain to the MDF's +24 ceiling (fw 349+).
+enum MicSensitivity: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// the calibrated baseline
+  case micSensLow // = 0
+
+  /// +6 dB
+  case micSensMedium // = 1
+
+  /// +12 dB
+  case micSensHigh // = 2
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .micSensLow
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .micSensLow
+    case 1: self = .micSensMedium
+    case 2: self = .micSensHigh
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .micSensLow: return 0
+    case .micSensMedium: return 1
+    case .micSensHigh: return 2
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [MicSensitivity] = [
+    .micSensLow,
+    .micSensMedium,
+    .micSensHigh,
+  ]
+
+}
+
 enum AccelSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case accel25Hz // = 0
@@ -744,6 +792,9 @@ struct MicrophoneConfig: Sendable {
 
   /// 0 = 16-bit (pre-field default)
   var bitDepth: MicBitDepth = .micDepth16Bit
+
+  /// 0 = calibrated baseline (fw 349+)
+  var sensitivity: MicSensitivity = .micSensLow
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1281,6 +1332,14 @@ extension MicBitDepth: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     0: .same(proto: "MIC_DEPTH_16BIT"),
     1: .same(proto: "MIC_DEPTH_8BIT"),
+  ]
+}
+
+extension MicSensitivity: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "MIC_SENS_LOW"),
+    1: .same(proto: "MIC_SENS_MEDIUM"),
+    2: .same(proto: "MIC_SENS_HIGH"),
   ]
 }
 
@@ -1949,6 +2008,7 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     4: .standard(proto: "sample_window_min"),
     5: .standard(proto: "sample_rate"),
     6: .standard(proto: "bit_depth"),
+    7: .same(proto: "sensitivity"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1963,6 +2023,7 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
       case 4: try { try decoder.decodeSingularUInt32Field(value: &self.sampleWindowMin) }()
       case 5: try { try decoder.decodeSingularEnumField(value: &self.sampleRate) }()
       case 6: try { try decoder.decodeSingularEnumField(value: &self.bitDepth) }()
+      case 7: try { try decoder.decodeSingularEnumField(value: &self.sensitivity) }()
       default: break
       }
     }
@@ -1987,6 +2048,9 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     if self.bitDepth != .micDepth16Bit {
       try visitor.visitSingularEnumField(value: self.bitDepth, fieldNumber: 6)
     }
+    if self.sensitivity != .micSensLow {
+      try visitor.visitSingularEnumField(value: self.sensitivity, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1997,6 +2061,7 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     if lhs.sampleWindowMin != rhs.sampleWindowMin {return false}
     if lhs.sampleRate != rhs.sampleRate {return false}
     if lhs.bitDepth != rhs.bitDepth {return false}
+    if lhs.sensitivity != rhs.sensitivity {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

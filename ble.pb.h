@@ -72,6 +72,16 @@ typedef enum mic_bit_depth {
     MIC_BIT_DEPTH_MIC_DEPTH_8_BIT = 1 /* unsigned 8-bit PCM (WAV stores 8-bit as offset binary) */
 } mic_bit_depth_t;
 
+/* Digital gain boost over the per-rate calibrated baseline, in the ADF's
+ ~3 dB steps: +0 / +6 / +12 dB. Value 0 is the historical calibration, so
+ collars and clients predating the field are unchanged. Firmware clamps the
+ summed gain to the MDF's +24 ceiling (fw 349+). */
+typedef enum mic_sensitivity {
+    MIC_SENSITIVITY_MIC_SENS_LOW = 0, /* the calibrated baseline */
+    MIC_SENSITIVITY_MIC_SENS_MEDIUM = 1, /* +6 dB */
+    MIC_SENSITIVITY_MIC_SENS_HIGH = 2 /* +12 dB */
+} mic_sensitivity_t;
+
 typedef enum accel_sample_rate {
     ACCEL_SAMPLE_RATE_ACCEL_25_HZ = 0,
     ACCEL_SAMPLE_RATE_ACCEL_50_HZ = 1
@@ -201,6 +211,7 @@ typedef struct microphone_config {
     uint32_t sample_window_min;
     mic_sample_rate_t sample_rate; /* 0 = 16 kHz (pre-field default) */
     mic_bit_depth_t bit_depth; /* 0 = 16-bit (pre-field default) */
+    mic_sensitivity_t sensitivity; /* 0 = calibrated baseline (fw 349+) */
 } microphone_config_t;
 
 typedef struct accelerometer_config {
@@ -410,6 +421,10 @@ extern "C" {
 #define _MIC_BIT_DEPTH_MAX MIC_BIT_DEPTH_MIC_DEPTH_8_BIT
 #define _MIC_BIT_DEPTH_ARRAYSIZE ((mic_bit_depth_t)(MIC_BIT_DEPTH_MIC_DEPTH_8_BIT+1))
 
+#define _MIC_SENSITIVITY_MIN MIC_SENSITIVITY_MIC_SENS_LOW
+#define _MIC_SENSITIVITY_MAX MIC_SENSITIVITY_MIC_SENS_HIGH
+#define _MIC_SENSITIVITY_ARRAYSIZE ((mic_sensitivity_t)(MIC_SENSITIVITY_MIC_SENS_HIGH+1))
+
 #define _ACCEL_SAMPLE_RATE_MIN ACCEL_SAMPLE_RATE_ACCEL_25_HZ
 #define _ACCEL_SAMPLE_RATE_MAX ACCEL_SAMPLE_RATE_ACCEL_50_HZ
 #define _ACCEL_SAMPLE_RATE_ARRAYSIZE ((accel_sample_rate_t)(ACCEL_SAMPLE_RATE_ACCEL_50_HZ+1))
@@ -439,6 +454,7 @@ extern "C" {
 
 #define microphone_config_t_sample_rate_ENUMTYPE mic_sample_rate_t
 #define microphone_config_t_bit_depth_ENUMTYPE mic_bit_depth_t
+#define microphone_config_t_sensitivity_ENUMTYPE mic_sensitivity_t
 
 #define accelerometer_config_t_sample_rate_ENUMTYPE accel_sample_rate_t
 #define accelerometer_config_t_sensitivity_ENUMTYPE accel_sensitivity_t
@@ -466,7 +482,7 @@ extern "C" {
 #define LOST_MODE_CONFIG_INIT_DEFAULT            {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_DEFAULT            {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_DEFAULT         {false, LO_RA_WAN_CONFIG_INIT_DEFAULT, false, LO_RA_CONFIG_INIT_DEFAULT, 0, false, LOST_MODE_CONFIG_INIT_DEFAULT, 0, false, MORTALITY_CONFIG_INIT_DEFAULT}
-#define MICROPHONE_CONFIG_INIT_DEFAULT           {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN}
+#define MICROPHONE_CONFIG_INIT_DEFAULT           {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN, _MIC_SENSITIVITY_MIN}
 #define ACCELEROMETER_CONFIG_INIT_DEFAULT        {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
@@ -487,7 +503,7 @@ extern "C" {
 #define LOST_MODE_CONFIG_INIT_ZERO               {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_ZERO               {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_ZERO            {false, LO_RA_WAN_CONFIG_INIT_ZERO, false, LO_RA_CONFIG_INIT_ZERO, 0, false, LOST_MODE_CONFIG_INIT_ZERO, 0, false, MORTALITY_CONFIG_INIT_ZERO}
-#define MICROPHONE_CONFIG_INIT_ZERO              {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN}
+#define MICROPHONE_CONFIG_INIT_ZERO              {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN, _MIC_SENSITIVITY_MIN}
 #define ACCELEROMETER_CONFIG_INIT_ZERO           {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
@@ -554,6 +570,7 @@ extern "C" {
 #define MICROPHONE_CONFIG_SAMPLE_WINDOW_MIN_TAG  4
 #define MICROPHONE_CONFIG_SAMPLE_RATE_TAG        5
 #define MICROPHONE_CONFIG_BIT_DEPTH_TAG          6
+#define MICROPHONE_CONFIG_SENSITIVITY_TAG        7
 #define ACCELEROMETER_CONFIG_ENABLED_TAG         1
 #define ACCELEROMETER_CONFIG_SAMPLE_RATE_TAG     2
 #define ACCELEROMETER_CONFIG_SENSITIVITY_TAG     3
@@ -718,7 +735,8 @@ X(a, STATIC,   SINGULAR, BOOL,     continuous_mode,   2) \
 X(a, STATIC,   SINGULAR, UINT32,   sample_length_min,   3) \
 X(a, STATIC,   SINGULAR, UINT32,   sample_window_min,   4) \
 X(a, STATIC,   SINGULAR, UENUM,    sample_rate,       5) \
-X(a, STATIC,   SINGULAR, UENUM,    bit_depth,         6)
+X(a, STATIC,   SINGULAR, UENUM,    bit_depth,         6) \
+X(a, STATIC,   SINGULAR, UENUM,    sensitivity,       7)
 #define MICROPHONE_CONFIG_CALLBACK NULL
 #define MICROPHONE_CONFIG_DEFAULT NULL
 
@@ -899,15 +917,15 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define LO_RA_CONFIG_SIZE                        31
 #define LO_RA_WAN_CONFIG_SIZE                    103
 #define MAGNETOMETER_CONFIG_SIZE                 8
-#define MICROPHONE_CONFIG_SIZE                   20
+#define MICROPHONE_CONFIG_SIZE                   22
 #define MORTALITY_CONFIG_SIZE                    12
 #define PERIPHERAL_PACKET_SIZE                   10
 #define RADIO_ABP_SIZE                           78
 #define RADIO_CONFIG_PACKET_SIZE                 181
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1010
-#define SCHEDULE_CONFIG_SIZE                     146
+#define SCHEDULE_CONFIG_PACKET_SIZE              1020
+#define SCHEDULE_CONFIG_SIZE                     148
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 145
 #define TIME_WINDOW_SIZE                         12

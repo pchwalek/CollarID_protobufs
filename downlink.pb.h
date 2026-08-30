@@ -111,6 +111,8 @@ typedef struct config_microphone {
     uint32_t sample_rate; /* 0=16kHz, 1=8kHz */
     bool has_bit_depth;
     uint32_t bit_depth; /* 0=16-bit, 1=8-bit */
+    bool has_sensitivity;
+    uint32_t sensitivity; /* 0=+0dB, 1=+6dB, 2=+12dB (fw 349+) */
 } config_microphone_t;
 
 /* GPS (~4 bytes) */
@@ -311,7 +313,7 @@ extern "C" {
 #define HIGH_FIX_PARAMS_INIT_DEFAULT             {0, 0}
 #define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
@@ -326,7 +328,7 @@ extern "C" {
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
 #define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
@@ -356,6 +358,7 @@ extern "C" {
 #define CONFIG_MICROPHONE_SAMPLE_WINDOW_MIN_TAG  4
 #define CONFIG_MICROPHONE_SAMPLE_RATE_TAG        5
 #define CONFIG_MICROPHONE_BIT_DEPTH_TAG          6
+#define CONFIG_MICROPHONE_SENSITIVITY_TAG        7
 #define CONFIG_GPS_ENABLED_TAG                   1
 #define CONFIG_GPS_SAMPLE_INTERVAL_MIN_TAG       2
 #define CONFIG_GPS_ACCURACY_TAG                  3
@@ -452,7 +455,8 @@ X(a, STATIC,   OPTIONAL, BOOL,     continuous_mode,   2) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_length_min,   3) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_window_min,   4) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_rate,       5) \
-X(a, STATIC,   OPTIONAL, UINT32,   bit_depth,         6)
+X(a, STATIC,   OPTIONAL, UINT32,   bit_depth,         6) \
+X(a, STATIC,   OPTIONAL, UINT32,   sensitivity,       7)
 #define CONFIG_MICROPHONE_CALLBACK NULL
 #define CONFIG_MICROPHONE_DEFAULT NULL
 
@@ -602,7 +606,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          14
 #define CONFIG_MAGNETOMETER_SIZE                 8
-#define CONFIG_MICROPHONE_SIZE                   28
+#define CONFIG_MICROPHONE_SIZE                   34
 #define CONFIG_MORTALITY_SIZE                    14
 #define CONFIG_RADIO_TIMING_SIZE                 27
 #define CONFIG_SAMPLING_SIZE                     8

@@ -164,6 +164,16 @@ enum MicBitDepth {
   // sample format, so no standard tool would read the resulting files.
 }
 
+// Digital gain boost over the per-rate calibrated baseline, in the ADF's
+// ~3 dB steps: +0 / +6 / +12 dB. Value 0 is the historical calibration, so
+// collars and clients predating the field are unchanged. Firmware clamps the
+// summed gain to the MDF's +24 ceiling (fw 349+).
+enum MicSensitivity {
+  MIC_SENS_LOW    = 0;  // the calibrated baseline
+  MIC_SENS_MEDIUM = 1;  // +6 dB
+  MIC_SENS_HIGH   = 2;  // +12 dB
+}
+
 message MicrophoneConfig {
   bool            enabled            = 1;
   bool            continuous_mode    = 2; // on if true
@@ -171,6 +181,7 @@ message MicrophoneConfig {
   uint32          sample_window_min  = 4;
   MicSampleRate   sample_rate        = 5; // 0 = 16 kHz (pre-field default)
   MicBitDepth     bit_depth          = 6; // 0 = 16-bit (pre-field default)
+  MicSensitivity  sensitivity        = 7; // 0 = calibrated baseline (fw 349+)
 }
 enum AccelSampleRate {
   ACCEL_25HZ = 0;

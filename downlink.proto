@@ -109,6 +109,7 @@ message ConfigMicrophone {
   optional uint32 sample_window_min = 4;
   optional uint32 sample_rate       = 5;  // 0=16kHz, 1=8kHz
   optional uint32 bit_depth         = 6;  // 0=16-bit, 1=8-bit
+  optional uint32 sensitivity       = 7;  // 0=+0dB, 1=+6dB, 2=+12dB (fw 349+)
 }
 
 // GPS (~4 bytes)
