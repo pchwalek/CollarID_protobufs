@@ -137,7 +137,12 @@ message ParticulateData{
 //             trigger duration. Not a hardware fault — consumers must mask
 //             bits 0-7 before reporting hardware health, or a mortality
 //             flag will read as a broken collar.
-//   bits 9-31 free
+//   bit  9    STORAGE: the collar could not open a recording file on its SD
+//             card (directory or file create failed even after its recovery
+//             fallbacks — see sd_prepare_recording_folder in the firmware).
+//             Audio/accelerometer data is being lost while set. Clears on
+//             the next successful open. Not a hardware fault either.
+//   bits 10-31 free
 message ErrorFlags{
     uint32 flag = 1;
 }
