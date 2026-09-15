@@ -6,9 +6,25 @@ option (nanopb_fileopt).packed_struct = false;
 
 
 // ================== SCHEDULING / CONFIG ==================
-message TimeWindow {          // 2 bytes
+message TimeWindow {          // 2 bytes for a plain daily window
   uint32 start_hour = 1;  // 0 to 23 (inclusive)
   uint32 end_hour   = 2;  // 0 to 23 (inclusive)
+  // Calendar filters (fw 357+, DESIGN_calendar_schedules.md). A window
+  // applies at an hour only when ALL of hour, day and date match; the
+  // scheduler is still first-match over the slot list, so a narrower
+  // calendar placed ABOVE a broader one takes priority for the hours they
+  // share. Zero means unbounded, so every legacy config decodes to the
+  // every-day behavior it always had. Days and epochs are UTC, like hours.
+  // Dates are DAY NUMBERS (UTC days since 1970-01-01 = epoch / 86400), not
+  // epoch seconds: a 3-byte varint instead of 5, which is what keeps a
+  // window fragment plus its downlink wrapper under the 33 B RX2 floor.
+  // A window that runs past midnight belongs to the day it STARTS on: its
+  // hours after midnight are judged against the previous calendar day, so
+  // "Saturday 20-05" runs into Sunday morning and "until Nov 15" includes
+  // the night of Nov 15.
+  uint32 day_mask  = 3; // bit 0 = Monday .. bit 6 = Sunday; 0 = every day
+  uint32 start_day = 4; // first day the window applies; 0 = no start bound
+  uint32 end_day   = 5; // first day it NO LONGER applies (exclusive); 0 = none
 }
 // Enabled/disabled and sample interval for each sensor
 message SamplingConfig {
@@ -265,6 +281,16 @@ message ScheduleConfigPacket {
   // re-pushes the canonical schedule blob ~10 s later so the resting value
   // an old webapp reads is always a real schedule.
   CfgEchoPacket cfg_echo = 6;
+  // Highest schedule-schema revision the WRITER of this packet understands
+  // (fw 357+). A writer that predates a field cannot round-trip it: it decodes
+  // a collar's schedule with its old schema, drops the unknown fields, and
+  // writes the flattened result back. For the calendar fields that silently
+  // turns a first-placed "weekends only" slot into an every-day slot. So the
+  // collar refuses a schedule write whose writer_version is below the
+  // revision of any feature RESIDENT in its current config, re-pushes the
+  // resident schedule, and logs it. 0 = legacy writer (never saw this field).
+  //   1 = knows TimeWindow.day_mask / start_day / end_day
+  uint32 writer_version = 7;
 }
 
 // The BLE tunnel echo body. fence_report (ble_query=2 responses) is a

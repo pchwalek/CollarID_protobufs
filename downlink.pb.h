@@ -79,6 +79,19 @@ typedef struct config_time_window {
     uint32_t start_hour; /* 0-23 */
     bool has_end_hour;
     uint32_t end_hour; /* 0-23 */
+    /* Calendar filters, same semantics as ble.proto TimeWindow (fw 357+):
+ 0 = unbounded. Senders split the window kind into TWO fragments when the
+ dates change (hours + day_mask, then start_day + end_day): all five in
+ one fragment is 34 B with the downlink wrapper, one over the 33 B US915
+ RX2 floor; split, each side stays under 29 B. The server gates these on
+ fw_build: older firmware ignores the fields and would run the slot
+ every day. */
+    bool has_day_mask;
+    uint32_t day_mask; /* bit 0 = Monday .. bit 6 = Sunday */
+    bool has_start_day;
+    uint32_t start_day; /* UTC day number (epoch/86400); 0 = none */
+    bool has_end_day;
+    uint32_t end_day; /* UTC day number, exclusive; 0 = none */
 } config_time_window_t;
 
 /* Accelerometer (~4 bytes) */
@@ -311,7 +324,7 @@ extern "C" {
 #define GEO_POINT_INIT_DEFAULT                   {0, 0}
 #define GEOFENCE_DATA_INIT_DEFAULT               {0, 0, {GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT}, 0}
 #define HIGH_FIX_PARAMS_INIT_DEFAULT             {0, 0}
-#define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0}
+#define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0}
@@ -326,7 +339,7 @@ extern "C" {
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
-#define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0}
+#define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0}
@@ -349,6 +362,9 @@ extern "C" {
 #define HIGH_FIX_PARAMS_SAMPLE_INTERVAL_SEC_TAG  2
 #define CONFIG_TIME_WINDOW_START_HOUR_TAG        1
 #define CONFIG_TIME_WINDOW_END_HOUR_TAG          2
+#define CONFIG_TIME_WINDOW_DAY_MASK_TAG          3
+#define CONFIG_TIME_WINDOW_START_DAY_TAG         4
+#define CONFIG_TIME_WINDOW_END_DAY_TAG           5
 #define CONFIG_ACCELEROMETER_ENABLED_TAG         1
 #define CONFIG_ACCELEROMETER_SAMPLE_RATE_TAG     2
 #define CONFIG_ACCELEROMETER_SENSITIVITY_TAG     3
@@ -438,7 +454,10 @@ X(a, STATIC,   SINGULAR, UINT32,   sample_interval_sec,   2)
 
 #define CONFIG_TIME_WINDOW_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, UINT32,   start_hour,        1) \
-X(a, STATIC,   OPTIONAL, UINT32,   end_hour,          2)
+X(a, STATIC,   OPTIONAL, UINT32,   end_hour,          2) \
+X(a, STATIC,   OPTIONAL, UINT32,   day_mask,          3) \
+X(a, STATIC,   OPTIONAL, UINT32,   start_day,         4) \
+X(a, STATIC,   OPTIONAL, UINT32,   end_day,           5)
 #define CONFIG_TIME_WINDOW_CALLBACK NULL
 #define CONFIG_TIME_WINDOW_DEFAULT NULL
 
@@ -611,7 +630,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_RADIO_TIMING_SIZE                 27
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16
-#define CONFIG_TIME_WINDOW_SIZE                  12
+#define CONFIG_TIME_WINDOW_SIZE                  30
 #define DOWNLINK_PACKET_SIZE                     357
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22

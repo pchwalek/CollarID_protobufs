@@ -100,9 +100,25 @@ typedef enum peripheral_type {
 
 /* Struct definitions */
 /* ================== SCHEDULING / CONFIG ================== */
-typedef struct time_window { /* 2 bytes */
+typedef struct time_window { /* 2 bytes for a plain daily window */
     uint32_t start_hour; /* 0 to 23 (inclusive) */
     uint32_t end_hour; /* 0 to 23 (inclusive) */
+    /* Calendar filters (fw 357+, DESIGN_calendar_schedules.md). A window
+ applies at an hour only when ALL of hour, day and date match; the
+ scheduler is still first-match over the slot list, so a narrower
+ calendar placed ABOVE a broader one takes priority for the hours they
+ share. Zero means unbounded, so every legacy config decodes to the
+ every-day behavior it always had. Days and epochs are UTC, like hours.
+ Dates are DAY NUMBERS (UTC days since 1970-01-01 = epoch / 86400), not
+ epoch seconds: a 3-byte varint instead of 5, which is what keeps a
+ window fragment plus its downlink wrapper under the 33 B RX2 floor.
+ A window that runs past midnight belongs to the day it STARTS on: its
+ hours after midnight are judged against the previous calendar day, so
+ "Saturday 20-05" runs into Sunday morning and "until Nov 15" includes
+ the night of Nov 15. */
+    uint32_t day_mask; /* bit 0 = Monday .. bit 6 = Sunday; 0 = every day */
+    uint32_t start_day; /* first day the window applies; 0 = no start bound */
+    uint32_t end_day; /* first day it NO LONGER applies (exclusive); 0 = none */
 } time_window_t;
 
 /* Enabled/disabled and sample interval for each sensor */
@@ -325,6 +341,16 @@ typedef struct schedule_config_packet {
  an old webapp reads is always a real schedule. */
     bool has_cfg_echo;
     cfg_echo_packet_t cfg_echo;
+    /* Highest schedule-schema revision the WRITER of this packet understands
+ (fw 357+). A writer that predates a field cannot round-trip it: it decodes
+ a collar's schedule with its old schema, drops the unknown fields, and
+ writes the flattened result back. For the calendar fields that silently
+ turns a first-placed "weekends only" slot into an every-day slot. So the
+ collar refuses a schedule write whose writer_version is below the
+ revision of any feature RESIDENT in its current config, re-pushes the
+ resident schedule, and logs it. 0 = legacy writer (never saw this field).
+   1 = knows TimeWindow.day_mask / start_day / end_day */
+    uint32_t writer_version;
 } schedule_config_packet_t;
 
 typedef struct simple_sensor_reading {
@@ -472,7 +498,7 @@ extern "C" {
 
 
 /* Initializer values for message structs */
-#define TIME_WINDOW_INIT_DEFAULT                 {0, 0}
+#define TIME_WINDOW_INIT_DEFAULT                 {0, 0, 0, 0, 0}
 #define SAMPLING_CONFIG_INIT_DEFAULT             {0, 0}
 #define GPS_CONFIG_INIT_DEFAULT                  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define RADIO_OTAA_INIT_DEFAULT                  {{0}, {0}, {0}, {0}}
@@ -486,14 +512,14 @@ extern "C" {
 #define ACCELEROMETER_CONFIG_INIT_DEFAULT        {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
-#define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT}
+#define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
 #define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
 #define PERIPHERAL_INFO_INIT_DEFAULT             {{{NULL}, NULL}}
 #define BLE_PACKET_INIT_DEFAULT                  {false, PACKET_HEADER_INIT_DEFAULT, 0, {SCHEDULE_CONFIG_PACKET_INIT_DEFAULT}}
-#define TIME_WINDOW_INIT_ZERO                    {0, 0}
+#define TIME_WINDOW_INIT_ZERO                    {0, 0, 0, 0, 0}
 #define SAMPLING_CONFIG_INIT_ZERO                {0, 0}
 #define GPS_CONFIG_INIT_ZERO                     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define RADIO_OTAA_INIT_ZERO                     {{0}, {0}, {0}, {0}}
@@ -507,7 +533,7 @@ extern "C" {
 #define ACCELEROMETER_CONFIG_INIT_ZERO           {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
-#define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO}
+#define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
 #define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0}
@@ -518,6 +544,9 @@ extern "C" {
 /* Field tags (for use in manual encoding/decoding) */
 #define TIME_WINDOW_START_HOUR_TAG               1
 #define TIME_WINDOW_END_HOUR_TAG                 2
+#define TIME_WINDOW_DAY_MASK_TAG                 3
+#define TIME_WINDOW_START_DAY_TAG                4
+#define TIME_WINDOW_END_DAY_TAG                  5
 #define SAMPLING_CONFIG_ENABLED_TAG              1
 #define SAMPLING_CONFIG_SAMPLE_INTERVAL_MIN_TAG  2
 #define GPS_CONFIG_ENABLED_TAG                   1
@@ -605,6 +634,7 @@ extern "C" {
 #define SCHEDULE_CONFIG_PACKET_CFG_DOWNLINK_TAG  4
 #define SCHEDULE_CONFIG_PACKET_BLE_QUERY_TAG     5
 #define SCHEDULE_CONFIG_PACKET_CFG_ECHO_TAG      6
+#define SCHEDULE_CONFIG_PACKET_WRITER_VERSION_TAG 7
 #define SIMPLE_SENSOR_READING_INDEX_TAG          1
 #define SIMPLE_SENSOR_READING_TEMPERATURE_TAG    2
 #define SIMPLE_SENSOR_READING_HUMIDITY_TAG       3
@@ -637,7 +667,10 @@ extern "C" {
 /* Struct field encoding specification for nanopb */
 #define TIME_WINDOW_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   start_hour,        1) \
-X(a, STATIC,   SINGULAR, UINT32,   end_hour,          2)
+X(a, STATIC,   SINGULAR, UINT32,   end_hour,          2) \
+X(a, STATIC,   SINGULAR, UINT32,   day_mask,          3) \
+X(a, STATIC,   SINGULAR, UINT32,   start_day,         4) \
+X(a, STATIC,   SINGULAR, UINT32,   end_day,           5)
 #define TIME_WINDOW_CALLBACK NULL
 #define TIME_WINDOW_DEFAULT NULL
 
@@ -783,7 +816,8 @@ X(a, STATIC,   REPEATED, MESSAGE,  schedules,         2) \
 X(a, STATIC,   SINGULAR, UINT32,   special_mode,      3) \
 X(a, STATIC,   SINGULAR, BYTES,    cfg_downlink,      4) \
 X(a, STATIC,   SINGULAR, UINT32,   ble_query,         5) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_echo,          6)
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_echo,          6) \
+X(a, STATIC,   SINGULAR, UINT32,   writer_version,    7)
 #define SCHEDULE_CONFIG_PACKET_CALLBACK NULL
 #define SCHEDULE_CONFIG_PACKET_DEFAULT NULL
 #define schedule_config_packet_t_schedules_MSGTYPE schedule_config_t
@@ -924,11 +958,11 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 181
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1020
-#define SCHEDULE_CONFIG_SIZE                     148
+#define SCHEDULE_CONFIG_PACKET_SIZE              1116
+#define SCHEDULE_CONFIG_SIZE                     166
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 145
-#define TIME_WINDOW_SIZE                         12
+#define TIME_WINDOW_SIZE                         30
 
 #ifdef __cplusplus
 } /* extern "C" */

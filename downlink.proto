@@ -86,6 +86,16 @@ message HighFixParams {
 message ConfigTimeWindow {
   optional uint32 start_hour = 1;  // 0-23
   optional uint32 end_hour   = 2;  // 0-23
+  // Calendar filters, same semantics as ble.proto TimeWindow (fw 357+):
+  // 0 = unbounded. Senders split the window kind into TWO fragments when the
+  // dates change (hours + day_mask, then start_day + end_day): all five in
+  // one fragment is 34 B with the downlink wrapper, one over the 33 B US915
+  // RX2 floor; split, each side stays under 29 B. The server gates these on
+  // fw_build: older firmware ignores the fields and would run the slot
+  // every day.
+  optional uint32 day_mask  = 3;  // bit 0 = Monday .. bit 6 = Sunday
+  optional uint32 start_day = 4;  // UTC day number (epoch/86400); 0 = none
+  optional uint32 end_day   = 5;  // UTC day number, exclusive; 0 = none
 }
 
 // Accelerometer (~4 bytes)

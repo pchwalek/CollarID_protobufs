@@ -150,7 +150,12 @@ typedef struct particulate_data {
              trigger duration. Not a hardware fault — consumers must mask
              bits 0-7 before reporting hardware health, or a mortality
              flag will read as a broken collar.
-   bits 9-31 free */
+   bit  9    STORAGE: the collar could not open a recording file on its SD
+             card (directory or file create failed even after its recovery
+             fallbacks — see sd_prepare_recording_folder in the firmware).
+             Audio/accelerometer data is being lost while set. Clears on
+             the next successful open. Not a hardware fault either.
+   bits 10-31 free */
 typedef struct error_flags {
     uint32_t flag;
 } error_flags_t;
@@ -615,12 +620,12 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACK_PACKET_SIZE                          20
 #define ADDON_REPORT_SIZE                        60
 #define CONFIG_PACKET_SIZE                       16
-#define CONFIG_REPORT_SIZE                       67
+#define CONFIG_REPORT_SIZE                       126
 #define DEPLOYMENT_SIZE                          679
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      848
+#define MESSAGE_PACKET_SIZE                      913
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33
