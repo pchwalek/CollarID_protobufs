@@ -136,6 +136,26 @@ typedef struct config_gps {
     uint32_t sample_interval_min;
     bool has_accuracy;
     uint32_t accuracy; /* 1-10 */
+    /* fw 358: the adaptive-sampling and tx-on-fix settings, same numbers as
+ ble.proto GPSConfig. Added so the BLE config tunnel can carry a whole
+ schedule (large schedules cannot travel as one Bluetooth write). Senders
+ include them only when set: a 10-field fragment is ~40 B on air, over
+ the 33 B US915 RX2 floor, and the collar's self-report would strand on
+ DR1's 53 B uplinks. Absent decodes as 0 = off, exactly as before. */
+    bool has_dynamic_sampling_mode;
+    bool dynamic_sampling_mode;
+    bool has_medium_motion_vedba_threshold_x100;
+    uint32_t medium_motion_vedba_threshold_x100;
+    bool has_medium_motion_gps_interval_min;
+    uint32_t medium_motion_gps_interval_min;
+    bool has_high_motion_vedba_threshold_x100;
+    uint32_t high_motion_vedba_threshold_x100;
+    bool has_high_motion_gps_interval_min;
+    uint32_t high_motion_gps_interval_min;
+    bool has_lorawan_tx_on_gps_fix;
+    bool lorawan_tx_on_gps_fix;
+    bool has_lora_tx_on_gps_fix;
+    bool lora_tx_on_gps_fix;
 } config_gps_t;
 
 /* Magnetometer (~3 bytes) */
@@ -327,7 +347,7 @@ extern "C" {
 #define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0}
+#define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
@@ -342,7 +362,7 @@ extern "C" {
 #define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0}
+#define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
@@ -378,6 +398,13 @@ extern "C" {
 #define CONFIG_GPS_ENABLED_TAG                   1
 #define CONFIG_GPS_SAMPLE_INTERVAL_MIN_TAG       2
 #define CONFIG_GPS_ACCURACY_TAG                  3
+#define CONFIG_GPS_DYNAMIC_SAMPLING_MODE_TAG     4
+#define CONFIG_GPS_MEDIUM_MOTION_VEDBA_THRESHOLD_X100_TAG 5
+#define CONFIG_GPS_MEDIUM_MOTION_GPS_INTERVAL_MIN_TAG 6
+#define CONFIG_GPS_HIGH_MOTION_VEDBA_THRESHOLD_X100_TAG 7
+#define CONFIG_GPS_HIGH_MOTION_GPS_INTERVAL_MIN_TAG 8
+#define CONFIG_GPS_LORAWAN_TX_ON_GPS_FIX_TAG     9
+#define CONFIG_GPS_LORA_TX_ON_GPS_FIX_TAG        10
 #define CONFIG_MAGNETOMETER_ENABLED_TAG          1
 #define CONFIG_MAGNETOMETER_SAMPLE_INTERVAL_S_TAG 2
 #define CONFIG_SAMPLING_ENABLED_TAG              1
@@ -482,7 +509,14 @@ X(a, STATIC,   OPTIONAL, UINT32,   sensitivity,       7)
 #define CONFIG_GPS_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_interval_min,   2) \
-X(a, STATIC,   OPTIONAL, UINT32,   accuracy,          3)
+X(a, STATIC,   OPTIONAL, UINT32,   accuracy,          3) \
+X(a, STATIC,   OPTIONAL, BOOL,     dynamic_sampling_mode,   4) \
+X(a, STATIC,   OPTIONAL, UINT32,   medium_motion_vedba_threshold_x100,   5) \
+X(a, STATIC,   OPTIONAL, UINT32,   medium_motion_gps_interval_min,   6) \
+X(a, STATIC,   OPTIONAL, UINT32,   high_motion_vedba_threshold_x100,   7) \
+X(a, STATIC,   OPTIONAL, UINT32,   high_motion_gps_interval_min,   8) \
+X(a, STATIC,   OPTIONAL, BOOL,     lorawan_tx_on_gps_fix,   9) \
+X(a, STATIC,   OPTIONAL, BOOL,     lora_tx_on_gps_fix,  10)
 #define CONFIG_GPS_CALLBACK NULL
 #define CONFIG_GPS_DEFAULT NULL
 
@@ -623,7 +657,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_ACCELEROMETER_SIZE                14
 #define CONFIG_FRAGMENT_SIZE                     106
 #define CONFIG_GEOFENCE_SIZE                     86
-#define CONFIG_GPS_SIZE                          14
+#define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 8
 #define CONFIG_MICROPHONE_SIZE                   34
 #define CONFIG_MORTALITY_SIZE                    14

@@ -51,7 +51,7 @@ PB_BIND(SCHEDULE_CONFIG, schedule_config_t, AUTO)
 PB_BIND(SCHEDULE_CONFIG_PACKET, schedule_config_packet_t, 2)
 
 
-PB_BIND(CFG_ECHO_PACKET, cfg_echo_packet_t, AUTO)
+PB_BIND(CFG_ECHO_PACKET, cfg_echo_packet_t, 2)
 
 
 PB_BIND(SIMPLE_SENSOR_READING, simple_sensor_reading_t, AUTO)

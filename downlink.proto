@@ -127,6 +127,19 @@ message ConfigGPS {
   optional bool   enabled              = 1;
   optional uint32 sample_interval_min  = 2;
   optional uint32 accuracy             = 3;  // 1-10
+  // fw 358: the adaptive-sampling and tx-on-fix settings, same numbers as
+  // ble.proto GPSConfig. Added so the BLE config tunnel can carry a whole
+  // schedule (large schedules cannot travel as one Bluetooth write). Senders
+  // include them only when set: a 10-field fragment is ~40 B on air, over
+  // the 33 B US915 RX2 floor, and the collar's self-report would strand on
+  // DR1's 53 B uplinks. Absent decodes as 0 = off, exactly as before.
+  optional bool   dynamic_sampling_mode              = 4;
+  optional uint32 medium_motion_vedba_threshold_x100 = 5;
+  optional uint32 medium_motion_gps_interval_min     = 6;
+  optional uint32 high_motion_vedba_threshold_x100   = 7;
+  optional uint32 high_motion_gps_interval_min       = 8;
+  optional bool   lorawan_tx_on_gps_fix              = 9;
+  optional bool   lora_tx_on_gps_fix                 = 10;
 }
 
 // Magnetometer (~3 bytes)

@@ -267,6 +267,7 @@ typedef struct schedule_config {
 } schedule_config_t;
 
 typedef PB_BYTES_ARRAY_T(88) cfg_echo_packet_fence_report_t;
+typedef PB_BYTES_ARRAY_T(128) cfg_echo_packet_slot_report_t;
 /* The BLE tunnel echo body. fence_report (ble_query=2 responses) is a
  version-tagged fixed binary record, NOT ConfigFragment framing: GeoPoint
  coordinates are plain int32, so a negative (western/southern) coordinate
@@ -297,6 +298,14 @@ typedef struct cfg_echo_packet {
  5 card reformatted (the clean outcome). */
     uint32_t wipe_status;
     uint32_t wipe_removed; /* files/directories removed on the delete path */
+    /* fw 358: schedule read-back. slot_report answers ble_query 3|(N<<8) with
+ slot N as a nanopb-encoded ScheduleConfig (lean: ~60-100 B, max 128);
+ schedule_count and engaged ride on EVERY echo so the webapp knows how
+ many slots to ask for and the collar's engaged state without ever
+ reading the resting blob. */
+    cfg_echo_packet_slot_report_t slot_report;
+    uint32_t schedule_count;
+    bool engaged;
 } cfg_echo_packet_t;
 
 typedef PB_BYTES_ARRAY_T(96) schedule_config_packet_cfg_downlink_t;
@@ -329,7 +338,11 @@ typedef struct schedule_config_packet {
  webapp to poll.
    0        = none
    1        = echo status only (masks, last verdict)
-   2|(N<<8) = echo geofence slot N (0..3) as a binary record */
+   2|(N<<8) = echo geofence slot N (0..3) as a binary record
+   3|(N<<8) = echo schedule slot N (0..4) as a ScheduleConfig message
+              (fw 358): slot-by-slot read-back for schedules too large for
+              the resting blob to survive the radios (one Bluetooth read
+              carries 182 B; both radios cast the blob length to a byte) */
     uint32_t ble_query;
     /* Collar -> webapp echo. Pushed after a tunnel frame that produced a
  verdict, and after every ble_query. Deliberately a FIELD on this message,
@@ -513,7 +526,7 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
-#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0}
+#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
@@ -534,7 +547,7 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
-#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0}
+#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
@@ -628,6 +641,9 @@ extern "C" {
 #define CFG_ECHO_PACKET_ECHO_SEQ_TAG             9
 #define CFG_ECHO_PACKET_WIPE_STATUS_TAG          10
 #define CFG_ECHO_PACKET_WIPE_REMOVED_TAG         11
+#define CFG_ECHO_PACKET_SLOT_REPORT_TAG          12
+#define CFG_ECHO_PACKET_SCHEDULE_COUNT_TAG       13
+#define CFG_ECHO_PACKET_ENGAGED_TAG              14
 #define SCHEDULE_CONFIG_PACKET_ENGAGED_TAG       1
 #define SCHEDULE_CONFIG_PACKET_SCHEDULES_TAG     2
 #define SCHEDULE_CONFIG_PACKET_SPECIAL_MODE_TAG  3
@@ -834,7 +850,10 @@ X(a, STATIC,   SINGULAR, UINT32,   sched_crc,         7) \
 X(a, STATIC,   SINGULAR, BYTES,    fence_report,      8) \
 X(a, STATIC,   SINGULAR, UINT32,   echo_seq,          9) \
 X(a, STATIC,   SINGULAR, UINT32,   wipe_status,      10) \
-X(a, STATIC,   SINGULAR, UINT32,   wipe_removed,     11)
+X(a, STATIC,   SINGULAR, UINT32,   wipe_removed,     11) \
+X(a, STATIC,   SINGULAR, BYTES,    slot_report,      12) \
+X(a, STATIC,   SINGULAR, UINT32,   schedule_count,   13) \
+X(a, STATIC,   SINGULAR, BOOL,     engaged,          14)
 #define CFG_ECHO_PACKET_CALLBACK NULL
 #define CFG_ECHO_PACKET_DEFAULT NULL
 
@@ -945,7 +964,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 /* PeripheralInfo_size depends on runtime parameters */
 /* BlePacket_size depends on runtime parameters */
 #define ACCELEROMETER_CONFIG_SIZE                6
-#define CFG_ECHO_PACKET_SIZE                     150
+#define CFG_ECHO_PACKET_SIZE                     289
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        31
@@ -958,7 +977,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 181
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1116
+#define SCHEDULE_CONFIG_PACKET_SIZE              1255
 #define SCHEDULE_CONFIG_SIZE                     166
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 145

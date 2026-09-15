@@ -270,6 +270,10 @@ message ScheduleConfigPacket {
   //   0        = none
   //   1        = echo status only (masks, last verdict)
   //   2|(N<<8) = echo geofence slot N (0..3) as a binary record
+  //   3|(N<<8) = echo schedule slot N (0..4) as a ScheduleConfig message
+  //              (fw 358): slot-by-slot read-back for schedules too large for
+  //              the resting blob to survive the radios (one Bluetooth read
+  //              carries 182 B; both radios cast the blob length to a byte)
   uint32 ble_query = 5;
 
   // Collar -> webapp echo. Pushed after a tunnel frame that produced a
@@ -323,6 +327,14 @@ message CfgEchoPacket {
   // 5 card reformatted (the clean outcome).
   uint32 wipe_status = 10;
   uint32 wipe_removed = 11;     // files/directories removed on the delete path
+  // fw 358: schedule read-back. slot_report answers ble_query 3|(N<<8) with
+  // slot N as a nanopb-encoded ScheduleConfig (lean: ~60-100 B, max 128);
+  // schedule_count and engaged ride on EVERY echo so the webapp knows how
+  // many slots to ask for and the collar's engaged state without ever
+  // reading the resting blob.
+  bytes  slot_report = 12;
+  uint32 schedule_count = 13;
+  bool   engaged = 14;
 }
 
 
