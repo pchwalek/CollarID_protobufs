@@ -80,12 +80,13 @@ typedef struct config_time_window {
     bool has_end_hour;
     uint32_t end_hour; /* 0-23 */
     /* Calendar filters, same semantics as ble.proto TimeWindow (fw 357+):
- 0 = unbounded. Senders split the window kind into TWO fragments when the
- dates change (hours + day_mask, then start_day + end_day): all five in
- one fragment is 34 B with the downlink wrapper, one over the 33 B US915
- RX2 floor; split, each side stays under 29 B. The server gates these on
- fw_build: older firmware ignores the fields and would run the slot
- every day. */
+ 0 = unbounded. All five fields in one fragment are 27 B with the
+ epoch-less downlink wrapper fw 360 servers send (34 B with the old
+ wrapper, over the 33 B US915 RX2 floor — which is why older senders
+ split the kind into hours + day_mask, then start_day + end_day; merge on
+ the collar is field-wise, so a split is still valid). The server gates
+ these on fw_build: older firmware ignores the fields and would run the
+ slot every day. */
     bool has_day_mask;
     uint32_t day_mask; /* bit 0 = Monday .. bit 6 = Sunday */
     bool has_start_day;
@@ -254,27 +255,44 @@ typedef struct config_geofence {
 } config_geofence_t;
 
 /* ---- Config fragment wrapper ----
- Pairs a schedule slot index with exactly one sensor/system config.
- fragment_index and fragment_total enable integrity checking on commit. */
+ Pairs a schedule slot index with one or more sensor/system configs.
+ fragment_index and fragment_total enable integrity checking on commit.
+
+ The settings were a oneof until fw 360. Plain optional fields with the
+ same numbers are byte-identical on the wire, so a fragment carrying ONE
+ setting decodes the same on every build. A fragment carrying SEVERAL
+ settings (server-side packing, and the fw 360 self-report) is applied
+ setting by setting by fw 360+; older nanopb keeps only the last setting it
+ saw, so senders pack only for builds that understand it. Every setting in
+ a fragment applies to the same schedule_index. */
 typedef struct config_fragment {
     uint32_t schedule_index; /* target schedule slot (0-4) */
     uint32_t fragment_index; /* 0-based index of this fragment in the transaction */
     uint32_t fragment_total; /* total number of fragments the server will send */
-    pb_size_t which_setting;
-    union {
-        config_time_window_t cfg_time_window;
-        config_accelerometer_t cfg_accelerometer;
-        config_microphone_t cfg_microphone;
-        config_gps_t cfg_gps;
-        config_magnetometer_t cfg_magnetometer;
-        config_sampling_t cfg_light;
-        config_sampling_t cfg_environmental;
-        config_sampling_t cfg_particulate;
-        config_radio_timing_t cfg_radio_timing;
-        config_system_t cfg_system; /* global, schedule_index ignored */
-        config_mortality_t cfg_mortality; /* global, schedule_index ignored */
-        config_geofence_t cfg_geofence; /* global, schedule_index ignored */
-    } setting;
+    bool has_cfg_time_window;
+    config_time_window_t cfg_time_window;
+    bool has_cfg_accelerometer;
+    config_accelerometer_t cfg_accelerometer;
+    bool has_cfg_microphone;
+    config_microphone_t cfg_microphone;
+    bool has_cfg_gps;
+    config_gps_t cfg_gps;
+    bool has_cfg_magnetometer;
+    config_magnetometer_t cfg_magnetometer;
+    bool has_cfg_light;
+    config_sampling_t cfg_light;
+    bool has_cfg_environmental;
+    config_sampling_t cfg_environmental;
+    bool has_cfg_particulate;
+    config_sampling_t cfg_particulate;
+    bool has_cfg_radio_timing;
+    config_radio_timing_t cfg_radio_timing;
+    bool has_cfg_system;
+    config_system_t cfg_system; /* global, schedule_index ignored */
+    bool has_cfg_mortality;
+    config_mortality_t cfg_mortality; /* global, schedule_index ignored */
+    bool has_cfg_geofence;
+    config_geofence_t cfg_geofence; /* global, schedule_index ignored */
 } config_fragment_t;
 
 /* ---- Main downlink envelope ---- */
@@ -311,6 +329,14 @@ typedef struct downlink_packet {
  Server-assigned, monotonically increasing per device; 0 = legacy client. */
     bool has_cfg_txn_id;
     uint32_t cfg_txn_id;
+    /* CMD_CONFIG_REPORT scope (fw 360+): which parts of the config to report.
+ Bits 0-4 = schedule slots 0-4, bit 5 = the collar-wide system+mortality
+ fragment, bit 6 = the geofences. Absent or 0 = everything, which is also
+ what older firmware sends (it ignores the field). The report echoes the
+ mask in ConfigReport.report_mask so the server merges instead of
+ replacing. */
+    bool has_report_mask;
+    uint32_t report_mask;
 } downlink_packet_t;
 
 
@@ -354,8 +380,8 @@ extern "C" {
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
-#define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_DEFAULT}}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
@@ -369,8 +395,8 @@ extern "C" {
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
-#define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, 0, {CONFIG_TIME_WINDOW_INIT_ZERO}}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -457,6 +483,7 @@ extern "C" {
 #define DOWNLINK_PACKET_RESEND_FROM_TAG          7
 #define DOWNLINK_PACKET_RESEND_MASK_TAG          8
 #define DOWNLINK_PACKET_CFG_TXN_ID_TAG           9
+#define DOWNLINK_PACKET_REPORT_MASK_TAG          10
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -577,32 +604,32 @@ X(a, STATIC,   OPTIONAL, BOOL,     consumed,         12)
 X(a, STATIC,   SINGULAR, UINT32,   schedule_index,    1) \
 X(a, STATIC,   SINGULAR, UINT32,   fragment_index,    2) \
 X(a, STATIC,   SINGULAR, UINT32,   fragment_total,    3) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_time_window,setting.cfg_time_window),   4) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_accelerometer,setting.cfg_accelerometer),   5) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_microphone,setting.cfg_microphone),   6) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_gps,setting.cfg_gps),   7) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_magnetometer,setting.cfg_magnetometer),   8) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_light,setting.cfg_light),   9) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_environmental,setting.cfg_environmental),  10) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_particulate,setting.cfg_particulate),  11) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_radio_timing,setting.cfg_radio_timing),  12) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_system,setting.cfg_system),  13) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_mortality,setting.cfg_mortality),  14) \
-X(a, STATIC,   ONEOF,    MESSAGE,  (setting,cfg_geofence,setting.cfg_geofence),  15)
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_time_window,   4) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_accelerometer,   5) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_microphone,    6) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_gps,           7) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_magnetometer,   8) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_light,         9) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_environmental,  10) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_particulate,  11) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_radio_timing,  12) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_system,       13) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_mortality,    14) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_geofence,     15)
 #define CONFIG_FRAGMENT_CALLBACK NULL
 #define CONFIG_FRAGMENT_DEFAULT NULL
-#define config_fragment_t_setting_cfg_time_window_MSGTYPE config_time_window_t
-#define config_fragment_t_setting_cfg_accelerometer_MSGTYPE config_accelerometer_t
-#define config_fragment_t_setting_cfg_microphone_MSGTYPE config_microphone_t
-#define config_fragment_t_setting_cfg_gps_MSGTYPE config_gps_t
-#define config_fragment_t_setting_cfg_magnetometer_MSGTYPE config_magnetometer_t
-#define config_fragment_t_setting_cfg_light_MSGTYPE config_sampling_t
-#define config_fragment_t_setting_cfg_environmental_MSGTYPE config_sampling_t
-#define config_fragment_t_setting_cfg_particulate_MSGTYPE config_sampling_t
-#define config_fragment_t_setting_cfg_radio_timing_MSGTYPE config_radio_timing_t
-#define config_fragment_t_setting_cfg_system_MSGTYPE config_system_t
-#define config_fragment_t_setting_cfg_mortality_MSGTYPE config_mortality_t
-#define config_fragment_t_setting_cfg_geofence_MSGTYPE config_geofence_t
+#define config_fragment_t_cfg_time_window_MSGTYPE config_time_window_t
+#define config_fragment_t_cfg_accelerometer_MSGTYPE config_accelerometer_t
+#define config_fragment_t_cfg_microphone_MSGTYPE config_microphone_t
+#define config_fragment_t_cfg_gps_MSGTYPE config_gps_t
+#define config_fragment_t_cfg_magnetometer_MSGTYPE config_magnetometer_t
+#define config_fragment_t_cfg_light_MSGTYPE config_sampling_t
+#define config_fragment_t_cfg_environmental_MSGTYPE config_sampling_t
+#define config_fragment_t_cfg_particulate_MSGTYPE config_sampling_t
+#define config_fragment_t_cfg_radio_timing_MSGTYPE config_radio_timing_t
+#define config_fragment_t_cfg_system_MSGTYPE config_system_t
+#define config_fragment_t_cfg_mortality_MSGTYPE config_mortality_t
+#define config_fragment_t_cfg_geofence_MSGTYPE config_geofence_t
 
 #define DOWNLINK_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
@@ -613,7 +640,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  config,            5) \
 X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_epoch,   6) \
 X(a, STATIC,   OPTIONAL, UINT32,   resend_from,       7) \
 X(a, STATIC,   OPTIONAL, UINT32,   resend_mask,       8) \
-X(a, STATIC,   OPTIONAL, UINT32,   cfg_txn_id,        9)
+X(a, STATIC,   OPTIONAL, UINT32,   cfg_txn_id,        9) \
+X(a, STATIC,   OPTIONAL, UINT32,   report_mask,      10)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
@@ -655,7 +683,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     106
+#define CONFIG_FRAGMENT_SIZE                     339
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 8
@@ -665,7 +693,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     357
+#define DOWNLINK_PACKET_SIZE                     597
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12

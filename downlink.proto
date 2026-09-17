@@ -15,6 +15,21 @@ import "nanopb.proto";
 //      applies staging → live, persists, notifies threads
 //   If any fragments are missing, commit is rejected (staging discarded).
 //   Device uplinks a config ACK/NACK so the server knows whether to retry.
+//
+// Folded form (fw 360+): the handshake rides inside the fragments. The first
+// fragment carrying a cfg_txn_id the device has not committed opens staging
+// exactly like CMD_CONFIG_BEGIN; once every fragment_total fragment has
+// arrived the device commits on its own, exactly like CMD_CONFIG_COMMIT. The
+// explicit commands still work on every build, and a CMD_CONFIG_COMMIT for a
+// transaction the device already committed simply repeats the APPLIED ack, so
+// a server that lost the ack can probe without restarting the push. Older
+// firmware refuses a fragment while no transaction is open, so a server only
+// folds for builds that understand it.
+//
+// Fragments carry no epoch from the server side (fw 360 servers): the device
+// reads DownlinkPacket.epoch only to bootstrap an invalid clock, BEGIN and
+// COMMIT still carry it, and the 6 bytes are what lets a dated time window
+// fit one RX2 downlink.
 
 // ---- Commands ----
 enum CommandType {
@@ -87,12 +102,13 @@ message ConfigTimeWindow {
   optional uint32 start_hour = 1;  // 0-23
   optional uint32 end_hour   = 2;  // 0-23
   // Calendar filters, same semantics as ble.proto TimeWindow (fw 357+):
-  // 0 = unbounded. Senders split the window kind into TWO fragments when the
-  // dates change (hours + day_mask, then start_day + end_day): all five in
-  // one fragment is 34 B with the downlink wrapper, one over the 33 B US915
-  // RX2 floor; split, each side stays under 29 B. The server gates these on
-  // fw_build: older firmware ignores the fields and would run the slot
-  // every day.
+  // 0 = unbounded. All five fields in one fragment are 27 B with the
+  // epoch-less downlink wrapper fw 360 servers send (34 B with the old
+  // wrapper, over the 33 B US915 RX2 floor — which is why older senders
+  // split the kind into hours + day_mask, then start_day + end_day; merge on
+  // the collar is field-wise, so a split is still valid). The server gates
+  // these on fw_build: older firmware ignores the fields and would run the
+  // slot every day.
   optional uint32 day_mask  = 3;  // bit 0 = Monday .. bit 6 = Sunday
   optional uint32 start_day = 4;  // UTC day number (epoch/86400); 0 = none
   optional uint32 end_day   = 5;  // UTC day number, exclusive; 0 = none
@@ -211,27 +227,33 @@ message ConfigGeofence {
 }
 
 // ---- Config fragment wrapper ----
-// Pairs a schedule slot index with exactly one sensor/system config.
+// Pairs a schedule slot index with one or more sensor/system configs.
 // fragment_index and fragment_total enable integrity checking on commit.
+//
+// The settings were a oneof until fw 360. Plain optional fields with the
+// same numbers are byte-identical on the wire, so a fragment carrying ONE
+// setting decodes the same on every build. A fragment carrying SEVERAL
+// settings (server-side packing, and the fw 360 self-report) is applied
+// setting by setting by fw 360+; older nanopb keeps only the last setting it
+// saw, so senders pack only for builds that understand it. Every setting in
+// a fragment applies to the same schedule_index.
 message ConfigFragment {
   uint32 schedule_index = 1;  // target schedule slot (0-4)
   uint32 fragment_index = 2;  // 0-based index of this fragment in the transaction
   uint32 fragment_total = 3;  // total number of fragments the server will send
 
-  oneof setting {
-    ConfigTimeWindow    cfg_time_window   = 4;
-    ConfigAccelerometer cfg_accelerometer = 5;
-    ConfigMicrophone    cfg_microphone    = 6;
-    ConfigGPS           cfg_gps           = 7;
-    ConfigMagnetometer  cfg_magnetometer  = 8;
-    ConfigSampling      cfg_light         = 9;
-    ConfigSampling      cfg_environmental = 10;
-    ConfigSampling      cfg_particulate   = 11;
-    ConfigRadioTiming   cfg_radio_timing  = 12;
-    ConfigSystem        cfg_system        = 13;  // global, schedule_index ignored
-    ConfigMortality     cfg_mortality     = 14;  // global, schedule_index ignored
-    ConfigGeofence      cfg_geofence      = 15;  // global, schedule_index ignored
-  }
+  optional ConfigTimeWindow    cfg_time_window   = 4;
+  optional ConfigAccelerometer cfg_accelerometer = 5;
+  optional ConfigMicrophone    cfg_microphone    = 6;
+  optional ConfigGPS           cfg_gps           = 7;
+  optional ConfigMagnetometer  cfg_magnetometer  = 8;
+  optional ConfigSampling      cfg_light         = 9;
+  optional ConfigSampling      cfg_environmental = 10;
+  optional ConfigSampling      cfg_particulate   = 11;
+  optional ConfigRadioTiming   cfg_radio_timing  = 12;
+  optional ConfigSystem        cfg_system        = 13;  // global, schedule_index ignored
+  optional ConfigMortality     cfg_mortality     = 14;  // global, schedule_index ignored
+  optional ConfigGeofence      cfg_geofence      = 15;  // global, schedule_index ignored
 }
 
 // ---- Main downlink envelope ----
@@ -266,4 +288,12 @@ message DownlinkPacket {
   // AckPacket so a retried COMMIT and a stale ack are distinguishable.
   // Server-assigned, monotonically increasing per device; 0 = legacy client.
   optional uint32 cfg_txn_id = 9;
+
+  // CMD_CONFIG_REPORT scope (fw 360+): which parts of the config to report.
+  // Bits 0-4 = schedule slots 0-4, bit 5 = the collar-wide system+mortality
+  // fragment, bit 6 = the geofences. Absent or 0 = everything, which is also
+  // what older firmware sends (it ignores the field). The report echoes the
+  // mask in ConfigReport.report_mask so the server merges instead of
+  // replacing.
+  optional uint32 report_mask = 10;
 }

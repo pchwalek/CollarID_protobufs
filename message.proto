@@ -197,11 +197,19 @@ message AddonReport {
 // frag_index/frag_total let the server assemble and detect gaps; sched_crc
 // binds every fragment to the identity it describes, so a mid-report edit
 // invalidates the batch instead of splicing two configs together.
+//
+// fw 360 trims the report: sched_crc is left 0 (the packet header already
+// carries the identity of every uplink, and the server keys on that), one
+// fragment carries several settings of a slot (five fragments per slot
+// instead of nine), and after a committed push only the parts the push
+// touched are reported — report_mask says which (bits as
+// DownlinkPacket.report_mask; 0 = the whole config, as older firmware sends).
 message ConfigReport {
-    uint32 sched_crc  = 1;
+    uint32 sched_crc  = 1;    // 0 from fw 360: use PacketHeader.sched_crc
     uint32 frag_index = 2;
     uint32 frag_total = 3;
     ConfigFragment frag = 4;
+    uint32 report_mask = 5;   // fw 360+: scope of this report; 0 = everything
 }
 
 message MessagePacket {

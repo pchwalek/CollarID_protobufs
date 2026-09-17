@@ -216,13 +216,21 @@ typedef struct deployment {
  a config commit, and when sched_crc changes out-of-band (SD/BLE edit).
  frag_index/frag_total let the server assemble and detect gaps; sched_crc
  binds every fragment to the identity it describes, so a mid-report edit
- invalidates the batch instead of splicing two configs together. */
+ invalidates the batch instead of splicing two configs together.
+
+ fw 360 trims the report: sched_crc is left 0 (the packet header already
+ carries the identity of every uplink, and the server keys on that), one
+ fragment carries several settings of a slot (five fragments per slot
+ instead of nine), and after a committed push only the parts the push
+ touched are reported — report_mask says which (bits as
+ DownlinkPacket.report_mask; 0 = the whole config, as older firmware sends). */
 typedef struct config_report {
-    uint32_t sched_crc;
+    uint32_t sched_crc; /* 0 from fw 360: use PacketHeader.sched_crc */
     uint32_t frag_index;
     uint32_t frag_total;
     bool has_frag;
     config_fragment_t frag;
+    uint32_t report_mask; /* fw 360+: scope of this report; 0 = everything */
 } config_report_t;
 
 typedef struct message_packet {
@@ -291,7 +299,7 @@ extern "C" {
 #define ERROR_FLAGS_INIT_DEFAULT                 {0}
 #define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}}
 #define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_REPORT_INIT_DEFAULT               {0, 0, 0, false, CONFIG_FRAGMENT_INIT_DEFAULT}
+#define CONFIG_REPORT_INIT_DEFAULT               {0, 0, 0, false, CONFIG_FRAGMENT_INIT_DEFAULT, 0}
 #define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT, false, ACK_PACKET_INIT_DEFAULT, false, CONFIG_REPORT_INIT_DEFAULT}
 #define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
 #define METADATA_INIT_ZERO                       {0}
@@ -307,7 +315,7 @@ extern "C" {
 #define ERROR_FLAGS_INIT_ZERO                    {0}
 #define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}}
 #define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_REPORT_INIT_ZERO                  {0, 0, 0, false, CONFIG_FRAGMENT_INIT_ZERO}
+#define CONFIG_REPORT_INIT_ZERO                  {0, 0, 0, false, CONFIG_FRAGMENT_INIT_ZERO, 0}
 #define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO, false, ACK_PACKET_INIT_ZERO, false, CONFIG_REPORT_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -393,6 +401,7 @@ extern "C" {
 #define CONFIG_REPORT_FRAG_INDEX_TAG             2
 #define CONFIG_REPORT_FRAG_TOTAL_TAG             3
 #define CONFIG_REPORT_FRAG_TAG                   4
+#define CONFIG_REPORT_REPORT_MASK_TAG            5
 #define MESSAGE_PACKET_HEADER_TAG                1
 #define MESSAGE_PACKET_SYSTEM_INFO_PACKET_TAG    2
 #define MESSAGE_PACKET_CONFIG_PACKET_TAG         3
@@ -554,7 +563,8 @@ X(a, STATIC,   OPTIONAL, UINT32,   pending_cmd_param,  10)
 X(a, STATIC,   SINGULAR, UINT32,   sched_crc,         1) \
 X(a, STATIC,   SINGULAR, UINT32,   frag_index,        2) \
 X(a, STATIC,   SINGULAR, UINT32,   frag_total,        3) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  frag,              4)
+X(a, STATIC,   OPTIONAL, MESSAGE,  frag,              4) \
+X(a, STATIC,   SINGULAR, UINT32,   report_mask,       5)
 #define CONFIG_REPORT_CALLBACK NULL
 #define CONFIG_REPORT_DEFAULT NULL
 #define config_report_t_frag_MSGTYPE config_fragment_t
@@ -620,12 +630,12 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACK_PACKET_SIZE                          20
 #define ADDON_REPORT_SIZE                        60
 #define CONFIG_PACKET_SIZE                       16
-#define CONFIG_REPORT_SIZE                       126
+#define CONFIG_REPORT_SIZE                       366
 #define DEPLOYMENT_SIZE                          679
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      913
+#define MESSAGE_PACKET_SIZE                      1154
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33
