@@ -142,7 +142,16 @@ message ParticulateData{
 //             fallbacks — see sd_prepare_recording_folder in the firmware).
 //             Audio/accelerometer data is being lost while set. Clears on
 //             the next successful open. Not a hardware fault either.
-//   bits 10-31 free
+//   bit  10   MIC: the boot microphone self-test failed (settled PDM capture
+//             all-zero = broken mic flex). On BLE this fault is bit 8 of
+//             SystemStatePacket.hw_diag; it CANNOT sit there in this word,
+//             because bit 8 here is MORTALITY. Firmware builds 306 up to the
+//             fix did send it on bit 8, so on those builds bit 8 together
+//             with bit 7 is ambiguous (mic fault, mortality, or both), while
+//             bit 8 without bit 7 is always a clean mortality. The server
+//             folds bit 10 back onto bit 8 of devices.hw_faults, which keeps
+//             the BLE layout.
+//   bits 11-31 free
 message ErrorFlags{
     uint32 flag = 1;
 }

@@ -365,8 +365,10 @@ message SystemStatePacket {
   // 3 BME688, 4 GPS, 5 particulate, 6 LoRa radio, 8 microphone (PDM
   // capture flat/silent — bit 7 was already the validity flag when the
   // mic check arrived, so mic jumps over it). Bit 7 = diagnostics ran
-  // (validity). Same layout mirrored into Deployment.errorFlags.flag
-  // on LoRaWAN uplinks. Absent on older firmware.
+  // (validity). Bits 0-7 are mirrored into Deployment.errorFlags.flag on
+  // LoRaWAN uplinks; the microphone fault is NOT mirrored on bit 8 (that
+  // position is mortality there), it rides ErrorFlags bit 10. Absent on
+  // older firmware.
   optional uint32 hw_diag = 7;
 }
 
