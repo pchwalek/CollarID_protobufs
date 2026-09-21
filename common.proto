@@ -53,6 +53,16 @@ message PacketHeader {
   // watchdog (4) = the 4-character tag of the thread that fed it last, little
   // endian; a CPU fault = the CFSR register. 0 or absent = a clean reset.
   optional uint32 last_fatal = 11;
+  // LoRaWAN link check, report only (firmware Core/Inc/lw_link_check.h). About
+  // once an hour the collar asks the network whether it was heard. The answer
+  // rides the NEXT uplink, once: absence means "no new answer", never "no
+  // link". link_margin_db is dB above the demodulation floor at the best
+  // gateway (0 = barely heard); link_gateways is how many gateways heard the
+  // uplink that asked; link_misses is how many questions in a row went
+  // unanswered before this answer (0 on a healthy link).
+  optional uint32 link_margin_db = 12;
+  optional uint32 link_gateways = 13;
+  optional uint32 link_misses = 14;
 }
 
 // ---- GPS ----

@@ -649,7 +649,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      1172
+#define MESSAGE_PACKET_SIZE                      1190
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33
