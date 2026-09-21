@@ -136,6 +136,8 @@ message ConfigMicrophone {
   optional uint32 sample_rate       = 5;  // 0=16kHz, 1=8kHz
   optional uint32 bit_depth         = 6;  // 0=16-bit, 1=8-bit
   optional uint32 sensitivity       = 7;  // 0=+0dB, 1=+6dB, 2=+12dB (fw 349+)
+  optional uint32 codec             = 8;  // ble.proto MicCodec: 0=WAV, 1=FLAC (16-bit, 8/16 kHz)
+  optional uint32 lsb_drop          = 9;  // low bits dropped per sample, 0-4 (ble.proto MicrophoneConfig)
 }
 
 // GPS (~4 bytes)

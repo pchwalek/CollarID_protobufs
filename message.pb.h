@@ -644,12 +644,12 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACK_PACKET_SIZE                          20
 #define ADDON_REPORT_SIZE                        60
 #define CONFIG_PACKET_SIZE                       16
-#define CONFIG_REPORT_SIZE                       366
+#define CONFIG_REPORT_SIZE                       378
 #define DEPLOYMENT_SIZE                          679
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      1190
+#define MESSAGE_PACKET_SIZE                      1202
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33

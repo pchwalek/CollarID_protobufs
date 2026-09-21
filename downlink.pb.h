@@ -127,6 +127,10 @@ typedef struct config_microphone {
     uint32_t bit_depth; /* 0=16-bit, 1=8-bit */
     bool has_sensitivity;
     uint32_t sensitivity; /* 0=+0dB, 1=+6dB, 2=+12dB (fw 349+) */
+    bool has_codec;
+    uint32_t codec; /* ble.proto MicCodec: 0=WAV, 1=FLAC (16-bit, 8/16 kHz) */
+    bool has_lsb_drop;
+    uint32_t lsb_drop; /* low bits dropped per sample, 0-4 (ble.proto MicrophoneConfig) */
 } config_microphone_t;
 
 /* GPS (~4 bytes) */
@@ -372,7 +376,7 @@ extern "C" {
 #define HIGH_FIX_PARAMS_INIT_DEFAULT             {0, 0}
 #define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
@@ -387,7 +391,7 @@ extern "C" {
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
 #define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
-#define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
@@ -421,6 +425,8 @@ extern "C" {
 #define CONFIG_MICROPHONE_SAMPLE_RATE_TAG        5
 #define CONFIG_MICROPHONE_BIT_DEPTH_TAG          6
 #define CONFIG_MICROPHONE_SENSITIVITY_TAG        7
+#define CONFIG_MICROPHONE_CODEC_TAG              8
+#define CONFIG_MICROPHONE_LSB_DROP_TAG           9
 #define CONFIG_GPS_ENABLED_TAG                   1
 #define CONFIG_GPS_SAMPLE_INTERVAL_MIN_TAG       2
 #define CONFIG_GPS_ACCURACY_TAG                  3
@@ -529,7 +535,9 @@ X(a, STATIC,   OPTIONAL, UINT32,   sample_length_min,   3) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_window_min,   4) \
 X(a, STATIC,   OPTIONAL, UINT32,   sample_rate,       5) \
 X(a, STATIC,   OPTIONAL, UINT32,   bit_depth,         6) \
-X(a, STATIC,   OPTIONAL, UINT32,   sensitivity,       7)
+X(a, STATIC,   OPTIONAL, UINT32,   sensitivity,       7) \
+X(a, STATIC,   OPTIONAL, UINT32,   codec,             8) \
+X(a, STATIC,   OPTIONAL, UINT32,   lsb_drop,          9)
 #define CONFIG_MICROPHONE_CALLBACK NULL
 #define CONFIG_MICROPHONE_DEFAULT NULL
 
@@ -683,17 +691,17 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     339
+#define CONFIG_FRAGMENT_SIZE                     351
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 8
-#define CONFIG_MICROPHONE_SIZE                   34
+#define CONFIG_MICROPHONE_SIZE                   46
 #define CONFIG_MORTALITY_SIZE                    14
 #define CONFIG_RADIO_TIMING_SIZE                 27
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     597
+#define DOWNLINK_PACKET_SIZE                     609
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12

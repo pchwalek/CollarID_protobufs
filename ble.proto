@@ -190,6 +190,19 @@ enum MicSensitivity {
   MIC_SENS_HIGH   = 2;  // +12 dB
 }
 
+// How a recording is stored on the card. Value 0 is the historical behaviour:
+// collars, configs and clients predating the field record plain WAV.
+//
+// FLAC is lossless: the decoded samples are bit for bit what the WAV would have
+// held, in roughly 30 % of the space on collar recordings (measured 28 % over
+// 299 field files). The encoder is a fixed-predictor FLAC subset that any FLAC
+// decoder reads. Firmware only honours it where it has been shown to keep up:
+// 16-bit at 8 or 16 kHz. Anything else records WAV and says so in the log.
+enum MicCodec {
+  MIC_CODEC_WAV  = 0;  // legacy default: uncompressed PCM in a WAV file
+  MIC_CODEC_FLAC = 1;  // lossless FLAC, 16-bit at 8/16 kHz only
+}
+
 message MicrophoneConfig {
   bool            enabled            = 1;
   bool            continuous_mode    = 2; // on if true
@@ -198,6 +211,13 @@ message MicrophoneConfig {
   MicSampleRate   sample_rate        = 5; // 0 = 16 kHz (pre-field default)
   MicBitDepth     bit_depth          = 6; // 0 = 16-bit (pre-field default)
   MicSensitivity  sensitivity        = 7; // 0 = calibrated baseline (fw 349+)
+  MicCodec        codec              = 8; // 0 = WAV (pre-field default)
+  // Low bits removed from every sample before it is stored, 0 to 4. 0 keeps
+  // the recording exactly as captured. Each bit dropped is about 6 dB of the
+  // noise floor given up and makes FLAC files markedly smaller (2 bits: about
+  // 6:1 instead of 3.5:1 on collar recordings). Lossy and not reversible, so
+  // it is a separate knob from the codec. Ignored by firmware that predates it.
+  uint32          lsb_drop           = 9;
 }
 enum AccelSampleRate {
   ACCEL_25HZ = 0;
