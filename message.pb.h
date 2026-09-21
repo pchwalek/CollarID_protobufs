@@ -155,7 +155,21 @@ typedef struct particulate_data {
              fallbacks — see sd_prepare_recording_folder in the firmware).
              Audio/accelerometer data is being lost while set. Clears on
              the next successful open. Not a hardware fault either.
-   bits 10-31 free */
+   bit  10   MIC: the boot microphone self-test failed (settled PDM capture
+             all-zero = broken mic flex). On BLE this fault is bit 8 of
+             SystemStatePacket.hw_diag; it CANNOT sit there in this word,
+             because bit 8 here is MORTALITY. Firmware builds 306 up to the
+             fix did send it on bit 8, so on those builds bit 8 together
+             with bit 7 is ambiguous (mic fault, mortality, or both), while
+             bit 8 without bit 7 is always a clean mortality. The server
+             folds bit 10 back onto bit 8 of devices.hw_faults, which keeps
+             the BLE layout.
+   bit  11   LORAWAN_FCNT: the frame-counter restore failed for good and this
+             session restarted at FCntUp 0 so the collar could keep
+             reporting (firmware lw_rebase_policy.h). Counters are being
+             re-used under the same keys while set. Rides every uplink
+             until a restore works again. Not a hardware fault.
+   bits 12-31 free */
 typedef struct error_flags {
     uint32_t flag;
 } error_flags_t;
@@ -635,7 +649,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      1154
+#define MESSAGE_PACKET_SIZE                      1172
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33

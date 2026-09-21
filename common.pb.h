@@ -51,6 +51,29 @@ typedef struct packet_header {
  with the uplink's own GPS fix as the audit trail. ~2 B on air. */
     bool has_active_fences;
     uint32_t active_fences;
+    /* Faults on the wire (DESIGN_survivability.md S1). The server could not see a
+ reboot at all: packet_index is re-seeded from the card and carries on.
+
+ boot_count: counts boots, wraps at 256, sent on EVERY uplink (~2 B). Any
+ change between two uplinks means the collar rebooted in between. It lives
+ in a backup register, so it restarts from 0 when power is removed: a drop
+ is a reboot too, not an error. Several changes in a short time are a
+ reboot loop. */
+    bool has_boot_count;
+    uint32_t boot_count;
+    /* reset_cause + last_fatal: sent only on the first uplinks after a boot
+ (airtime is battery), so their absence means "nothing new", never "no
+ cause". reset_cause is the firmware's Reset_Cause_t: 0 unknown, 1 power
+ on, 2 pin/magnet, 3 software, 4 independent watchdog, 5 window watchdog,
+ 6 low-battery wake, 7 scheduled wake, 8 brownout, 9 post-DFU. */
+    bool has_reset_cause;
+    uint32_t reset_cause;
+    /* What the previous session died of, when it died of something. Meaning by
+ reset_cause: software (3) = the Error_Handler call site's source line;
+ watchdog (4) = the 4-character tag of the thread that fed it last, little
+ endian; a CPU fault = the CFSR register. 0 or absent = a clean reset. */
+    bool has_last_fatal;
+    uint32_t last_fatal;
 } packet_header_t;
 
 /* ---- GPS ----
@@ -96,11 +119,11 @@ extern "C" {
 
 
 /* Initializer values for message structs */
-#define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0}
+#define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_DEFAULT                    {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_DEFAULT               {0, 0, false, 0}
 #define SD_CARD_STATE_INIT_DEFAULT               {0, 0, 0}
-#define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0}
+#define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_ZERO                       {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_ZERO                  {0, 0, false, 0}
 #define SD_CARD_STATE_INIT_ZERO                  {0, 0, 0}
@@ -114,6 +137,9 @@ extern "C" {
 #define PACKET_HEADER_FW_BUILD_TAG               6
 #define PACKET_HEADER_SCHED_CRC_TAG              7
 #define PACKET_HEADER_ACTIVE_FENCES_TAG          8
+#define PACKET_HEADER_BOOT_COUNT_TAG             9
+#define PACKET_HEADER_RESET_CAUSE_TAG            10
+#define PACKET_HEADER_LAST_FATAL_TAG             11
 #define GPS_DATA_LATITUDE_TAG                    1
 #define GPS_DATA_LONGITUDE_TAG                   2
 #define GPS_DATA_ALTITUDE_TAG                    3
@@ -135,7 +161,10 @@ X(a, STATIC,   SINGULAR, UINT32,   packet_index,      4) \
 X(a, STATIC,   OPTIONAL, BOOL,     request_ack,       5) \
 X(a, STATIC,   OPTIONAL, UINT32,   fw_build,          6) \
 X(a, STATIC,   OPTIONAL, UINT32,   sched_crc,         7) \
-X(a, STATIC,   OPTIONAL, UINT32,   active_fences,     8)
+X(a, STATIC,   OPTIONAL, UINT32,   active_fences,     8) \
+X(a, STATIC,   OPTIONAL, UINT32,   boot_count,        9) \
+X(a, STATIC,   OPTIONAL, UINT32,   reset_cause,      10) \
+X(a, STATIC,   OPTIONAL, UINT32,   last_fatal,       11)
 #define PACKET_HEADER_CALLBACK NULL
 #define PACKET_HEADER_DEFAULT NULL
 
@@ -176,7 +205,7 @@ extern const pb_msgdesc_t sd_card_state_t_msg;
 /* Maximum encoded size of messages (where known) */
 #define BATTERY_STATE_SIZE                       12
 #define GPS_DATA_SIZE                            25
-#define PACKET_HEADER_SIZE                       44
+#define PACKET_HEADER_SIZE                       62
 #define SD_CARD_STATE_SIZE                       24
 
 #ifdef __cplusplus

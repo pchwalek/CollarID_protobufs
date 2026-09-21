@@ -151,7 +151,12 @@ message ParticulateData{
 //             bit 8 without bit 7 is always a clean mortality. The server
 //             folds bit 10 back onto bit 8 of devices.hw_faults, which keeps
 //             the BLE layout.
-//   bits 11-31 free
+//   bit  11   LORAWAN_FCNT: the frame-counter restore failed for good and this
+//             session restarted at FCntUp 0 so the collar could keep
+//             reporting (firmware lw_rebase_policy.h). Counters are being
+//             re-used under the same keys while set. Rides every uplink
+//             until a restore works again. Not a hardware fault.
+//   bits 12-31 free
 message ErrorFlags{
     uint32 flag = 1;
 }
