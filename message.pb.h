@@ -199,6 +199,7 @@ typedef struct addon_report {
     uint32_t pending_cmd_param;
 } addon_report_t;
 
+typedef PB_BYTES_ARRAY_T(180) deployment_gps_block_t;
 typedef struct deployment {
     bool has_particulate_data;
     particulate_data_t particulate_data;
@@ -212,7 +213,7 @@ typedef struct deployment {
     bool has_steps;
     uint32_t steps;
     pb_size_t gps_data_count;
-    gps_data_2_t gps_data[5];
+    gps_data_2_t gps_data[24];
     bool has_error_flags;
     error_flags_t error_flags;
     /* Add-on (detachment/SatCom) relay — empty when the collar has no
@@ -221,6 +222,19 @@ typedef struct deployment {
  DESIGN_detachment_thread.md §7.1 multi-add-on policy). */
     pb_size_t addon_count;
     addon_report_t addon[4];
+    /* GPS block v1: up to 32 fixes bit-packed into one blob, on LoRaWAN
+ deployment uplinks. The newest fix is sent whole at 1e-5 deg with its
+ age against header.epoch; older fixes follow newest first as zigzag
+ deltas at shared bit widths, with a 6-bit accuracy code per fix and
+ the block's time to fix as max + mean. Lossy: 1e-5 deg, whole-metre
+ h_acc, no altitude or HDOP. A frame carries gps_block or gps_data,
+ never both; LoRa point-to-point frames keep gps_data (at most 5, for
+ the handheld finder). Decoders ignore a block version they do not
+ know and decode the rest of the frame. Normative spec:
+ reference/GPS_BLOCK_V1.md (codec reference/gps_block.py, vectors
+ test_vectors/gps_block_v1.json). */
+    bool has_gps_block;
+    deployment_gps_block_t gps_block;
 } deployment_t;
 
 /* Schedule self-report: the device describes its RUNNING config to the
@@ -311,7 +325,7 @@ extern "C" {
 #define ENV_DATA_INIT_DEFAULT                    {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define PARTICULATE_DATA_INIT_DEFAULT            {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_DEFAULT                 {0}
-#define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}}
+#define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}, false, {0, {0}}}
 #define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_REPORT_INIT_DEFAULT               {0, 0, 0, false, CONFIG_FRAGMENT_INIT_DEFAULT, 0}
 #define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT, false, ACK_PACKET_INIT_DEFAULT, false, CONFIG_REPORT_INIT_DEFAULT}
@@ -327,7 +341,7 @@ extern "C" {
 #define ENV_DATA_INIT_ZERO                       {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define PARTICULATE_DATA_INIT_ZERO               {0, 0, 0, false, 0}
 #define ERROR_FLAGS_INIT_ZERO                    {0}
-#define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}}
+#define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}, false, {0, {0}}}
 #define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_REPORT_INIT_ZERO                  {0, 0, 0, false, CONFIG_FRAGMENT_INIT_ZERO, 0}
 #define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO, false, ACK_PACKET_INIT_ZERO, false, CONFIG_REPORT_INIT_ZERO}
@@ -411,6 +425,7 @@ extern "C" {
 #define DEPLOYMENT_GPS_DATA_TAG                  7
 #define DEPLOYMENT_ERROR_FLAGS_TAG               8
 #define DEPLOYMENT_ADDON_TAG                     9
+#define DEPLOYMENT_GPS_BLOCK_TAG                 10
 #define CONFIG_REPORT_SCHED_CRC_TAG              1
 #define CONFIG_REPORT_FRAG_INDEX_TAG             2
 #define CONFIG_REPORT_FRAG_TOTAL_TAG             3
@@ -549,7 +564,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  acc_stats,         5) \
 X(a, STATIC,   OPTIONAL, UINT32,   steps,             6) \
 X(a, STATIC,   REPEATED, MESSAGE,  gps_data,          7) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  error_flags,       8) \
-X(a, STATIC,   REPEATED, MESSAGE,  addon,             9)
+X(a, STATIC,   REPEATED, MESSAGE,  addon,             9) \
+X(a, STATIC,   OPTIONAL, BYTES,    gps_block,        10)
 #define DEPLOYMENT_CALLBACK NULL
 #define DEPLOYMENT_DEFAULT NULL
 #define deployment_t_particulate_data_MSGTYPE particulate_data_t
@@ -645,11 +661,11 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ADDON_REPORT_SIZE                        60
 #define CONFIG_PACKET_SIZE                       16
 #define CONFIG_REPORT_SIZE                       378
-#define DEPLOYMENT_SIZE                          679
+#define DEPLOYMENT_SIZE                          1888
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      1202
+#define MESSAGE_PACKET_SIZE                      2411
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33

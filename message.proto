@@ -183,6 +183,19 @@ message Deployment{
     // add-on in the Thread rendezvous seen-nodes report (up to 4; see
     // DESIGN_detachment_thread.md §7.1 multi-add-on policy).
     repeated AddonReport addon = 9;
+
+    // GPS block v1: up to 32 fixes bit-packed into one blob, on LoRaWAN
+    // deployment uplinks. The newest fix is sent whole at 1e-5 deg with its
+    // age against header.epoch; older fixes follow newest first as zigzag
+    // deltas at shared bit widths, with a 6-bit accuracy code per fix and
+    // the block's time to fix as max + mean. Lossy: 1e-5 deg, whole-metre
+    // h_acc, no altitude or HDOP. A frame carries gps_block or gps_data,
+    // never both; LoRa point-to-point frames keep gps_data (at most 5, for
+    // the handheld finder). Decoders ignore a block version they do not
+    // know and decode the rest of the frame. Normative spec:
+    // reference/GPS_BLOCK_V1.md (codec reference/gps_block.py, vectors
+    // test_vectors/gps_block_v1.json).
+    optional bytes gps_block = 10;
 }
 
 message AddonReport {

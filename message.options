@@ -1,2 +1,3 @@
-Deployment.gps_data  max_count:5
+Deployment.gps_data  max_count:24
 Deployment.addon    max_count:4
+Deployment.gps_block max_size:180

@@ -8,6 +8,7 @@
 // For information on using the generated types, please see the documentation:
 //   https://github.com/apple/swift-protobuf/
 
+import Foundation
 import SwiftProtobuf
 
 // If the compiler emits an error on this type, it is because this file
@@ -447,6 +448,26 @@ struct Deployment: @unchecked Sendable {
   var hasErrorFlags: Bool {return _storage._errorFlags != nil}
   /// Clears the value of `errorFlags`. Subsequent reads from it will return its default value.
   mutating func clearErrorFlags() {_uniqueStorage()._errorFlags = nil}
+
+  /// GPS block v1: up to 32 fixes bit-packed into one blob, on LoRaWAN
+  /// deployment uplinks. The newest fix is sent whole at 1e-5 deg with its
+  /// age against header.epoch; older fixes follow newest first as zigzag
+  /// deltas at shared bit widths, with a 6-bit accuracy code per fix and
+  /// the block's time to fix as max + mean. Lossy: 1e-5 deg, whole-metre
+  /// h_acc, no altitude or HDOP. A frame carries gps_block or gps_data,
+  /// never both; LoRa point-to-point frames keep gps_data (at most 5, for
+  /// the handheld finder). Decoders ignore a block version they do not
+  /// know and decode the rest of the frame. Normative spec:
+  /// reference/GPS_BLOCK_V1.md (codec reference/gps_block.py, vectors
+  /// test_vectors/gps_block_v1.json).
+  var gpsBlock: Data {
+    get {return _storage._gpsBlock ?? Data()}
+    set {_uniqueStorage()._gpsBlock = newValue}
+  }
+  /// Returns true if `gpsBlock` has been explicitly set.
+  var hasGpsBlock: Bool {return _storage._gpsBlock != nil}
+  /// Clears the value of `gpsBlock`. Subsequent reads from it will return its default value.
+  mutating func clearGpsBlock() {_uniqueStorage()._gpsBlock = nil}
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1232,6 +1253,7 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     6: .same(proto: "steps"),
     7: .standard(proto: "gps_data"),
     8: .same(proto: "errorFlags"),
+    10: .standard(proto: "gps_block"),
   ]
 
   fileprivate class _StorageClass {
@@ -1243,6 +1265,7 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     var _steps: UInt32? = nil
     var _gpsData: GPSData_2? = nil
     var _errorFlags: ErrorFlags? = nil
+    var _gpsBlock: Data? = nil
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -1265,6 +1288,7 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       _steps = source._steps
       _gpsData = source._gpsData
       _errorFlags = source._errorFlags
+      _gpsBlock = source._gpsBlock
     }
   }
 
@@ -1291,6 +1315,7 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
         case 6: try { try decoder.decodeSingularUInt32Field(value: &_storage._steps) }()
         case 7: try { try decoder.decodeSingularMessageField(value: &_storage._gpsData) }()
         case 8: try { try decoder.decodeSingularMessageField(value: &_storage._errorFlags) }()
+        case 10: try { try decoder.decodeSingularBytesField(value: &_storage._gpsBlock) }()
         default: break
         }
       }
@@ -1327,6 +1352,9 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       try { if let v = _storage._errorFlags {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
       } }()
+      try { if let v = _storage._gpsBlock {
+        try visitor.visitSingularBytesField(value: v, fieldNumber: 10)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -1344,6 +1372,7 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
         if _storage._steps != rhs_storage._steps {return false}
         if _storage._gpsData != rhs_storage._gpsData {return false}
         if _storage._errorFlags != rhs_storage._errorFlags {return false}
+        if _storage._gpsBlock != rhs_storage._gpsBlock {return false}
         return true
       }
       if !storagesAreEqual {return false}
