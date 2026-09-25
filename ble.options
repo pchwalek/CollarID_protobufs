@@ -16,6 +16,9 @@ CfgEchoPacket.fence_report            max_size:88
 # slot_report: one ScheduleConfig, nanopb-lean. 128 keeps the whole echo
 # BlePacket under the 182 B single-read limit for any realistic slot.
 CfgEchoPacket.slot_report             max_size:128
+# mag_cal (MagCalReport) is scalars only and needs no options. It rides only
+# on status echoes (no fence_report/slot_report): at most 26 B, which puts
+# the worst status echo at 88 B.
 
 # ---- Fixed-size credentials (no dynamic allocation) -----------------------
 # OTAA

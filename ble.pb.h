@@ -106,6 +106,39 @@ typedef enum accel_sensitivity {
     ACCEL_SENSITIVITY_ACCEL_8_G = 2
 } accel_sensitivity_t;
 
+/* ---- Magnetometer calibration report (CfgEchoPacket.mag_cal) ----
+ The calibration is in force exactly when state == DONE and verdict is
+ GOOD or FAIR. Every other outcome leaves the previous calibration in force. */
+typedef enum mag_cal_state {
+    MAG_CAL_STATE_MAG_CAL_STATE_IDLE = 0, /* zero value only: mag_cal is absent until a run starts */
+    MAG_CAL_STATE_MAG_CAL_STATE_COLLECTING = 1, /* capturing; progress_pct climbs as the sphere fills */
+    MAG_CAL_STATE_MAG_CAL_STATE_FITTING = 2, /* capture over, fit running */
+    MAG_CAL_STATE_MAG_CAL_STATE_DONE = 3, /* a fit was made and judged; verdict says whether it is in force */
+    /* No fit could be made or kept: verdict RETRY, reason TIMEOUT,
+ NOT_ENOUGH_ROTATION, SENSOR_FAULT or STORAGE. */
+    MAG_CAL_STATE_MAG_CAL_STATE_FAILED = 4,
+    MAG_CAL_STATE_MAG_CAL_STATE_ABORTED = 5 /* CMD_MAG_CALIBRATE_ABORT, or the Bluetooth session ended */
+} mag_cal_state_t;
+
+typedef enum mag_cal_verdict {
+    MAG_CAL_VERDICT_MAG_CAL_VERDICT_NONE = 0, /* run still going, or aborted */
+    MAG_CAL_VERDICT_MAG_CAL_VERDICT_GOOD = 1, /* in force */
+    MAG_CAL_VERDICT_MAG_CAL_VERDICT_FAIR = 2, /* in force; repeating it away from metal may do better */
+    MAG_CAL_VERDICT_MAG_CAL_VERDICT_RETRY = 3 /* not in force; turn the collar through the sequence again */
+} mag_cal_verdict_t;
+
+/* The limiting factor behind a FAIR or RETRY verdict; NONE with GOOD, while
+ the run is going, and after an abort. */
+typedef enum mag_cal_reason {
+    MAG_CAL_REASON_MAG_CAL_REASON_NONE = 0,
+    MAG_CAL_REASON_MAG_CAL_REASON_TIMEOUT = 1, /* time limit reached before the coverage target */
+    MAG_CAL_REASON_MAG_CAL_REASON_NOT_ENOUGH_ROTATION = 2, /* samples too flat for a unique fit (turned about one axis) */
+    MAG_CAL_REASON_MAG_CAL_REASON_SENSOR_FAULT = 3, /* magnetometer not answering, or its readings stuck */
+    MAG_CAL_REASON_MAG_CAL_REASON_FIELD_OUT_OF_RANGE = 4, /* fitted field outside the Earth's ~20-70 uT: metal, magnet or electronics nearby */
+    MAG_CAL_REASON_MAG_CAL_REASON_RESIDUAL_HIGH = 5, /* samples scatter too far from the fit: disturbance during the capture */
+    MAG_CAL_REASON_MAG_CAL_REASON_STORAGE = 6 /* fit made but MAGCAL.CSV could not be written, so it is not in force */
+} mag_cal_reason_t;
+
 typedef enum peripheral_type {
     PERIPHERAL_TYPE_PERIPHERAL_SATCOM = 0,
     PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT = 1
@@ -286,6 +319,26 @@ typedef struct schedule_config {
     magnetometer_config_t magnetometer;
 } schedule_config_t;
 
+typedef struct mag_cal_report {
+    mag_cal_state_t state;
+    /* Runs since boot: +1 each time CMD_MAG_CALIBRATE starts one, also when it
+ fails at once. A client notes the run its start produced and ignores
+ reports of older runs. Never 0 while mag_cal is present. */
+    uint32_t run;
+    /* Coverage toward the target, 0-100; 100 = target met, the capture ends
+ and the fit starts. Frozen at its last value once the capture ends. */
+    uint32_t progress_pct;
+    uint32_t sectors_hit; /* of the 26 sphere sectors, those holding enough samples */
+    mag_cal_verdict_t verdict; /* set when the run ends by itself (DONE or FAILED) */
+    mag_cal_reason_t reason;
+    /* From the fit, 0 until one exists: the total field |B| in 0.1 uT (the
+ Earth's field reads roughly 250-650), and the RMS distance of the
+ corrected samples from that sphere in per-mille of |B|, saturating at
+ 1000. */
+    uint32_t field_ut_x10;
+    uint32_t residual_permille;
+} mag_cal_report_t;
+
 typedef PB_BYTES_ARRAY_T(88) cfg_echo_packet_fence_report_t;
 typedef PB_BYTES_ARRAY_T(128) cfg_echo_packet_slot_report_t;
 /* The BLE tunnel echo body. fence_report (ble_query=2 responses) is a
@@ -326,6 +379,21 @@ typedef struct cfg_echo_packet {
     cfg_echo_packet_slot_report_t slot_report;
     uint32_t schedule_count;
     bool engaged;
+    /* 15 is held for the planned lost-mode beacon key status.
+
+ Magnetometer calibration (CMD_MAG_CALIBRATE, downlink.proto). Present on
+ every echo that carries neither fence_report nor slot_report, once a run
+ has started since boot. Absent before that, and always on firmware that
+ predates calibration: that is how a client tells "never run" and "not
+ supported" apart from a real state. The collar pushes no echo of its
+ own during a run: an unsolicited push could overwrite a frame the client
+ just wrote before the collar drains it (the settings blob is a single
+ mailbox). So the client polls with ble_query = 1 about every 2 s and
+ reads progress, then the outcome, from here. At most 26 B on the wire
+ (about 20 B for a finished run); kept off the report echoes because a
+ large slot_report already fills the 182 B read. */
+    bool has_mag_cal;
+    mag_cal_report_t mag_cal;
 } cfg_echo_packet_t;
 
 typedef PB_BYTES_ARRAY_T(96) schedule_config_packet_cfg_downlink_t;
@@ -498,6 +566,18 @@ extern "C" {
 #define _ACCEL_SENSITIVITY_MAX ACCEL_SENSITIVITY_ACCEL_8_G
 #define _ACCEL_SENSITIVITY_ARRAYSIZE ((accel_sensitivity_t)(ACCEL_SENSITIVITY_ACCEL_8_G+1))
 
+#define _MAG_CAL_STATE_MIN MAG_CAL_STATE_MAG_CAL_STATE_IDLE
+#define _MAG_CAL_STATE_MAX MAG_CAL_STATE_MAG_CAL_STATE_ABORTED
+#define _MAG_CAL_STATE_ARRAYSIZE ((mag_cal_state_t)(MAG_CAL_STATE_MAG_CAL_STATE_ABORTED+1))
+
+#define _MAG_CAL_VERDICT_MIN MAG_CAL_VERDICT_MAG_CAL_VERDICT_NONE
+#define _MAG_CAL_VERDICT_MAX MAG_CAL_VERDICT_MAG_CAL_VERDICT_RETRY
+#define _MAG_CAL_VERDICT_ARRAYSIZE ((mag_cal_verdict_t)(MAG_CAL_VERDICT_MAG_CAL_VERDICT_RETRY+1))
+
+#define _MAG_CAL_REASON_MIN MAG_CAL_REASON_MAG_CAL_REASON_NONE
+#define _MAG_CAL_REASON_MAX MAG_CAL_REASON_MAG_CAL_REASON_STORAGE
+#define _MAG_CAL_REASON_ARRAYSIZE ((mag_cal_reason_t)(MAG_CAL_REASON_MAG_CAL_REASON_STORAGE+1))
+
 #define _PERIPHERAL_TYPE_MIN PERIPHERAL_TYPE_PERIPHERAL_SATCOM
 #define _PERIPHERAL_TYPE_MAX PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT
 #define _PERIPHERAL_TYPE_ARRAYSIZE ((peripheral_type_t)(PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT+1))
@@ -529,6 +609,10 @@ extern "C" {
 
 
 
+#define mag_cal_report_t_state_ENUMTYPE mag_cal_state_t
+#define mag_cal_report_t_verdict_ENUMTYPE mag_cal_verdict_t
+#define mag_cal_report_t_reason_ENUMTYPE mag_cal_reason_t
+
 #define simple_sensor_reading_t_activity_ENUMTYPE activity_t
 
 
@@ -553,7 +637,8 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
-#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0}
+#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, MAG_CAL_REPORT_INIT_DEFAULT}
+#define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
@@ -574,7 +659,8 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
-#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0}
+#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, MAG_CAL_REPORT_INIT_ZERO}
+#define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
@@ -659,6 +745,14 @@ extern "C" {
 #define SCHEDULE_CONFIG_LORA_ENABLED_TAG         10
 #define SCHEDULE_CONFIG_LORA_SEND_INTERVAL_MIN_TAG 11
 #define SCHEDULE_CONFIG_MAGNETOMETER_TAG         12
+#define MAG_CAL_REPORT_STATE_TAG                 1
+#define MAG_CAL_REPORT_RUN_TAG                   2
+#define MAG_CAL_REPORT_PROGRESS_PCT_TAG          3
+#define MAG_CAL_REPORT_SECTORS_HIT_TAG           4
+#define MAG_CAL_REPORT_VERDICT_TAG               5
+#define MAG_CAL_REPORT_REASON_TAG                6
+#define MAG_CAL_REPORT_FIELD_UT_X10_TAG          7
+#define MAG_CAL_REPORT_RESIDUAL_PERMILLE_TAG     8
 #define CFG_ECHO_PACKET_TXN_ID_TAG               1
 #define CFG_ECHO_PACKET_ACK_STATUS_TAG           2
 #define CFG_ECHO_PACKET_MISSING_MASK_TAG         3
@@ -673,6 +767,7 @@ extern "C" {
 #define CFG_ECHO_PACKET_SLOT_REPORT_TAG          12
 #define CFG_ECHO_PACKET_SCHEDULE_COUNT_TAG       13
 #define CFG_ECHO_PACKET_ENGAGED_TAG              14
+#define CFG_ECHO_PACKET_MAG_CAL_TAG              16
 #define SCHEDULE_CONFIG_PACKET_ENGAGED_TAG       1
 #define SCHEDULE_CONFIG_PACKET_SCHEDULES_TAG     2
 #define SCHEDULE_CONFIG_PACKET_SPECIAL_MODE_TAG  3
@@ -884,9 +979,23 @@ X(a, STATIC,   SINGULAR, UINT32,   wipe_status,      10) \
 X(a, STATIC,   SINGULAR, UINT32,   wipe_removed,     11) \
 X(a, STATIC,   SINGULAR, BYTES,    slot_report,      12) \
 X(a, STATIC,   SINGULAR, UINT32,   schedule_count,   13) \
-X(a, STATIC,   SINGULAR, BOOL,     engaged,          14)
+X(a, STATIC,   SINGULAR, BOOL,     engaged,          14) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  mag_cal,          16)
 #define CFG_ECHO_PACKET_CALLBACK NULL
 #define CFG_ECHO_PACKET_DEFAULT NULL
+#define cfg_echo_packet_t_mag_cal_MSGTYPE mag_cal_report_t
+
+#define MAG_CAL_REPORT_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    state,             1) \
+X(a, STATIC,   SINGULAR, UINT32,   run,               2) \
+X(a, STATIC,   SINGULAR, UINT32,   progress_pct,      3) \
+X(a, STATIC,   SINGULAR, UINT32,   sectors_hit,       4) \
+X(a, STATIC,   SINGULAR, UENUM,    verdict,           5) \
+X(a, STATIC,   SINGULAR, UENUM,    reason,            6) \
+X(a, STATIC,   SINGULAR, UINT32,   field_ut_x10,      7) \
+X(a, STATIC,   SINGULAR, UINT32,   residual_permille,   8)
+#define MAG_CAL_REPORT_CALLBACK NULL
+#define MAG_CAL_REPORT_DEFAULT NULL
 
 #define SIMPLE_SENSOR_READING_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   index,             1) \
@@ -962,6 +1071,7 @@ extern const pb_msgdesc_t magnetometer_config_t_msg;
 extern const pb_msgdesc_t schedule_config_t_msg;
 extern const pb_msgdesc_t schedule_config_packet_t_msg;
 extern const pb_msgdesc_t cfg_echo_packet_t_msg;
+extern const pb_msgdesc_t mag_cal_report_t_msg;
 extern const pb_msgdesc_t simple_sensor_reading_t_msg;
 extern const pb_msgdesc_t system_state_packet_t_msg;
 extern const pb_msgdesc_t peripheral_packet_t_msg;
@@ -985,6 +1095,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_FIELDS &schedule_config_t_msg
 #define SCHEDULE_CONFIG_PACKET_FIELDS &schedule_config_packet_t_msg
 #define CFG_ECHO_PACKET_FIELDS &cfg_echo_packet_t_msg
+#define MAG_CAL_REPORT_FIELDS &mag_cal_report_t_msg
 #define SIMPLE_SENSOR_READING_FIELDS &simple_sensor_reading_t_msg
 #define SYSTEM_STATE_PACKET_FIELDS &system_state_packet_t_msg
 #define PERIPHERAL_PACKET_FIELDS &peripheral_packet_t_msg
@@ -995,12 +1106,13 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 /* PeripheralInfo_size depends on runtime parameters */
 /* BlePacket_size depends on runtime parameters */
 #define ACCELEROMETER_CONFIG_SIZE                6
-#define CFG_ECHO_PACKET_SIZE                     289
+#define CFG_ECHO_PACKET_SIZE                     328
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        31
 #define LO_RA_WAN_CONFIG_SIZE                    103
 #define MAGNETOMETER_CONFIG_SIZE                 8
+#define MAG_CAL_REPORT_SIZE                      36
 #define MICROPHONE_CONFIG_SIZE                   30
 #define MORTALITY_CONFIG_SIZE                    12
 #define PERIPHERAL_PACKET_SIZE                   10
@@ -1008,7 +1120,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 181
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1295
+#define SCHEDULE_CONFIG_PACKET_SIZE              1334
 #define SCHEDULE_CONFIG_SIZE                     174
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 145

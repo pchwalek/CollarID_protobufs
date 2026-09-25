@@ -50,7 +50,29 @@ typedef enum command_type {
  Accepted ONLY over the BLE config tunnel — physical possession is the
  authority. A radio downlink carrying this command is logged and ignored,
  so no server bug or spoofed downlink can wipe a deployed collar. */
-    COMMAND_TYPE_CMD_FACTORY_RESET = 18
+    COMMAND_TYPE_CMD_FACTORY_RESET = 18,
+    /* Magnetometer calibration. Starts a run: the collar samples its
+ magnetometer continuously while the operator turns the assembled collar
+ (battery in, housing closed, add-ons attached, away from metal) slowly
+ through every orientation for 30-60 s. Once enough of the sphere is
+ covered it fits hard and soft iron, appends the result to MAGCAL.CSV on
+ the card, and reports progress and outcome in CfgEchoPacket.mag_cal
+ (ble.proto). The LED pulses cyan during the capture, flashes green twice
+ (usable fit) or red twice (try again), then returns to blue. The buzzer
+ stays silent. Recorded magnetometer data stay raw counts: the fit is a
+ set of parameters stored beside the data, applied by the viewer.
+ A start while a run is active is ignored (the run carries on).
+ Accepted ONLY over the BLE config tunnel, like CMD_FACTORY_RESET:
+ physical possession is the authority, and a Bluetooth session exists
+ only while the collar is disengaged, so a run never competes with a
+ schedule. A radio downlink carrying either command is logged and ignored.
+ Firmware that predates them logs an unknown command and echoes no
+ mag_cal; clients also gate the button on the reported build. */
+    COMMAND_TYPE_CMD_MAG_CALIBRATE = 20,
+    /* Stops a running calibration: no fit is made and the calibration already
+ in force stays. mag_cal.state becomes ABORTED. No-op when no run is
+ active. BLE tunnel only, as above. */
+    COMMAND_TYPE_CMD_MAG_CALIBRATE_ABORT = 21
 } command_type_t;
 
 /* Struct definitions */
@@ -350,8 +372,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_FACTORY_RESET
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_FACTORY_RESET+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_MAG_CALIBRATE_ABORT
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_MAG_CALIBRATE_ABORT+1))
 
 
 

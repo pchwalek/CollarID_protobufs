@@ -379,6 +379,52 @@ enum MicSensitivity: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+/// How a recording is stored on the card. Value 0 is the historical behaviour:
+/// collars, configs and clients predating the field record plain WAV.
+///
+/// FLAC is lossless: the decoded samples are bit for bit what the WAV would have
+/// held, in roughly 30 % of the space on collar recordings (measured 28 % over
+/// 299 field files). The encoder is a fixed-predictor FLAC subset that any FLAC
+/// decoder reads. Firmware only honours it where it has been shown to keep up:
+/// 16-bit at 8 or 16 kHz. Anything else records WAV and says so in the log.
+enum MicCodec: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// legacy default: uncompressed PCM in a WAV file
+  case wav // = 0
+
+  /// lossless FLAC, 16-bit at 8/16 kHz only
+  case flac // = 1
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .wav
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .wav
+    case 1: self = .flac
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .wav: return 0
+    case .flac: return 1
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [MicCodec] = [
+    .wav,
+    .flac,
+  ]
+
+}
+
 enum AccelSampleRate: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case accel25Hz // = 0
@@ -451,6 +497,190 @@ enum AccelSensitivity: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+/// ---- Magnetometer calibration report (CfgEchoPacket.mag_cal) ----
+/// The calibration is in force exactly when state == DONE and verdict is
+/// GOOD or FAIR. Every other outcome leaves the previous calibration in force.
+enum MagCalState: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// zero value only: mag_cal is absent until a run starts
+  case idle // = 0
+
+  /// capturing; progress_pct climbs as the sphere fills
+  case collecting // = 1
+
+  /// capture over, fit running
+  case fitting // = 2
+
+  /// a fit was made and judged; verdict says whether it is in force
+  case done // = 3
+
+  /// No fit could be made or kept: verdict RETRY, reason TIMEOUT,
+  /// NOT_ENOUGH_ROTATION, SENSOR_FAULT or STORAGE.
+  case failed // = 4
+
+  /// CMD_MAG_CALIBRATE_ABORT, or the Bluetooth session ended
+  case aborted // = 5
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .idle
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .idle
+    case 1: self = .collecting
+    case 2: self = .fitting
+    case 3: self = .done
+    case 4: self = .failed
+    case 5: self = .aborted
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .idle: return 0
+    case .collecting: return 1
+    case .fitting: return 2
+    case .done: return 3
+    case .failed: return 4
+    case .aborted: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [MagCalState] = [
+    .idle,
+    .collecting,
+    .fitting,
+    .done,
+    .failed,
+    .aborted,
+  ]
+
+}
+
+enum MagCalVerdict: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// run still going, or aborted
+  case none // = 0
+
+  /// in force
+  case good // = 1
+
+  /// in force; repeating it away from metal may do better
+  case fair // = 2
+
+  /// not in force; turn the collar through the sequence again
+  case retry // = 3
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .none
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .none
+    case 1: self = .good
+    case 2: self = .fair
+    case 3: self = .retry
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .none: return 0
+    case .good: return 1
+    case .fair: return 2
+    case .retry: return 3
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [MagCalVerdict] = [
+    .none,
+    .good,
+    .fair,
+    .retry,
+  ]
+
+}
+
+/// The limiting factor behind a FAIR or RETRY verdict; NONE with GOOD, while
+/// the run is going, and after an abort.
+enum MagCalReason: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case none // = 0
+
+  /// time limit reached before the coverage target
+  case timeout // = 1
+
+  /// samples too flat for a unique fit (turned about one axis)
+  case notEnoughRotation // = 2
+
+  /// magnetometer not answering, or its readings stuck
+  case sensorFault // = 3
+
+  /// fitted field outside the Earth's ~20-70 uT: metal, magnet or electronics nearby
+  case fieldOutOfRange // = 4
+
+  /// samples scatter too far from the fit: disturbance during the capture
+  case residualHigh // = 5
+
+  /// fit made but MAGCAL.CSV could not be written, so it is not in force
+  case storage // = 6
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .none
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .none
+    case 1: self = .timeout
+    case 2: self = .notEnoughRotation
+    case 3: self = .sensorFault
+    case 4: self = .fieldOutOfRange
+    case 5: self = .residualHigh
+    case 6: self = .storage
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .none: return 0
+    case .timeout: return 1
+    case .notEnoughRotation: return 2
+    case .sensorFault: return 3
+    case .fieldOutOfRange: return 4
+    case .residualHigh: return 5
+    case .storage: return 6
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [MagCalReason] = [
+    .none,
+    .timeout,
+    .notEnoughRotation,
+    .sensorFault,
+    .fieldOutOfRange,
+    .residualHigh,
+    .storage,
+  ]
+
+}
+
 enum PeripheralType: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case peripheralSatcom // = 0
@@ -496,6 +726,27 @@ struct TimeWindow: Sendable {
 
   /// 0 to 23 (inclusive)
   var endHour: UInt32 = 0
+
+  /// Calendar filters (fw 357+, DESIGN_calendar_schedules.md). A window
+  /// applies at an hour only when ALL of hour, day and date match; the
+  /// scheduler is still first-match over the slot list, so a narrower
+  /// calendar placed ABOVE a broader one takes priority for the hours they
+  /// share. Zero means unbounded, so every legacy config decodes to the
+  /// every-day behavior it always had. Days and epochs are UTC, like hours.
+  /// Dates are DAY NUMBERS (UTC days since 1970-01-01 = epoch / 86400), not
+  /// epoch seconds: a 3-byte varint instead of 5, which is what keeps a
+  /// window fragment plus its downlink wrapper under the 33 B RX2 floor.
+  /// A window that runs past midnight belongs to the day it STARTS on: its
+  /// hours after midnight are judged against the previous calendar day, so
+  /// "Saturday 20-05" runs into Sunday morning and "until Nov 15" includes
+  /// the night of Nov 15.
+  var dayMask: UInt32 = 0
+
+  /// first day the window applies; 0 = no start bound
+  var startDay: UInt32 = 0
+
+  /// first day it NO LONGER applies (exclusive); 0 = none
+  var endDay: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -796,6 +1047,16 @@ struct MicrophoneConfig: Sendable {
   /// 0 = calibrated baseline (fw 349+)
   var sensitivity: MicSensitivity = .micSensLow
 
+  /// 0 = WAV (pre-field default)
+  var codec: MicCodec = .wav
+
+  /// Low bits removed from every sample before it is stored, 0 to 4. 0 keeps
+  /// the recording exactly as captured. Each bit dropped is about 6 dB of the
+  /// noise floor given up and makes FLAC files markedly smaller (2 bits: about
+  /// 6:1 instead of 3.5:1 on collar recordings). Lossy and not reversible, so
+  /// it is a separate knob from the codec. Ignored by firmware that predates it.
+  var lsbDrop: UInt32 = 0
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -976,6 +1237,10 @@ struct ScheduleConfigPacket: @unchecked Sendable {
   ///   0        = none
   ///   1        = echo status only (masks, last verdict)
   ///   2|(N<<8) = echo geofence slot N (0..3) as a binary record
+  ///   3|(N<<8) = echo schedule slot N (0..4) as a ScheduleConfig message
+  ///              (fw 358): slot-by-slot read-back for schedules too large for
+  ///              the resting blob to survive the radios (one Bluetooth read
+  ///              carries 182 B; both radios cast the blob length to a byte)
   var bleQuery: UInt32 = 0
 
   /// Collar -> webapp echo. Pushed after a tunnel frame that produced a
@@ -994,6 +1259,17 @@ struct ScheduleConfigPacket: @unchecked Sendable {
   var hasCfgEcho: Bool {return self._cfgEcho != nil}
   /// Clears the value of `cfgEcho`. Subsequent reads from it will return its default value.
   mutating func clearCfgEcho() {self._cfgEcho = nil}
+
+  /// Highest schedule-schema revision the WRITER of this packet understands
+  /// (fw 357+). A writer that predates a field cannot round-trip it: it decodes
+  /// a collar's schedule with its old schema, drops the unknown fields, and
+  /// writes the flattened result back. For the calendar fields that silently
+  /// turns a first-placed "weekends only" slot into an every-day slot. So the
+  /// collar refuses a schedule write whose writer_version is below the
+  /// revision of any feature RESIDENT in its current config, re-pushes the
+  /// resident schedule, and logs it. 0 = legacy writer (never saw this field).
+  ///   1 = knows TimeWindow.day_mask / start_day / end_day
+  var writerVersion: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1018,43 +1294,157 @@ struct CfgEchoPacket: @unchecked Sendable {
   // methods supported on all messages.
 
   /// echoes DownlinkPacket.cfg_txn_id
-  var txnID: UInt32 = 0
+  var txnID: UInt32 {
+    get {return _storage._txnID}
+    set {_uniqueStorage()._txnID = newValue}
+  }
 
   /// ConfigAckStatus values (message.proto)
-  var ackStatus: UInt32 = 0
+  var ackStatus: UInt32 {
+    get {return _storage._ackStatus}
+    set {_uniqueStorage()._ackStatus = newValue}
+  }
 
   /// missing-fragment bitmask / rails reason code
-  var missingMask: UInt32 = 0
+  var missingMask: UInt32 {
+    get {return _storage._missingMask}
+    set {_uniqueStorage()._missingMask = newValue}
+  }
 
   /// bit N: fence slot N holds a definition
-  var fenceUsedMask: UInt32 = 0
+  var fenceUsedMask: UInt32 {
+    get {return _storage._fenceUsedMask}
+    set {_uniqueStorage()._fenceUsedMask = newValue}
+  }
 
   /// bit N: collar is currently inside fence N+1
-  var fenceActiveMask: UInt32 = 0
+  var fenceActiveMask: UInt32 {
+    get {return _storage._fenceActiveMask}
+    set {_uniqueStorage()._fenceActiveMask = newValue}
+  }
 
   /// bit N: detach fence N+1 has fired (consumed)
-  var fenceFiredMask: UInt32 = 0
+  var fenceFiredMask: UInt32 {
+    get {return _storage._fenceFiredMask}
+    set {_uniqueStorage()._fenceFiredMask = newValue}
+  }
 
   /// current config identity (schedule+mortality+fences)
-  var schedCrc: UInt32 = 0
+  var schedCrc: UInt32 {
+    get {return _storage._schedCrc}
+    set {_uniqueStorage()._schedCrc = newValue}
+  }
 
   /// one fence slot, binary record above (max 88 B)
-  var fenceReport: Data = Data()
+  var fenceReport: Data {
+    get {return _storage._fenceReport}
+    set {_uniqueStorage()._fenceReport = newValue}
+  }
 
   /// Bumps on every echo push. The webapp paces the tunnel on it: each frame
   /// is written only after the previous frame's echo shows a new echo_seq —
   /// the settings blob is a single mailbox, so an unpaced second write would
   /// overwrite a frame the collar hadn't drained yet.
-  var echoSeq: UInt32 = 0
+  var echoSeq: UInt32 {
+    get {return _storage._echoSeq}
+    set {_uniqueStorage()._echoSeq = newValue}
+  }
 
   /// CMD_FACTORY_RESET outcome, so the webapp reports what actually happened
   /// instead of assuming the command's delivery meant success:
   /// 0 none, 1 contents deleted, 2 error, 3 SD not mounted, 4 timed out,
   /// 5 card reformatted (the clean outcome).
-  var wipeStatus: UInt32 = 0
+  var wipeStatus: UInt32 {
+    get {return _storage._wipeStatus}
+    set {_uniqueStorage()._wipeStatus = newValue}
+  }
 
   /// files/directories removed on the delete path
-  var wipeRemoved: UInt32 = 0
+  var wipeRemoved: UInt32 {
+    get {return _storage._wipeRemoved}
+    set {_uniqueStorage()._wipeRemoved = newValue}
+  }
+
+  /// fw 358: schedule read-back. slot_report answers ble_query 3|(N<<8) with
+  /// slot N as a nanopb-encoded ScheduleConfig (lean: ~60-100 B, max 128);
+  /// schedule_count and engaged ride on EVERY echo so the webapp knows how
+  /// many slots to ask for and the collar's engaged state without ever
+  /// reading the resting blob.
+  var slotReport: Data {
+    get {return _storage._slotReport}
+    set {_uniqueStorage()._slotReport = newValue}
+  }
+
+  var scheduleCount: UInt32 {
+    get {return _storage._scheduleCount}
+    set {_uniqueStorage()._scheduleCount = newValue}
+  }
+
+  var engaged: Bool {
+    get {return _storage._engaged}
+    set {_uniqueStorage()._engaged = newValue}
+  }
+
+  /// 15 is held for the planned lost-mode beacon key status.
+  ///
+  /// Magnetometer calibration (CMD_MAG_CALIBRATE, downlink.proto). Present on
+  /// every echo that carries neither fence_report nor slot_report, once a run
+  /// has started since boot. Absent before that, and always on firmware that
+  /// predates calibration: that is how a client tells "never run" and "not
+  /// supported" apart from a real state. The collar pushes no echo of its
+  /// own during a run: an unsolicited push could overwrite a frame the client
+  /// just wrote before the collar drains it (the settings blob is a single
+  /// mailbox). So the client polls with ble_query = 1 about every 2 s and
+  /// reads progress, then the outcome, from here. At most 26 B on the wire
+  /// (about 20 B for a finished run); kept off the report echoes because a
+  /// large slot_report already fills the 182 B read.
+  var magCal: MagCalReport {
+    get {return _storage._magCal ?? MagCalReport()}
+    set {_uniqueStorage()._magCal = newValue}
+  }
+  /// Returns true if `magCal` has been explicitly set.
+  var hasMagCal: Bool {return _storage._magCal != nil}
+  /// Clears the value of `magCal`. Subsequent reads from it will return its default value.
+  mutating func clearMagCal() {_uniqueStorage()._magCal = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+struct MagCalReport: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var state: MagCalState = .idle
+
+  /// Runs since boot: +1 each time CMD_MAG_CALIBRATE starts one, also when it
+  /// fails at once. A client notes the run its start produced and ignores
+  /// reports of older runs. Never 0 while mag_cal is present.
+  var run: UInt32 = 0
+
+  /// Coverage toward the target, 0-100; 100 = target met, the capture ends
+  /// and the fit starts. Frozen at its last value once the capture ends.
+  var progressPct: UInt32 = 0
+
+  /// of the 26 sphere sectors, those holding enough samples
+  var sectorsHit: UInt32 = 0
+
+  /// set when the run ends by itself (DONE or FAILED)
+  var verdict: MagCalVerdict = .none
+
+  var reason: MagCalReason = .none
+
+  /// From the fit, 0 until one exists: the total field |B| in 0.1 uT (the
+  /// Earth's field reads roughly 250-650), and the RMS distance of the
+  /// corrected samples from that sphere in per-mille of |B|, saturating at
+  /// 1000.
+  var fieldUtX10: UInt32 = 0
+
+  var residualPermille: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1152,8 +1542,10 @@ struct SystemStatePacket: @unchecked Sendable {
   /// 3 BME688, 4 GPS, 5 particulate, 6 LoRa radio, 8 microphone (PDM
   /// capture flat/silent — bit 7 was already the validity flag when the
   /// mic check arrived, so mic jumps over it). Bit 7 = diagnostics ran
-  /// (validity). Same layout mirrored into Deployment.errorFlags.flag
-  /// on LoRaWAN uplinks. Absent on older firmware.
+  /// (validity). Bits 0-7 are mirrored into Deployment.errorFlags.flag on
+  /// LoRaWAN uplinks; the microphone fault is NOT mirrored on bit 8 (that
+  /// position is mortality there), it rides ErrorFlags bit 10. Absent on
+  /// older firmware.
   var hwDiag: UInt32 {
     get {return _storage._hwDiag ?? 0}
     set {_uniqueStorage()._hwDiag = newValue}
@@ -1343,6 +1735,13 @@ extension MicSensitivity: SwiftProtobuf._ProtoNameProviding {
   ]
 }
 
+extension MicCodec: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "MIC_CODEC_WAV"),
+    1: .same(proto: "MIC_CODEC_FLAC"),
+  ]
+}
+
 extension AccelSampleRate: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     0: .same(proto: "ACCEL_25HZ"),
@@ -1358,6 +1757,38 @@ extension AccelSensitivity: SwiftProtobuf._ProtoNameProviding {
   ]
 }
 
+extension MagCalState: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "MAG_CAL_STATE_IDLE"),
+    1: .same(proto: "MAG_CAL_STATE_COLLECTING"),
+    2: .same(proto: "MAG_CAL_STATE_FITTING"),
+    3: .same(proto: "MAG_CAL_STATE_DONE"),
+    4: .same(proto: "MAG_CAL_STATE_FAILED"),
+    5: .same(proto: "MAG_CAL_STATE_ABORTED"),
+  ]
+}
+
+extension MagCalVerdict: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "MAG_CAL_VERDICT_NONE"),
+    1: .same(proto: "MAG_CAL_VERDICT_GOOD"),
+    2: .same(proto: "MAG_CAL_VERDICT_FAIR"),
+    3: .same(proto: "MAG_CAL_VERDICT_RETRY"),
+  ]
+}
+
+extension MagCalReason: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "MAG_CAL_REASON_NONE"),
+    1: .same(proto: "MAG_CAL_REASON_TIMEOUT"),
+    2: .same(proto: "MAG_CAL_REASON_NOT_ENOUGH_ROTATION"),
+    3: .same(proto: "MAG_CAL_REASON_SENSOR_FAULT"),
+    4: .same(proto: "MAG_CAL_REASON_FIELD_OUT_OF_RANGE"),
+    5: .same(proto: "MAG_CAL_REASON_RESIDUAL_HIGH"),
+    6: .same(proto: "MAG_CAL_REASON_STORAGE"),
+  ]
+}
+
 extension PeripheralType: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     0: .same(proto: "PERIPHERAL_SATCOM"),
@@ -1370,6 +1801,9 @@ extension TimeWindow: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .standard(proto: "start_hour"),
     2: .standard(proto: "end_hour"),
+    3: .standard(proto: "day_mask"),
+    4: .standard(proto: "start_day"),
+    5: .standard(proto: "end_day"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1380,6 +1814,9 @@ extension TimeWindow: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularUInt32Field(value: &self.startHour) }()
       case 2: try { try decoder.decodeSingularUInt32Field(value: &self.endHour) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.dayMask) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.startDay) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.endDay) }()
       default: break
       }
     }
@@ -1392,12 +1829,24 @@ extension TimeWindow: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if self.endHour != 0 {
       try visitor.visitSingularUInt32Field(value: self.endHour, fieldNumber: 2)
     }
+    if self.dayMask != 0 {
+      try visitor.visitSingularUInt32Field(value: self.dayMask, fieldNumber: 3)
+    }
+    if self.startDay != 0 {
+      try visitor.visitSingularUInt32Field(value: self.startDay, fieldNumber: 4)
+    }
+    if self.endDay != 0 {
+      try visitor.visitSingularUInt32Field(value: self.endDay, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: TimeWindow, rhs: TimeWindow) -> Bool {
     if lhs.startHour != rhs.startHour {return false}
     if lhs.endHour != rhs.endHour {return false}
+    if lhs.dayMask != rhs.dayMask {return false}
+    if lhs.startDay != rhs.startDay {return false}
+    if lhs.endDay != rhs.endDay {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2009,6 +2458,8 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     5: .standard(proto: "sample_rate"),
     6: .standard(proto: "bit_depth"),
     7: .same(proto: "sensitivity"),
+    8: .same(proto: "codec"),
+    9: .standard(proto: "lsb_drop"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -2024,6 +2475,8 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
       case 5: try { try decoder.decodeSingularEnumField(value: &self.sampleRate) }()
       case 6: try { try decoder.decodeSingularEnumField(value: &self.bitDepth) }()
       case 7: try { try decoder.decodeSingularEnumField(value: &self.sensitivity) }()
+      case 8: try { try decoder.decodeSingularEnumField(value: &self.codec) }()
+      case 9: try { try decoder.decodeSingularUInt32Field(value: &self.lsbDrop) }()
       default: break
       }
     }
@@ -2051,6 +2504,12 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     if self.sensitivity != .micSensLow {
       try visitor.visitSingularEnumField(value: self.sensitivity, fieldNumber: 7)
     }
+    if self.codec != .wav {
+      try visitor.visitSingularEnumField(value: self.codec, fieldNumber: 8)
+    }
+    if self.lsbDrop != 0 {
+      try visitor.visitSingularUInt32Field(value: self.lsbDrop, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2062,6 +2521,8 @@ extension MicrophoneConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
     if lhs.sampleRate != rhs.sampleRate {return false}
     if lhs.bitDepth != rhs.bitDepth {return false}
     if lhs.sensitivity != rhs.sensitivity {return false}
+    if lhs.codec != rhs.codec {return false}
+    if lhs.lsbDrop != rhs.lsbDrop {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2322,6 +2783,7 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     4: .standard(proto: "cfg_downlink"),
     5: .standard(proto: "ble_query"),
     6: .standard(proto: "cfg_echo"),
+    7: .standard(proto: "writer_version"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -2336,6 +2798,7 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
       case 4: try { try decoder.decodeSingularBytesField(value: &self.cfgDownlink) }()
       case 5: try { try decoder.decodeSingularUInt32Field(value: &self.bleQuery) }()
       case 6: try { try decoder.decodeSingularMessageField(value: &self._cfgEcho) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self.writerVersion) }()
       default: break
       }
     }
@@ -2364,6 +2827,9 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     try { if let v = self._cfgEcho {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
     } }()
+    if self.writerVersion != 0 {
+      try visitor.visitSingularUInt32Field(value: self.writerVersion, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2374,6 +2840,7 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     if lhs.cfgDownlink != rhs.cfgDownlink {return false}
     if lhs.bleQuery != rhs.bleQuery {return false}
     if lhs._cfgEcho != rhs._cfgEcho {return false}
+    if lhs.writerVersion != rhs.writerVersion {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2393,6 +2860,191 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     9: .standard(proto: "echo_seq"),
     10: .standard(proto: "wipe_status"),
     11: .standard(proto: "wipe_removed"),
+    12: .standard(proto: "slot_report"),
+    13: .standard(proto: "schedule_count"),
+    14: .same(proto: "engaged"),
+    16: .standard(proto: "mag_cal"),
+  ]
+
+  fileprivate class _StorageClass {
+    var _txnID: UInt32 = 0
+    var _ackStatus: UInt32 = 0
+    var _missingMask: UInt32 = 0
+    var _fenceUsedMask: UInt32 = 0
+    var _fenceActiveMask: UInt32 = 0
+    var _fenceFiredMask: UInt32 = 0
+    var _schedCrc: UInt32 = 0
+    var _fenceReport: Data = Data()
+    var _echoSeq: UInt32 = 0
+    var _wipeStatus: UInt32 = 0
+    var _wipeRemoved: UInt32 = 0
+    var _slotReport: Data = Data()
+    var _scheduleCount: UInt32 = 0
+    var _engaged: Bool = false
+    var _magCal: MagCalReport? = nil
+
+    #if swift(>=5.10)
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+    #else
+      static let defaultInstance = _StorageClass()
+    #endif
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _txnID = source._txnID
+      _ackStatus = source._ackStatus
+      _missingMask = source._missingMask
+      _fenceUsedMask = source._fenceUsedMask
+      _fenceActiveMask = source._fenceActiveMask
+      _fenceFiredMask = source._fenceFiredMask
+      _schedCrc = source._schedCrc
+      _fenceReport = source._fenceReport
+      _echoSeq = source._echoSeq
+      _wipeStatus = source._wipeStatus
+      _wipeRemoved = source._wipeRemoved
+      _slotReport = source._slotReport
+      _scheduleCount = source._scheduleCount
+      _engaged = source._engaged
+      _magCal = source._magCal
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularUInt32Field(value: &_storage._txnID) }()
+        case 2: try { try decoder.decodeSingularUInt32Field(value: &_storage._ackStatus) }()
+        case 3: try { try decoder.decodeSingularUInt32Field(value: &_storage._missingMask) }()
+        case 4: try { try decoder.decodeSingularUInt32Field(value: &_storage._fenceUsedMask) }()
+        case 5: try { try decoder.decodeSingularUInt32Field(value: &_storage._fenceActiveMask) }()
+        case 6: try { try decoder.decodeSingularUInt32Field(value: &_storage._fenceFiredMask) }()
+        case 7: try { try decoder.decodeSingularUInt32Field(value: &_storage._schedCrc) }()
+        case 8: try { try decoder.decodeSingularBytesField(value: &_storage._fenceReport) }()
+        case 9: try { try decoder.decodeSingularUInt32Field(value: &_storage._echoSeq) }()
+        case 10: try { try decoder.decodeSingularUInt32Field(value: &_storage._wipeStatus) }()
+        case 11: try { try decoder.decodeSingularUInt32Field(value: &_storage._wipeRemoved) }()
+        case 12: try { try decoder.decodeSingularBytesField(value: &_storage._slotReport) }()
+        case 13: try { try decoder.decodeSingularUInt32Field(value: &_storage._scheduleCount) }()
+        case 14: try { try decoder.decodeSingularBoolField(value: &_storage._engaged) }()
+        case 16: try { try decoder.decodeSingularMessageField(value: &_storage._magCal) }()
+        default: break
+        }
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if _storage._txnID != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._txnID, fieldNumber: 1)
+      }
+      if _storage._ackStatus != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._ackStatus, fieldNumber: 2)
+      }
+      if _storage._missingMask != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._missingMask, fieldNumber: 3)
+      }
+      if _storage._fenceUsedMask != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._fenceUsedMask, fieldNumber: 4)
+      }
+      if _storage._fenceActiveMask != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._fenceActiveMask, fieldNumber: 5)
+      }
+      if _storage._fenceFiredMask != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._fenceFiredMask, fieldNumber: 6)
+      }
+      if _storage._schedCrc != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._schedCrc, fieldNumber: 7)
+      }
+      if !_storage._fenceReport.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._fenceReport, fieldNumber: 8)
+      }
+      if _storage._echoSeq != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._echoSeq, fieldNumber: 9)
+      }
+      if _storage._wipeStatus != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._wipeStatus, fieldNumber: 10)
+      }
+      if _storage._wipeRemoved != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._wipeRemoved, fieldNumber: 11)
+      }
+      if !_storage._slotReport.isEmpty {
+        try visitor.visitSingularBytesField(value: _storage._slotReport, fieldNumber: 12)
+      }
+      if _storage._scheduleCount != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._scheduleCount, fieldNumber: 13)
+      }
+      if _storage._engaged != false {
+        try visitor.visitSingularBoolField(value: _storage._engaged, fieldNumber: 14)
+      }
+      try { if let v = _storage._magCal {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 16)
+      } }()
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: CfgEchoPacket, rhs: CfgEchoPacket) -> Bool {
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._txnID != rhs_storage._txnID {return false}
+        if _storage._ackStatus != rhs_storage._ackStatus {return false}
+        if _storage._missingMask != rhs_storage._missingMask {return false}
+        if _storage._fenceUsedMask != rhs_storage._fenceUsedMask {return false}
+        if _storage._fenceActiveMask != rhs_storage._fenceActiveMask {return false}
+        if _storage._fenceFiredMask != rhs_storage._fenceFiredMask {return false}
+        if _storage._schedCrc != rhs_storage._schedCrc {return false}
+        if _storage._fenceReport != rhs_storage._fenceReport {return false}
+        if _storage._echoSeq != rhs_storage._echoSeq {return false}
+        if _storage._wipeStatus != rhs_storage._wipeStatus {return false}
+        if _storage._wipeRemoved != rhs_storage._wipeRemoved {return false}
+        if _storage._slotReport != rhs_storage._slotReport {return false}
+        if _storage._scheduleCount != rhs_storage._scheduleCount {return false}
+        if _storage._engaged != rhs_storage._engaged {return false}
+        if _storage._magCal != rhs_storage._magCal {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension MagCalReport: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "MagCalReport"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "state"),
+    2: .same(proto: "run"),
+    3: .standard(proto: "progress_pct"),
+    4: .standard(proto: "sectors_hit"),
+    5: .same(proto: "verdict"),
+    6: .same(proto: "reason"),
+    7: .standard(proto: "field_ut_x10"),
+    8: .standard(proto: "residual_permille"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -2401,71 +3053,56 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.txnID) }()
-      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.ackStatus) }()
-      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.missingMask) }()
-      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.fenceUsedMask) }()
-      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.fenceActiveMask) }()
-      case 6: try { try decoder.decodeSingularUInt32Field(value: &self.fenceFiredMask) }()
-      case 7: try { try decoder.decodeSingularUInt32Field(value: &self.schedCrc) }()
-      case 8: try { try decoder.decodeSingularBytesField(value: &self.fenceReport) }()
-      case 9: try { try decoder.decodeSingularUInt32Field(value: &self.echoSeq) }()
-      case 10: try { try decoder.decodeSingularUInt32Field(value: &self.wipeStatus) }()
-      case 11: try { try decoder.decodeSingularUInt32Field(value: &self.wipeRemoved) }()
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.run) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.progressPct) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.sectorsHit) }()
+      case 5: try { try decoder.decodeSingularEnumField(value: &self.verdict) }()
+      case 6: try { try decoder.decodeSingularEnumField(value: &self.reason) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self.fieldUtX10) }()
+      case 8: try { try decoder.decodeSingularUInt32Field(value: &self.residualPermille) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if self.txnID != 0 {
-      try visitor.visitSingularUInt32Field(value: self.txnID, fieldNumber: 1)
+    if self.state != .idle {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 1)
     }
-    if self.ackStatus != 0 {
-      try visitor.visitSingularUInt32Field(value: self.ackStatus, fieldNumber: 2)
+    if self.run != 0 {
+      try visitor.visitSingularUInt32Field(value: self.run, fieldNumber: 2)
     }
-    if self.missingMask != 0 {
-      try visitor.visitSingularUInt32Field(value: self.missingMask, fieldNumber: 3)
+    if self.progressPct != 0 {
+      try visitor.visitSingularUInt32Field(value: self.progressPct, fieldNumber: 3)
     }
-    if self.fenceUsedMask != 0 {
-      try visitor.visitSingularUInt32Field(value: self.fenceUsedMask, fieldNumber: 4)
+    if self.sectorsHit != 0 {
+      try visitor.visitSingularUInt32Field(value: self.sectorsHit, fieldNumber: 4)
     }
-    if self.fenceActiveMask != 0 {
-      try visitor.visitSingularUInt32Field(value: self.fenceActiveMask, fieldNumber: 5)
+    if self.verdict != .none {
+      try visitor.visitSingularEnumField(value: self.verdict, fieldNumber: 5)
     }
-    if self.fenceFiredMask != 0 {
-      try visitor.visitSingularUInt32Field(value: self.fenceFiredMask, fieldNumber: 6)
+    if self.reason != .none {
+      try visitor.visitSingularEnumField(value: self.reason, fieldNumber: 6)
     }
-    if self.schedCrc != 0 {
-      try visitor.visitSingularUInt32Field(value: self.schedCrc, fieldNumber: 7)
+    if self.fieldUtX10 != 0 {
+      try visitor.visitSingularUInt32Field(value: self.fieldUtX10, fieldNumber: 7)
     }
-    if !self.fenceReport.isEmpty {
-      try visitor.visitSingularBytesField(value: self.fenceReport, fieldNumber: 8)
-    }
-    if self.echoSeq != 0 {
-      try visitor.visitSingularUInt32Field(value: self.echoSeq, fieldNumber: 9)
-    }
-    if self.wipeStatus != 0 {
-      try visitor.visitSingularUInt32Field(value: self.wipeStatus, fieldNumber: 10)
-    }
-    if self.wipeRemoved != 0 {
-      try visitor.visitSingularUInt32Field(value: self.wipeRemoved, fieldNumber: 11)
+    if self.residualPermille != 0 {
+      try visitor.visitSingularUInt32Field(value: self.residualPermille, fieldNumber: 8)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: CfgEchoPacket, rhs: CfgEchoPacket) -> Bool {
-    if lhs.txnID != rhs.txnID {return false}
-    if lhs.ackStatus != rhs.ackStatus {return false}
-    if lhs.missingMask != rhs.missingMask {return false}
-    if lhs.fenceUsedMask != rhs.fenceUsedMask {return false}
-    if lhs.fenceActiveMask != rhs.fenceActiveMask {return false}
-    if lhs.fenceFiredMask != rhs.fenceFiredMask {return false}
-    if lhs.schedCrc != rhs.schedCrc {return false}
-    if lhs.fenceReport != rhs.fenceReport {return false}
-    if lhs.echoSeq != rhs.echoSeq {return false}
-    if lhs.wipeStatus != rhs.wipeStatus {return false}
-    if lhs.wipeRemoved != rhs.wipeRemoved {return false}
+  static func ==(lhs: MagCalReport, rhs: MagCalReport) -> Bool {
+    if lhs.state != rhs.state {return false}
+    if lhs.run != rhs.run {return false}
+    if lhs.progressPct != rhs.progressPct {return false}
+    if lhs.sectorsHit != rhs.sectorsHit {return false}
+    if lhs.verdict != rhs.verdict {return false}
+    if lhs.reason != rhs.reason {return false}
+    if lhs.fieldUtX10 != rhs.fieldUtX10 {return false}
+    if lhs.residualPermille != rhs.residualPermille {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

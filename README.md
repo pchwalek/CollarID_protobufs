@@ -29,6 +29,15 @@ Used for the embedded system via **Nanopb**. This generates lightweight `.pb.c` 
 python ../nanopb/generator/nanopb_generator.py *.proto --c-style -s packed_struct:false
 ```
 
+### 3. Python (`*_pb2.py`)
+Use the protoc bundled with `grpcio-tools` (protoc 31.1), which writes the
+6.31.1 gencode the checked-in modules carry. A newer standalone `protoc`
+writes gencode that refuses to load on a 6.x runtime.
+
+```bash
+python -m grpc_tools.protoc -I . -I ../nanopb/generator/proto --python_out=. *.proto
+```
+
 ---
 
 ## GPS block (`Deployment.gps_block`)
@@ -67,3 +76,14 @@ Deployment.gps_block type:FT_IGNORE
 
 instead of copying the master options. Point-to-point frames never carry more
 than 5 `gps_data` entries or any `gps_block`.
+
+## Magnetometer calibration (`CMD_MAG_CALIBRATE`, `CfgEchoPacket.mag_cal`)
+
+`CMD_MAG_CALIBRATE` (20) and `CMD_MAG_CALIBRATE_ABORT` (21) travel only
+through the BLE config tunnel; the collar ignores them over the radio. Progress
+and outcome come back in `CfgEchoPacket.mag_cal` (field 16, `MagCalReport`),
+which the client reads by polling with `ble_query = 1`. `ble.proto` and
+`downlink.proto` hold the semantics; `reference/test_mag_cal_contract.py` pins
+the numbers, checks the generated files match them, and checks that the echo
+still fits one 182 B Bluetooth read. Command 19 and echo field 15 are held for
+the planned lost-mode beacon key.

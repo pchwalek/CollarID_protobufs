@@ -355,6 +355,73 @@ message CfgEchoPacket {
   bytes  slot_report = 12;
   uint32 schedule_count = 13;
   bool   engaged = 14;
+  // 15 is held for the planned lost-mode beacon key status.
+  //
+  // Magnetometer calibration (CMD_MAG_CALIBRATE, downlink.proto). Present on
+  // every echo that carries neither fence_report nor slot_report, once a run
+  // has started since boot. Absent before that, and always on firmware that
+  // predates calibration: that is how a client tells "never run" and "not
+  // supported" apart from a real state. The collar pushes no echo of its
+  // own during a run: an unsolicited push could overwrite a frame the client
+  // just wrote before the collar drains it (the settings blob is a single
+  // mailbox). So the client polls with ble_query = 1 about every 2 s and
+  // reads progress, then the outcome, from here. At most 26 B on the wire
+  // (about 20 B for a finished run); kept off the report echoes because a
+  // large slot_report already fills the 182 B read.
+  MagCalReport mag_cal = 16;
+}
+
+// ---- Magnetometer calibration report (CfgEchoPacket.mag_cal) ----
+// The calibration is in force exactly when state == DONE and verdict is
+// GOOD or FAIR. Every other outcome leaves the previous calibration in force.
+enum MagCalState {
+  MAG_CAL_STATE_IDLE       = 0;  // zero value only: mag_cal is absent until a run starts
+  MAG_CAL_STATE_COLLECTING = 1;  // capturing; progress_pct climbs as the sphere fills
+  MAG_CAL_STATE_FITTING    = 2;  // capture over, fit running
+  MAG_CAL_STATE_DONE       = 3;  // a fit was made and judged; verdict says whether it is in force
+  // No fit could be made or kept: verdict RETRY, reason TIMEOUT,
+  // NOT_ENOUGH_ROTATION, SENSOR_FAULT or STORAGE.
+  MAG_CAL_STATE_FAILED     = 4;
+  MAG_CAL_STATE_ABORTED    = 5;  // CMD_MAG_CALIBRATE_ABORT, or the Bluetooth session ended
+}
+
+enum MagCalVerdict {
+  MAG_CAL_VERDICT_NONE  = 0;  // run still going, or aborted
+  MAG_CAL_VERDICT_GOOD  = 1;  // in force
+  MAG_CAL_VERDICT_FAIR  = 2;  // in force; repeating it away from metal may do better
+  MAG_CAL_VERDICT_RETRY = 3;  // not in force; turn the collar through the sequence again
+}
+
+// The limiting factor behind a FAIR or RETRY verdict; NONE with GOOD, while
+// the run is going, and after an abort.
+enum MagCalReason {
+  MAG_CAL_REASON_NONE                = 0;
+  MAG_CAL_REASON_TIMEOUT             = 1;  // time limit reached before the coverage target
+  MAG_CAL_REASON_NOT_ENOUGH_ROTATION = 2;  // samples too flat for a unique fit (turned about one axis)
+  MAG_CAL_REASON_SENSOR_FAULT        = 3;  // magnetometer not answering, or its readings stuck
+  MAG_CAL_REASON_FIELD_OUT_OF_RANGE  = 4;  // fitted field outside the Earth's ~20-70 uT: metal, magnet or electronics nearby
+  MAG_CAL_REASON_RESIDUAL_HIGH       = 5;  // samples scatter too far from the fit: disturbance during the capture
+  MAG_CAL_REASON_STORAGE             = 6;  // fit made but MAGCAL.CSV could not be written, so it is not in force
+}
+
+message MagCalReport {
+  MagCalState   state             = 1;
+  // Runs since boot: +1 each time CMD_MAG_CALIBRATE starts one, also when it
+  // fails at once. A client notes the run its start produced and ignores
+  // reports of older runs. Never 0 while mag_cal is present.
+  uint32        run               = 2;
+  // Coverage toward the target, 0-100; 100 = target met, the capture ends
+  // and the fit starts. Frozen at its last value once the capture ends.
+  uint32        progress_pct      = 3;
+  uint32        sectors_hit       = 4;  // of the 26 sphere sectors, those holding enough samples
+  MagCalVerdict verdict           = 5;  // set when the run ends by itself (DONE or FAILED)
+  MagCalReason  reason            = 6;
+  // From the fit, 0 until one exists: the total field |B| in 0.1 uT (the
+  // Earth's field reads roughly 250-650), and the RMS distance of the
+  // corrected samples from that sphere in per-mille of |B|, saturating at
+  // 1000.
+  uint32        field_ut_x10      = 7;
+  uint32        residual_permille = 8;
 }
 
 
