@@ -195,7 +195,7 @@ message ConfigMagnetometer {
   // alone, while an explicit 0 IS encoded and puts the slot back in interval
   // mode. A collar predating the field skips it and stays in interval mode;
   // the server refuses a non-zero rate for such firmware (fw gate: firmware
-  // main build TBD (feat/mag-rate), the number is set at merge).
+  // main build 425, merge c345dea 2026-09-25).
   optional uint32 sample_rate_hz    = 3;
 }
 

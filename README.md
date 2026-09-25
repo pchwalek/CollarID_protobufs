@@ -101,4 +101,4 @@ collar's value alone and an explicit 0 returns the slot to interval mode.
 A scalar needs no `.options` entry. `reference/test_mag_rate_contract.py`
 pins the numbers, checks the generated files match them, and checks the
 zero-is-legacy rule against the protobuf runtime. Firmware gate: firmware
-main build TBD (feat/mag-rate); the number is set at merge.
+main build 425 (merge c345dea, 2026-09-25).
