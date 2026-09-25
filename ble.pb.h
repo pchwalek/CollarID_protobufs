@@ -292,6 +292,20 @@ typedef struct accelerometer_config {
 typedef struct magnetometer_config {
     bool enabled;
     uint32_t sample_interval_s; /* in seconds */
+    /* Rate mode (MAG-1, docs/DESIGN_magnetometer_rate.md; fw gate: firmware
+ main build TBD (feat/mag-rate), the number is set at merge). Non-zero:
+ the magnetometer streams X/Y/Z at this rate, paced by the 32.768 kHz
+ crystal, into a 3-channel WAV with a time-anchor sidecar, and
+ sample_interval_s is ignored. Allowed values are 1, 2, 4, 8 and 16 Hz;
+ firmware treats any other value as 0, never a rounded guess.
+ 0 = interval mode: one mag,x,y,z row per sample_interval_s, exactly as
+ before the field. proto3 does not encode a zero scalar, so a config that
+ leaves this at 0 is byte-identical on the wire to one written before the
+ field existed, and SchedSync_Crc, which hashes that encoding, is
+ unchanged for every legacy config. Read only when enabled is true.
+ Firmware that predates the field skips it and stays in interval mode,
+ so clients gate the control on the reported build. */
+    uint32_t sample_rate_hz;
 } magnetometer_config_t;
 
 /* schedule that is applied during each TimeWindow */
@@ -634,7 +648,7 @@ extern "C" {
 #define RADIO_CONFIG_PACKET_INIT_DEFAULT         {false, LO_RA_WAN_CONFIG_INIT_DEFAULT, false, LO_RA_CONFIG_INIT_DEFAULT, 0, false, LOST_MODE_CONFIG_INIT_DEFAULT, 0, false, MORTALITY_CONFIG_INIT_DEFAULT}
 #define MICROPHONE_CONFIG_INIT_DEFAULT           {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN, _MIC_SENSITIVITY_MIN, _MIC_CODEC_MIN, 0}
 #define ACCELEROMETER_CONFIG_INIT_DEFAULT        {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
-#define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0}
+#define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
 #define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, MAG_CAL_REPORT_INIT_DEFAULT}
@@ -656,7 +670,7 @@ extern "C" {
 #define RADIO_CONFIG_PACKET_INIT_ZERO            {false, LO_RA_WAN_CONFIG_INIT_ZERO, false, LO_RA_CONFIG_INIT_ZERO, 0, false, LOST_MODE_CONFIG_INIT_ZERO, 0, false, MORTALITY_CONFIG_INIT_ZERO}
 #define MICROPHONE_CONFIG_INIT_ZERO              {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN, _MIC_SENSITIVITY_MIN, _MIC_CODEC_MIN, 0}
 #define ACCELEROMETER_CONFIG_INIT_ZERO           {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
-#define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0}
+#define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
 #define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, MAG_CAL_REPORT_INIT_ZERO}
@@ -733,6 +747,7 @@ extern "C" {
 #define ACCELEROMETER_CONFIG_SENSITIVITY_TAG     3
 #define MAGNETOMETER_CONFIG_ENABLED_TAG          1
 #define MAGNETOMETER_CONFIG_SAMPLE_INTERVAL_S_TAG 2
+#define MAGNETOMETER_CONFIG_SAMPLE_RATE_HZ_TAG   3
 #define SCHEDULE_CONFIG_WINDOW_TAG               1
 #define SCHEDULE_CONFIG_LIGHT_TAG                2
 #define SCHEDULE_CONFIG_ENVIRONMENTAL_TAG        3
@@ -924,7 +939,8 @@ X(a, STATIC,   SINGULAR, UENUM,    sensitivity,       3)
 
 #define MAGNETOMETER_CONFIG_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, BOOL,     enabled,           1) \
-X(a, STATIC,   SINGULAR, UINT32,   sample_interval_s,   2)
+X(a, STATIC,   SINGULAR, UINT32,   sample_interval_s,   2) \
+X(a, STATIC,   SINGULAR, UINT32,   sample_rate_hz,    3)
 #define MAGNETOMETER_CONFIG_CALLBACK NULL
 #define MAGNETOMETER_CONFIG_DEFAULT NULL
 
@@ -1111,7 +1127,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        31
 #define LO_RA_WAN_CONFIG_SIZE                    103
-#define MAGNETOMETER_CONFIG_SIZE                 8
+#define MAGNETOMETER_CONFIG_SIZE                 14
 #define MAG_CAL_REPORT_SIZE                      36
 #define MICROPHONE_CONFIG_SIZE                   30
 #define MORTALITY_CONFIG_SIZE                    12
@@ -1120,8 +1136,8 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 181
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1334
-#define SCHEDULE_CONFIG_SIZE                     174
+#define SCHEDULE_CONFIG_PACKET_SIZE              1364
+#define SCHEDULE_CONFIG_SIZE                     180
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 145
 #define TIME_WINDOW_SIZE                         30

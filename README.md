@@ -87,3 +87,18 @@ which the client reads by polling with `ble_query = 1`. `ble.proto` and
 the numbers, checks the generated files match them, and checks that the echo
 still fits one 182 B Bluetooth read. Command 19 and echo field 15 are held for
 the planned lost-mode beacon key.
+
+## Magnetometer rate mode (`MagnetometerConfig.sample_rate_hz`)
+
+`MagnetometerConfig.sample_rate_hz` (ble.proto, field 3, `uint32`) and
+`ConfigMagnetometer.sample_rate_hz` (downlink.proto, field 3,
+`optional uint32`) select the magnetometer's rate mode: 0 is the interval
+mode every deployed collar runs today (`sample_interval_s`), otherwise 1, 2,
+4, 8 or 16 Hz. On the BLE arm a zero is never encoded, so a legacy schedule
+is byte-identical on the wire and the collar's `SchedSync_Crc` does not
+move; on the downlink arm the field is `optional`, so absent leaves the
+collar's value alone and an explicit 0 returns the slot to interval mode.
+A scalar needs no `.options` entry. `reference/test_mag_rate_contract.py`
+pins the numbers, checks the generated files match them, and checks the
+zero-is-legacy rule against the protobuf runtime. Firmware gate: firmware
+main build TBD (feat/mag-rate); the number is set at merge.

@@ -1088,6 +1088,21 @@ struct MagnetometerConfig: Sendable {
   /// in seconds
   var sampleIntervalS: UInt32 = 0
 
+  /// Rate mode (MAG-1, docs/DESIGN_magnetometer_rate.md; fw gate: firmware
+  /// main build TBD (feat/mag-rate), the number is set at merge). Non-zero:
+  /// the magnetometer streams X/Y/Z at this rate, paced by the 32.768 kHz
+  /// crystal, into a 3-channel WAV with a time-anchor sidecar, and
+  /// sample_interval_s is ignored. Allowed values are 1, 2, 4, 8 and 16 Hz;
+  /// firmware treats any other value as 0, never a rounded guess.
+  /// 0 = interval mode: one mag,x,y,z row per sample_interval_s, exactly as
+  /// before the field. proto3 does not encode a zero scalar, so a config that
+  /// leaves this at 0 is byte-identical on the wire to one written before the
+  /// field existed, and SchedSync_Crc, which hashes that encoding, is
+  /// unchanged for every legacy config. Read only when enabled is true.
+  /// Firmware that predates the field skips it and stays in interval mode,
+  /// so clients gate the control on the reported build.
+  var sampleRateHz: UInt32 = 0
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -2577,6 +2592,7 @@ extension MagnetometerConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
     1: .same(proto: "enabled"),
     2: .standard(proto: "sample_interval_s"),
+    3: .standard(proto: "sample_rate_hz"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -2587,6 +2603,7 @@ extension MagnetometerConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       case 2: try { try decoder.decodeSingularUInt32Field(value: &self.sampleIntervalS) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.sampleRateHz) }()
       default: break
       }
     }
@@ -2599,12 +2616,16 @@ extension MagnetometerConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
     if self.sampleIntervalS != 0 {
       try visitor.visitSingularUInt32Field(value: self.sampleIntervalS, fieldNumber: 2)
     }
+    if self.sampleRateHz != 0 {
+      try visitor.visitSingularUInt32Field(value: self.sampleRateHz, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: MagnetometerConfig, rhs: MagnetometerConfig) -> Bool {
     if lhs.enabled != rhs.enabled {return false}
     if lhs.sampleIntervalS != rhs.sampleIntervalS {return false}
+    if lhs.sampleRateHz != rhs.sampleRateHz {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

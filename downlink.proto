@@ -185,10 +185,18 @@ message ConfigGPS {
   optional bool   lora_tx_on_gps_fix                 = 10;
 }
 
-// Magnetometer (~3 bytes)
+// Magnetometer (~3 bytes; +2 with sample_rate_hz)
 message ConfigMagnetometer {
   optional bool   enabled           = 1;
   optional uint32 sample_interval_s = 2;
+  // Rate mode, the same numbers as ble.proto MagnetometerConfig.sample_rate_hz:
+  // 0 = interval mode (sample_interval_s), else 1, 2, 4, 8 or 16 Hz, any
+  // other value read as 0. Optional, so absent = leave the collar's value
+  // alone, while an explicit 0 IS encoded and puts the slot back in interval
+  // mode. A collar predating the field skips it and stays in interval mode;
+  // the server refuses a non-zero rate for such firmware (fw gate: firmware
+  // main build TBD (feat/mag-rate), the number is set at merge).
+  optional uint32 sample_rate_hz    = 3;
 }
 
 // Generic sensor: light, environmental, particulate (~3 bytes)

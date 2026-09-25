@@ -185,12 +185,21 @@ typedef struct config_gps {
     bool lora_tx_on_gps_fix;
 } config_gps_t;
 
-/* Magnetometer (~3 bytes) */
+/* Magnetometer (~3 bytes; +2 with sample_rate_hz) */
 typedef struct config_magnetometer {
     bool has_enabled;
     bool enabled;
     bool has_sample_interval_s;
     uint32_t sample_interval_s;
+    /* Rate mode, the same numbers as ble.proto MagnetometerConfig.sample_rate_hz:
+ 0 = interval mode (sample_interval_s), else 1, 2, 4, 8 or 16 Hz, any
+ other value read as 0. Optional, so absent = leave the collar's value
+ alone, while an explicit 0 IS encoded and puts the slot back in interval
+ mode. A collar predating the field skips it and stays in interval mode;
+ the server refuses a non-zero rate for such firmware (fw gate: firmware
+ main build TBD (feat/mag-rate), the number is set at merge). */
+    bool has_sample_rate_hz;
+    uint32_t sample_rate_hz;
 } config_magnetometer_t;
 
 /* Generic sensor: light, environmental, particulate (~3 bytes) */
@@ -400,7 +409,7 @@ extern "C" {
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0}
+#define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
@@ -415,7 +424,7 @@ extern "C" {
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0}
+#define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
@@ -461,6 +470,7 @@ extern "C" {
 #define CONFIG_GPS_LORA_TX_ON_GPS_FIX_TAG        10
 #define CONFIG_MAGNETOMETER_ENABLED_TAG          1
 #define CONFIG_MAGNETOMETER_SAMPLE_INTERVAL_S_TAG 2
+#define CONFIG_MAGNETOMETER_SAMPLE_RATE_HZ_TAG   3
 #define CONFIG_SAMPLING_ENABLED_TAG              1
 #define CONFIG_SAMPLING_SAMPLE_INTERVAL_MIN_TAG  2
 #define CONFIG_RADIO_TIMING_LORAWAN_ENABLED_TAG  1
@@ -579,7 +589,8 @@ X(a, STATIC,   OPTIONAL, BOOL,     lora_tx_on_gps_fix,  10)
 
 #define CONFIG_MAGNETOMETER_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     enabled,           1) \
-X(a, STATIC,   OPTIONAL, UINT32,   sample_interval_s,   2)
+X(a, STATIC,   OPTIONAL, UINT32,   sample_interval_s,   2) \
+X(a, STATIC,   OPTIONAL, UINT32,   sample_rate_hz,    3)
 #define CONFIG_MAGNETOMETER_CALLBACK NULL
 #define CONFIG_MAGNETOMETER_DEFAULT NULL
 
@@ -713,17 +724,17 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     351
+#define CONFIG_FRAGMENT_SIZE                     357
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
-#define CONFIG_MAGNETOMETER_SIZE                 8
+#define CONFIG_MAGNETOMETER_SIZE                 14
 #define CONFIG_MICROPHONE_SIZE                   46
 #define CONFIG_MORTALITY_SIZE                    14
 #define CONFIG_RADIO_TIMING_SIZE                 27
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     609
+#define DOWNLINK_PACKET_SIZE                     615
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12
