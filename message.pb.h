@@ -169,7 +169,19 @@ typedef struct particulate_data {
              reporting (firmware lw_rebase_policy.h). Counters are being
              re-used under the same keys while set. Rides every uplink
              until a restore works again. Not a hardware fault.
-   bits 12-31 free */
+   bit  12   BEACON_KEY_FALLBACK: the collar holds a lost-mode beacon key it
+             cannot use, so its lost-mode beacon goes out as the plaintext
+             0x4C frame instead of the encrypted 0x4D (beacon/README.md).
+             Set exactly while the Bluetooth echo's BeaconKeyReport.state
+             (ble.proto) is BEACON_KEY_STATE_FALLBACK: the key record failed
+             to read (torn write, ECC), the 24-bit beacon sequence is
+             exhausted, or the flash store refused a beacon counter (that
+             last one until the next reboot or key command). Never set
+             while the state is NONE (no key: 0x4C, as always) or KEYED.
+             Clears when a key set, a key clear or a factory reset over
+             Bluetooth leaves the state NONE or KEYED. Rides every LoRaWAN
+             uplink while it lasts. Not a hardware fault.
+   bits 13-31 free */
 typedef struct error_flags {
     uint32_t flag;
 } error_flags_t;

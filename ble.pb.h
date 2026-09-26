@@ -148,7 +148,9 @@ typedef enum beacon_key_state {
     BEACON_KEY_STATE_BEACON_KEY_STATE_KEYED = 1, /* key held and usable: the AES-128-CCM 0x4D frame */
     /* A key is held but cannot be used, so the collar sends 0x4C and has
  logged it: the store record failed to read (torn write, ECC) or the
- 24-bit sequence is exhausted. A set with a higher gen clears it. */
+ 24-bit sequence is exhausted. A set with a higher gen clears it.
+ LoRaWAN uplinks carry this state as ErrorFlags bit 12
+ (BEACON_KEY_FALLBACK, message.proto), set only while it lasts. */
     BEACON_KEY_STATE_BEACON_KEY_STATE_FALLBACK = 2
 } beacon_key_state_t;
 

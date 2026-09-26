@@ -134,3 +134,24 @@ keyed or not. `reference/test_beacon_key_contract.py` pins the numbers,
 checks the generated files match them, checks that no message carries the
 key back, and checks the tunnel and echo size budgets. Firmware gate:
 firmware main build TBD, set at merge.
+
+A collar that holds a key it cannot use (the key record failed to read, the
+24-bit sequence is exhausted, or the store refused a counter) sends the
+plaintext `0x4C` frame and reports `BEACON_KEY_STATE_FALLBACK`. The same state
+rides every LoRaWAN deployment uplink as `ErrorFlags` bit 12
+(`BEACON_KEY_FALLBACK`), so the server learns of it without a Bluetooth
+session; the bit is never set while the state is `NONE` or `KEYED`.
+
+## ErrorFlags bits (`Deployment.errorFlags`)
+
+`ErrorFlags.flag` is one bitmask shared by several conditions, carried on
+deployment uplinks while any of them persists (LoRaWAN; point-to-point frames
+carry only bit 8). The comment above `message ErrorFlags` in `message.proto`
+is the ledger: bits 0-6 boot hardware diagnostics, 7 diagnostics ran, 8
+`MORTALITY`, 9 `STORAGE`, 10 `MIC`, 11 `LORAWAN_FCNT`, 12
+`BEACON_KEY_FALLBACK`, 13-31 free. Take a new bit from the ledger, and change
+the firmware, the server's decoder and the website's data-schema table with
+it. `reference/test_error_flags_contract.py` pins the allocation, checks the
+generated `message.pb.h` carries the same comment, and checks that every
+allocated bit fits the 5 B the uplink budget reserves for the word
+(`reference/GPS_BLOCK_V1.md`): bit 13 is the last bit that does.

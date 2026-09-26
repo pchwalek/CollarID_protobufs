@@ -697,6 +697,8 @@ enum BeaconKeyState: SwiftProtobuf.Enum, Swift.CaseIterable {
   /// A key is held but cannot be used, so the collar sends 0x4C and has
   /// logged it: the store record failed to read (torn write, ECC) or the
   /// 24-bit sequence is exhausted. A set with a higher gen clears it.
+  /// LoRaWAN uplinks carry this state as ErrorFlags bit 12
+  /// (BEACON_KEY_FALLBACK, message.proto), set only while it lasts.
   case fallback // = 2
   case UNRECOGNIZED(Int)
 
