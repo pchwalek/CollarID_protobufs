@@ -15,6 +15,9 @@ PB_BIND(GEOFENCE_DATA, geofence_data_t, AUTO)
 PB_BIND(HIGH_FIX_PARAMS, high_fix_params_t, AUTO)
 
 
+PB_BIND(BEACON_KEY_SET, beacon_key_set_t, AUTO)
+
+
 PB_BIND(CONFIG_TIME_WINDOW, config_time_window_t, AUTO)
 
 
@@ -49,6 +52,7 @@ PB_BIND(CONFIG_FRAGMENT, config_fragment_t, 2)
 
 
 PB_BIND(DOWNLINK_PACKET, downlink_packet_t, 2)
+
 
 
 

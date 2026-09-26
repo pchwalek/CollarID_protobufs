@@ -74,7 +74,28 @@ enum CommandType {
   // so no server bug or spoofed downlink can wipe a deployed collar.
   CMD_FACTORY_RESET  = 18;
 
-  // 19 is held for the planned lost-mode beacon key command.
+  // Lost-mode beacon key (DESIGN_radio_security.md section 4.3, phase E4;
+  // beacon/README.md is the public frame and key spec). Fw gate: firmware
+  // main build TBD, set at merge. Writes the key set carried in
+  // DownlinkPacket.beacon_key (BeaconKeySet: slot, gen, 16-byte key) into
+  // the collar's internal-flash key store. From the next beacon the collar
+  // sends the AES-128-CCM 0x4D frame under that key, with its transmit
+  // counter's generation byte raised to gen and the sequence restarted at 0.
+  // The collar refuses a gen that is not above its current generation
+  // (BeaconKeyReport.gen), a gen of 0 or above 255, an all-zero key (what a
+  // missing key field decodes to) and a slot this build does not hold; a
+  // refused set leaves the collar exactly as it was. Outcome, state, gen and
+  // key check value come back in CfgEchoPacket.beacon_key (ble.proto), never
+  // the key. Provisioning is idempotent by that echo: a client reads gen and
+  // kcv first and sends nothing when they already match the server's record.
+  // Accepted ONLY over the BLE config tunnel, like CMD_FACTORY_RESET:
+  // physical possession is the authority, and there is no CONFIG.CSV key. A
+  // radio downlink carrying this command is logged and ignored. The collar
+  // scrubs the key from its downlink buffer and the settings mailbox as soon
+  // as it is stored. Firmware that predates the command logs an unknown
+  // command and echoes no beacon_key; clients gate the control on the
+  // reported build.
+  CMD_BEACON_KEY_SET      = 19;
 
   // Magnetometer calibration. Starts a run: the collar samples its
   // magnetometer continuously while the operator turns the assembled collar
@@ -98,6 +119,17 @@ enum CommandType {
   // in force stays. mag_cal.state becomes ABORTED. No-op when no run is
   // active. BLE tunnel only, as above.
   CMD_MAG_CALIBRATE_ABORT = 21;
+
+  // Erases the beacon key in the slot named by DownlinkPacket.beacon_key.slot
+  // (absent = the beacon key) and keeps the transmit counter, so the
+  // generation the next key set must exceed is preserved. From the next
+  // beacon the collar sends the plaintext 0x4C frame again: the fallback a
+  // keyed collar can always reach. beacon_key.gen and .key are ignored. A
+  // clear with nothing held still answers CLEARED. BLE tunnel only, as
+  // above: a radio downlink can never switch the encryption off.
+  // CMD_FACTORY_RESET also erases the key and keeps the counter. Fw gate:
+  // firmware main build TBD, set at merge.
+  CMD_BEACON_KEY_CLEAR    = 22;
 }
 
 // ---- Geofence ----
@@ -116,6 +148,41 @@ message GeofenceData {
 message HighFixParams {
   uint32 duration_hours       = 1;  // default 24
   uint32 sample_interval_sec  = 2;  // default 300
+}
+
+// ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
+// Which key family a set or clear addresses: the flash store keeps one
+// record per slot, so the Phase-3 command key never forces a format change.
+// The numbers match the firmware's beacon_key_purpose_t and the KDF labels
+// in beacon/README.md.
+enum BeaconKeySlot {
+  BEACON_KEY_SLOT_BEACON  = 0;  // lost-mode beacon confidentiality, label CID-LORA-BCN; the only slot v1 firmware holds
+  // Reserved for the signed command channel (label CID-LORA-CMD,
+  // DESIGN_finder_two_way.md). Refused as REJECTED_ARG until the firmware
+  // that holds it lands.
+  BEACON_KEY_SLOT_COMMAND = 1;
+}
+
+// The key set CMD_BEACON_KEY_SET writes (at most 25 B inside the tunnel frame).
+// The collar never sees a master: the server derives
+// key = AES-CMAC(master, label || uid_le32 || gen) for this collar and hands
+// the result over as is. The collar stores {slot, gen, kcv, key} and reports
+// everything but the key. Fw gate: firmware main build TBD, set at merge.
+message BeaconKeySet {
+  BeaconKeySlot slot = 1;
+  // Provision generation, 1..255, allocated by the server per uid32 and
+  // bumped on every re-provision (new owner, suspected compromise, routine
+  // rotation). It rides the counter's top byte on air and is part of the
+  // derivation, so a re-provisioned collar transmits under a new key with a
+  // fresh sequence. Must be above the collar's current generation
+  // (BeaconKeyReport.gen); 255 is the last under a master.
+  uint32 gen = 2;
+  // The derived per-device AES-128 key, exactly 16 bytes (downlink.options
+  // fixed_length, like the LoRaWAN keys: a frame with any other length fails
+  // to decode and never reaches the store). Write-only: no message carries
+  // it back, and an all-zero key is refused because that is what a missing
+  // field decodes to.
+  bytes key = 3;
 }
 
 // ================== CONFIG FRAGMENTS (STAGED) ==================
@@ -331,4 +398,10 @@ message DownlinkPacket {
   // mask in ConfigReport.report_mask so the server merges instead of
   // replacing.
   optional uint32 report_mask = 10;
+
+  // CMD_BEACON_KEY_SET: the key set to store. CMD_BEACON_KEY_CLEAR: only
+  // slot is read (absent = the beacon key). Ignored with every other
+  // command, and always ignored over the radio (BLE tunnel only). Fw gate:
+  // firmware main build TBD, set at merge.
+  optional BeaconKeySet beacon_key = 11;
 }

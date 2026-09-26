@@ -51,6 +51,28 @@ typedef enum command_type {
  authority. A radio downlink carrying this command is logged and ignored,
  so no server bug or spoofed downlink can wipe a deployed collar. */
     COMMAND_TYPE_CMD_FACTORY_RESET = 18,
+    /* Lost-mode beacon key (DESIGN_radio_security.md section 4.3, phase E4;
+ beacon/README.md is the public frame and key spec). Fw gate: firmware
+ main build TBD, set at merge. Writes the key set carried in
+ DownlinkPacket.beacon_key (BeaconKeySet: slot, gen, 16-byte key) into
+ the collar's internal-flash key store. From the next beacon the collar
+ sends the AES-128-CCM 0x4D frame under that key, with its transmit
+ counter's generation byte raised to gen and the sequence restarted at 0.
+ The collar refuses a gen that is not above its current generation
+ (BeaconKeyReport.gen), a gen of 0 or above 255, an all-zero key (what a
+ missing key field decodes to) and a slot this build does not hold; a
+ refused set leaves the collar exactly as it was. Outcome, state, gen and
+ key check value come back in CfgEchoPacket.beacon_key (ble.proto), never
+ the key. Provisioning is idempotent by that echo: a client reads gen and
+ kcv first and sends nothing when they already match the server's record.
+ Accepted ONLY over the BLE config tunnel, like CMD_FACTORY_RESET:
+ physical possession is the authority, and there is no CONFIG.CSV key. A
+ radio downlink carrying this command is logged and ignored. The collar
+ scrubs the key from its downlink buffer and the settings mailbox as soon
+ as it is stored. Firmware that predates the command logs an unknown
+ command and echoes no beacon_key; clients gate the control on the
+ reported build. */
+    COMMAND_TYPE_CMD_BEACON_KEY_SET = 19,
     /* Magnetometer calibration. Starts a run: the collar samples its
  magnetometer continuously while the operator turns the assembled collar
  (battery in, housing closed, add-ons attached, away from metal) slowly
@@ -72,8 +94,31 @@ typedef enum command_type {
     /* Stops a running calibration: no fit is made and the calibration already
  in force stays. mag_cal.state becomes ABORTED. No-op when no run is
  active. BLE tunnel only, as above. */
-    COMMAND_TYPE_CMD_MAG_CALIBRATE_ABORT = 21
+    COMMAND_TYPE_CMD_MAG_CALIBRATE_ABORT = 21,
+    /* Erases the beacon key in the slot named by DownlinkPacket.beacon_key.slot
+ (absent = the beacon key) and keeps the transmit counter, so the
+ generation the next key set must exceed is preserved. From the next
+ beacon the collar sends the plaintext 0x4C frame again: the fallback a
+ keyed collar can always reach. beacon_key.gen and .key are ignored. A
+ clear with nothing held still answers CLEARED. BLE tunnel only, as
+ above: a radio downlink can never switch the encryption off.
+ CMD_FACTORY_RESET also erases the key and keeps the counter. Fw gate:
+ firmware main build TBD, set at merge. */
+    COMMAND_TYPE_CMD_BEACON_KEY_CLEAR = 22
 } command_type_t;
+
+/* ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
+ Which key family a set or clear addresses: the flash store keeps one
+ record per slot, so the Phase-3 command key never forces a format change.
+ The numbers match the firmware's beacon_key_purpose_t and the KDF labels
+ in beacon/README.md. */
+typedef enum beacon_key_slot {
+    BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON = 0, /* lost-mode beacon confidentiality, label CID-LORA-BCN; the only slot v1 firmware holds */
+    /* Reserved for the signed command channel (label CID-LORA-CMD,
+ DESIGN_finder_two_way.md). Refused as REJECTED_ARG until the firmware
+ that holds it lands. */
+    BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND = 1
+} beacon_key_slot_t;
 
 /* Struct definitions */
 /* ---- Geofence ---- */
@@ -94,6 +139,28 @@ typedef struct high_fix_params {
     uint32_t duration_hours; /* default 24 */
     uint32_t sample_interval_sec; /* default 300 */
 } high_fix_params_t;
+
+/* The key set CMD_BEACON_KEY_SET writes (at most 25 B inside the tunnel frame).
+ The collar never sees a master: the server derives
+ key = AES-CMAC(master, label || uid_le32 || gen) for this collar and hands
+ the result over as is. The collar stores {slot, gen, kcv, key} and reports
+ everything but the key. Fw gate: firmware main build TBD, set at merge. */
+typedef struct beacon_key_set {
+    beacon_key_slot_t slot;
+    /* Provision generation, 1..255, allocated by the server per uid32 and
+ bumped on every re-provision (new owner, suspected compromise, routine
+ rotation). It rides the counter's top byte on air and is part of the
+ derivation, so a re-provisioned collar transmits under a new key with a
+ fresh sequence. Must be above the collar's current generation
+ (BeaconKeyReport.gen); 255 is the last under a master. */
+    uint32_t gen;
+    /* The derived per-device AES-128 key, exactly 16 bytes (downlink.options
+ fixed_length, like the LoRaWAN keys: a frame with any other length fails
+ to decode and never reaches the store). Write-only: no message carries
+ it back, and an all-zero key is refused because that is what a missing
+ field decodes to. */
+    pb_byte_t key[16];
+} beacon_key_set_t;
 
 /* Time window for a schedule slot (~4 bytes) */
 typedef struct config_time_window {
@@ -197,7 +264,7 @@ typedef struct config_magnetometer {
  alone, while an explicit 0 IS encoded and puts the slot back in interval
  mode. A collar predating the field skips it and stays in interval mode;
  the server refuses a non-zero rate for such firmware (fw gate: firmware
- main build TBD (feat/mag-rate), the number is set at merge). */
+ main build 425, merge c345dea 2026-09-25). */
     bool has_sample_rate_hz;
     uint32_t sample_rate_hz;
 } config_magnetometer_t;
@@ -372,6 +439,12 @@ typedef struct downlink_packet {
  replacing. */
     bool has_report_mask;
     uint32_t report_mask;
+    /* CMD_BEACON_KEY_SET: the key set to store. CMD_BEACON_KEY_CLEAR: only
+ slot is read (absent = the beacon key). Ignored with every other
+ command, and always ignored over the radio (BLE tunnel only). Fw gate:
+ firmware main build TBD, set at merge. */
+    bool has_beacon_key;
+    beacon_key_set_t beacon_key;
 } downlink_packet_t;
 
 
@@ -381,11 +454,17 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_MAG_CALIBRATE_ABORT
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_MAG_CALIBRATE_ABORT+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_BEACON_KEY_CLEAR
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_BEACON_KEY_CLEAR+1))
+
+#define _BEACON_KEY_SLOT_MIN BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON
+#define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND
+#define _BEACON_KEY_SLOT_ARRAYSIZE ((beacon_key_slot_t)(BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND+1))
 
 
 
+
+#define beacon_key_set_t_slot_ENUMTYPE beacon_key_slot_t
 
 
 
@@ -405,6 +484,7 @@ extern "C" {
 #define GEO_POINT_INIT_DEFAULT                   {0, 0}
 #define GEOFENCE_DATA_INIT_DEFAULT               {0, 0, {GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT}, 0}
 #define HIGH_FIX_PARAMS_INIT_DEFAULT             {0, 0}
+#define BEACON_KEY_SET_INIT_DEFAULT              {_BEACON_KEY_SLOT_MIN, 0, {0}}
 #define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
@@ -416,10 +496,11 @@ extern "C" {
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
+#define BEACON_KEY_SET_INIT_ZERO                 {_BEACON_KEY_SLOT_MIN, 0, {0}}
 #define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
@@ -431,7 +512,7 @@ extern "C" {
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -441,6 +522,9 @@ extern "C" {
 #define GEOFENCE_DATA_ACTIVE_TAG                 3
 #define HIGH_FIX_PARAMS_DURATION_HOURS_TAG       1
 #define HIGH_FIX_PARAMS_SAMPLE_INTERVAL_SEC_TAG  2
+#define BEACON_KEY_SET_SLOT_TAG                  1
+#define BEACON_KEY_SET_GEN_TAG                   2
+#define BEACON_KEY_SET_KEY_TAG                   3
 #define CONFIG_TIME_WINDOW_START_HOUR_TAG        1
 #define CONFIG_TIME_WINDOW_END_HOUR_TAG          2
 #define CONFIG_TIME_WINDOW_DAY_MASK_TAG          3
@@ -522,6 +606,7 @@ extern "C" {
 #define DOWNLINK_PACKET_RESEND_MASK_TAG          8
 #define DOWNLINK_PACKET_CFG_TXN_ID_TAG           9
 #define DOWNLINK_PACKET_REPORT_MASK_TAG          10
+#define DOWNLINK_PACKET_BEACON_KEY_TAG           11
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -543,6 +628,13 @@ X(a, STATIC,   SINGULAR, UINT32,   duration_hours,    1) \
 X(a, STATIC,   SINGULAR, UINT32,   sample_interval_sec,   2)
 #define HIGH_FIX_PARAMS_CALLBACK NULL
 #define HIGH_FIX_PARAMS_DEFAULT NULL
+
+#define BEACON_KEY_SET_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    slot,              1) \
+X(a, STATIC,   SINGULAR, UINT32,   gen,               2) \
+X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               3)
+#define BEACON_KEY_SET_CALLBACK NULL
+#define BEACON_KEY_SET_DEFAULT NULL
 
 #define CONFIG_TIME_WINDOW_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, UINT32,   start_hour,        1) \
@@ -682,16 +774,19 @@ X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_epoch,   6) \
 X(a, STATIC,   OPTIONAL, UINT32,   resend_from,       7) \
 X(a, STATIC,   OPTIONAL, UINT32,   resend_mask,       8) \
 X(a, STATIC,   OPTIONAL, UINT32,   cfg_txn_id,        9) \
-X(a, STATIC,   OPTIONAL, UINT32,   report_mask,      10)
+X(a, STATIC,   OPTIONAL, UINT32,   report_mask,      10) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       11)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
 #define downlink_packet_t_geofence_MSGTYPE geofence_data_t
 #define downlink_packet_t_config_MSGTYPE config_fragment_t
+#define downlink_packet_t_beacon_key_MSGTYPE beacon_key_set_t
 
 extern const pb_msgdesc_t geo_point_t_msg;
 extern const pb_msgdesc_t geofence_data_t_msg;
 extern const pb_msgdesc_t high_fix_params_t_msg;
+extern const pb_msgdesc_t beacon_key_set_t_msg;
 extern const pb_msgdesc_t config_time_window_t_msg;
 extern const pb_msgdesc_t config_accelerometer_t_msg;
 extern const pb_msgdesc_t config_microphone_t_msg;
@@ -709,6 +804,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define GEO_POINT_FIELDS &geo_point_t_msg
 #define GEOFENCE_DATA_FIELDS &geofence_data_t_msg
 #define HIGH_FIX_PARAMS_FIELDS &high_fix_params_t_msg
+#define BEACON_KEY_SET_FIELDS &beacon_key_set_t_msg
 #define CONFIG_TIME_WINDOW_FIELDS &config_time_window_t_msg
 #define CONFIG_ACCELEROMETER_FIELDS &config_accelerometer_t_msg
 #define CONFIG_MICROPHONE_FIELDS &config_microphone_t_msg
@@ -723,6 +819,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
+#define BEACON_KEY_SET_SIZE                      26
 #define CONFIG_ACCELEROMETER_SIZE                14
 #define CONFIG_FRAGMENT_SIZE                     357
 #define CONFIG_GEOFENCE_SIZE                     86
@@ -734,7 +831,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     615
+#define DOWNLINK_PACKET_SIZE                     643
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12

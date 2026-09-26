@@ -97,8 +97,8 @@ and outcome come back in `CfgEchoPacket.mag_cal` (field 16, `MagCalReport`),
 which the client reads by polling with `ble_query = 1`. `ble.proto` and
 `downlink.proto` hold the semantics; `reference/test_mag_cal_contract.py` pins
 the numbers, checks the generated files match them, and checks that the echo
-still fits one 182 B Bluetooth read. Command 19 and echo field 15 are held for
-the planned lost-mode beacon key.
+still fits one 182 B Bluetooth read. Command 19 and echo field 15 are the
+lost-mode beacon key, below.
 
 ## Magnetometer rate mode (`MagnetometerConfig.sample_rate_hz`)
 
@@ -114,3 +114,23 @@ A scalar needs no `.options` entry. `reference/test_mag_rate_contract.py`
 pins the numbers, checks the generated files match them, and checks the
 zero-is-legacy rule against the protobuf runtime. Firmware gate: firmware
 main build 425 (merge c345dea, 2026-09-25).
+
+## Lost-mode beacon key (`CMD_BEACON_KEY_SET`, `CfgEchoPacket.beacon_key`)
+
+The key that turns a collar's lost-mode beacon into the encrypted `0x4D`
+frame of `beacon/README.md` (DESIGN_radio_security.md section 4.3, phase E4).
+`CMD_BEACON_KEY_SET` (19) writes the key set carried in
+`DownlinkPacket.beacon_key` (field 11, `BeaconKeySet`: slot, provision
+generation 1..255, the derived 16-byte key) into the collar's internal-flash
+key store; `CMD_BEACON_KEY_CLEAR` (22) erases it and keeps the transmit
+counter, and the collar goes back to the plaintext `0x4C` frame. Both travel
+only through the BLE config tunnel, like `CMD_FACTORY_RESET`; the collar
+ignores them over the radio. The collar refuses a generation that is not
+above its current one, so a key is replaced, never rolled back. Its state
+comes back in `CfgEchoPacket.beacon_key` (field 15, `BeaconKeyReport`:
+state, gen, the 3-byte key check value, the last command's result, the
+counter), never the key, on every status echo of firmware that has the store,
+keyed or not. `reference/test_beacon_key_contract.py` pins the numbers,
+checks the generated files match them, checks that no message carries the
+key back, and checks the tunnel and echo size budgets. Firmware gate:
+firmware main build TBD, set at merge.

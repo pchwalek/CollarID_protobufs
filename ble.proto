@@ -369,7 +369,17 @@ message CfgEchoPacket {
   bytes  slot_report = 12;
   uint32 schedule_count = 13;
   bool   engaged = 14;
-  // 15 is held for the planned lost-mode beacon key status.
+  // Lost-mode beacon key status (CMD_BEACON_KEY_SET / _CLEAR, downlink.proto;
+  // DESIGN_radio_security.md section 4.3; fw gate: firmware main build TBD,
+  // set at merge). Present on EVERY echo that carries neither fence_report
+  // nor slot_report, from the first boot of firmware that has the key store,
+  // keyed or not: an unkeyed collar sends it empty (2 B on the wire), which
+  // is how a client tells "no key" (present, state NONE) from "not
+  // supported" (absent). Pushed after a key command and answered to
+  // ble_query = 1, which is how a client reads it back: the pre-flight check
+  // compares gen and kcv with the server's record. At most 20 B on the wire.
+  // Carries the generation and the 3-byte key check value, never the key.
+  BeaconKeyReport beacon_key = 15;
   //
   // Magnetometer calibration (CMD_MAG_CALIBRATE, downlink.proto). Present on
   // every echo that carries neither fence_report nor slot_report, once a run
@@ -436,6 +446,48 @@ message MagCalReport {
   // 1000.
   uint32        field_ut_x10      = 7;
   uint32        residual_permille = 8;
+}
+
+// ---- Lost-mode beacon key report (CfgEchoPacket.beacon_key) ----
+// What the collar puts on air in lost mode (beacon/README.md). Reports the
+// beacon slot; a command key (BeaconKeySlot, downlink.proto) will get its
+// own field when that firmware lands.
+enum BeaconKeyState {
+  BEACON_KEY_STATE_NONE     = 0;  // no key held: the plaintext 0x4C frame, byte for byte what an unkeyed collar always sent
+  BEACON_KEY_STATE_KEYED    = 1;  // key held and usable: the AES-128-CCM 0x4D frame
+  // A key is held but cannot be used, so the collar sends 0x4C and has
+  // logged it: the store record failed to read (torn write, ECC) or the
+  // 24-bit sequence is exhausted. A set with a higher gen clears it.
+  BEACON_KEY_STATE_FALLBACK = 2;
+}
+
+// Outcome of the most recent key command since boot; NONE until one arrives.
+enum BeaconKeyResult {
+  BEACON_KEY_RESULT_NONE         = 0;
+  BEACON_KEY_RESULT_APPLIED      = 1;  // stored; in force from the next beacon
+  BEACON_KEY_RESULT_CLEARED      = 2;  // erased, counter kept (also when nothing was held)
+  BEACON_KEY_RESULT_REJECTED_GEN = 3;  // gen not above the collar's current generation; nothing changed
+  BEACON_KEY_RESULT_REJECTED_ARG = 4;  // gen 0 or above 255, all-zero key, or a slot this build does not hold; nothing changed
+  BEACON_KEY_RESULT_STORE_ERROR  = 5;  // the flash store could not be written; the previous state stands
+}
+
+message BeaconKeyReport {
+  BeaconKeyState  state      = 1;
+  // The collar's current provision generation: the top byte of its transmit
+  // counter, which a clear and a factory reset keep. It is the key's own gen
+  // while KEYED, and at all times the floor a new key set must exceed. 0 =
+  // never provisioned (also after a mass erase, which loses the counter).
+  uint32          gen        = 2;
+  // Key check value, AES-128(key, sixteen zero bytes)[0..2]: 3 bytes while a
+  // key is held, empty otherwise. Identifies the key without revealing it;
+  // provisioning tools display it and compare it with the server's record.
+  bytes           kcv        = 3;
+  BeaconKeyResult result     = 4;
+  // The transmit counter as it stands: [31:24] gen, [23:0] the sequence that
+  // never rewinds. Cleartext on every 0x4D frame anyway; here so a bench
+  // check sees it survive resets, and so an exhausted sequence (0xFFFFFF)
+  // explains a FALLBACK.
+  uint32          tx_counter = 5;
 }
 
 

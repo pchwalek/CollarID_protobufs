@@ -139,6 +139,29 @@ typedef enum mag_cal_reason {
     MAG_CAL_REASON_MAG_CAL_REASON_STORAGE = 6 /* fit made but MAGCAL.CSV could not be written, so it is not in force */
 } mag_cal_reason_t;
 
+/* ---- Lost-mode beacon key report (CfgEchoPacket.beacon_key) ----
+ What the collar puts on air in lost mode (beacon/README.md). Reports the
+ beacon slot; a command key (BeaconKeySlot, downlink.proto) will get its
+ own field when that firmware lands. */
+typedef enum beacon_key_state {
+    BEACON_KEY_STATE_BEACON_KEY_STATE_NONE = 0, /* no key held: the plaintext 0x4C frame, byte for byte what an unkeyed collar always sent */
+    BEACON_KEY_STATE_BEACON_KEY_STATE_KEYED = 1, /* key held and usable: the AES-128-CCM 0x4D frame */
+    /* A key is held but cannot be used, so the collar sends 0x4C and has
+ logged it: the store record failed to read (torn write, ECC) or the
+ 24-bit sequence is exhausted. A set with a higher gen clears it. */
+    BEACON_KEY_STATE_BEACON_KEY_STATE_FALLBACK = 2
+} beacon_key_state_t;
+
+/* Outcome of the most recent key command since boot; NONE until one arrives. */
+typedef enum beacon_key_result {
+    BEACON_KEY_RESULT_BEACON_KEY_RESULT_NONE = 0,
+    BEACON_KEY_RESULT_BEACON_KEY_RESULT_APPLIED = 1, /* stored; in force from the next beacon */
+    BEACON_KEY_RESULT_BEACON_KEY_RESULT_CLEARED = 2, /* erased, counter kept (also when nothing was held) */
+    BEACON_KEY_RESULT_BEACON_KEY_RESULT_REJECTED_GEN = 3, /* gen not above the collar's current generation; nothing changed */
+    BEACON_KEY_RESULT_BEACON_KEY_RESULT_REJECTED_ARG = 4, /* gen 0 or above 255, all-zero key, or a slot this build does not hold; nothing changed */
+    BEACON_KEY_RESULT_BEACON_KEY_RESULT_STORE_ERROR = 5 /* the flash store could not be written; the previous state stands */
+} beacon_key_result_t;
+
 typedef enum peripheral_type {
     PERIPHERAL_TYPE_PERIPHERAL_SATCOM = 0,
     PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT = 1
@@ -293,7 +316,7 @@ typedef struct magnetometer_config {
     bool enabled;
     uint32_t sample_interval_s; /* in seconds */
     /* Rate mode (MAG-1, docs/DESIGN_magnetometer_rate.md; fw gate: firmware
- main build TBD (feat/mag-rate), the number is set at merge). Non-zero:
+ main build 425, merge c345dea 2026-09-25). Non-zero:
  the magnetometer streams X/Y/Z at this rate, paced by the 32.768 kHz
  crystal, into a 3-channel WAV with a time-anchor sidecar, and
  sample_interval_s is ignored. Allowed values are 1, 2, 4, 8 and 16 Hz;
@@ -353,6 +376,26 @@ typedef struct mag_cal_report {
     uint32_t residual_permille;
 } mag_cal_report_t;
 
+typedef PB_BYTES_ARRAY_T(3) beacon_key_report_kcv_t;
+typedef struct beacon_key_report {
+    beacon_key_state_t state;
+    /* The collar's current provision generation: the top byte of its transmit
+ counter, which a clear and a factory reset keep. It is the key's own gen
+ while KEYED, and at all times the floor a new key set must exceed. 0 =
+ never provisioned (also after a mass erase, which loses the counter). */
+    uint32_t gen;
+    /* Key check value, AES-128(key, sixteen zero bytes)[0..2]: 3 bytes while a
+ key is held, empty otherwise. Identifies the key without revealing it;
+ provisioning tools display it and compare it with the server's record. */
+    beacon_key_report_kcv_t kcv;
+    beacon_key_result_t result;
+    /* The transmit counter as it stands: [31:24] gen, [23:0] the sequence that
+ never rewinds. Cleartext on every 0x4D frame anyway; here so a bench
+ check sees it survive resets, and so an exhausted sequence (0xFFFFFF)
+ explains a FALLBACK. */
+    uint32_t tx_counter;
+} beacon_key_report_t;
+
 typedef PB_BYTES_ARRAY_T(88) cfg_echo_packet_fence_report_t;
 typedef PB_BYTES_ARRAY_T(128) cfg_echo_packet_slot_report_t;
 /* The BLE tunnel echo body. fence_report (ble_query=2 responses) is a
@@ -393,9 +436,19 @@ typedef struct cfg_echo_packet {
     cfg_echo_packet_slot_report_t slot_report;
     uint32_t schedule_count;
     bool engaged;
-    /* 15 is held for the planned lost-mode beacon key status.
-
- Magnetometer calibration (CMD_MAG_CALIBRATE, downlink.proto). Present on
+    /* Lost-mode beacon key status (CMD_BEACON_KEY_SET / _CLEAR, downlink.proto;
+ DESIGN_radio_security.md section 4.3; fw gate: firmware main build TBD,
+ set at merge). Present on EVERY echo that carries neither fence_report
+ nor slot_report, from the first boot of firmware that has the key store,
+ keyed or not: an unkeyed collar sends it empty (2 B on the wire), which
+ is how a client tells "no key" (present, state NONE) from "not
+ supported" (absent). Pushed after a key command and answered to
+ ble_query = 1, which is how a client reads it back: the pre-flight check
+ compares gen and kcv with the server's record. At most 20 B on the wire.
+ Carries the generation and the 3-byte key check value, never the key. */
+    bool has_beacon_key;
+    beacon_key_report_t beacon_key;
+    /* Magnetometer calibration (CMD_MAG_CALIBRATE, downlink.proto). Present on
  every echo that carries neither fence_report nor slot_report, once a run
  has started since boot. Absent before that, and always on firmware that
  predates calibration: that is how a client tells "never run" and "not
@@ -592,6 +645,14 @@ extern "C" {
 #define _MAG_CAL_REASON_MAX MAG_CAL_REASON_MAG_CAL_REASON_STORAGE
 #define _MAG_CAL_REASON_ARRAYSIZE ((mag_cal_reason_t)(MAG_CAL_REASON_MAG_CAL_REASON_STORAGE+1))
 
+#define _BEACON_KEY_STATE_MIN BEACON_KEY_STATE_BEACON_KEY_STATE_NONE
+#define _BEACON_KEY_STATE_MAX BEACON_KEY_STATE_BEACON_KEY_STATE_FALLBACK
+#define _BEACON_KEY_STATE_ARRAYSIZE ((beacon_key_state_t)(BEACON_KEY_STATE_BEACON_KEY_STATE_FALLBACK+1))
+
+#define _BEACON_KEY_RESULT_MIN BEACON_KEY_RESULT_BEACON_KEY_RESULT_NONE
+#define _BEACON_KEY_RESULT_MAX BEACON_KEY_RESULT_BEACON_KEY_RESULT_STORE_ERROR
+#define _BEACON_KEY_RESULT_ARRAYSIZE ((beacon_key_result_t)(BEACON_KEY_RESULT_BEACON_KEY_RESULT_STORE_ERROR+1))
+
 #define _PERIPHERAL_TYPE_MIN PERIPHERAL_TYPE_PERIPHERAL_SATCOM
 #define _PERIPHERAL_TYPE_MAX PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT
 #define _PERIPHERAL_TYPE_ARRAYSIZE ((peripheral_type_t)(PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT+1))
@@ -627,6 +688,9 @@ extern "C" {
 #define mag_cal_report_t_verdict_ENUMTYPE mag_cal_verdict_t
 #define mag_cal_report_t_reason_ENUMTYPE mag_cal_reason_t
 
+#define beacon_key_report_t_state_ENUMTYPE beacon_key_state_t
+#define beacon_key_report_t_result_ENUMTYPE beacon_key_result_t
+
 #define simple_sensor_reading_t_activity_ENUMTYPE activity_t
 
 
@@ -651,8 +715,9 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
-#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, MAG_CAL_REPORT_INIT_DEFAULT}
+#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, MAG_CAL_REPORT_INIT_DEFAULT}
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
+#define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
@@ -673,8 +738,9 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
-#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, MAG_CAL_REPORT_INIT_ZERO}
+#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, MAG_CAL_REPORT_INIT_ZERO}
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
+#define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
@@ -768,6 +834,11 @@ extern "C" {
 #define MAG_CAL_REPORT_REASON_TAG                6
 #define MAG_CAL_REPORT_FIELD_UT_X10_TAG          7
 #define MAG_CAL_REPORT_RESIDUAL_PERMILLE_TAG     8
+#define BEACON_KEY_REPORT_STATE_TAG              1
+#define BEACON_KEY_REPORT_GEN_TAG                2
+#define BEACON_KEY_REPORT_KCV_TAG                3
+#define BEACON_KEY_REPORT_RESULT_TAG             4
+#define BEACON_KEY_REPORT_TX_COUNTER_TAG         5
 #define CFG_ECHO_PACKET_TXN_ID_TAG               1
 #define CFG_ECHO_PACKET_ACK_STATUS_TAG           2
 #define CFG_ECHO_PACKET_MISSING_MASK_TAG         3
@@ -782,6 +853,7 @@ extern "C" {
 #define CFG_ECHO_PACKET_SLOT_REPORT_TAG          12
 #define CFG_ECHO_PACKET_SCHEDULE_COUNT_TAG       13
 #define CFG_ECHO_PACKET_ENGAGED_TAG              14
+#define CFG_ECHO_PACKET_BEACON_KEY_TAG           15
 #define CFG_ECHO_PACKET_MAG_CAL_TAG              16
 #define SCHEDULE_CONFIG_PACKET_ENGAGED_TAG       1
 #define SCHEDULE_CONFIG_PACKET_SCHEDULES_TAG     2
@@ -996,9 +1068,11 @@ X(a, STATIC,   SINGULAR, UINT32,   wipe_removed,     11) \
 X(a, STATIC,   SINGULAR, BYTES,    slot_report,      12) \
 X(a, STATIC,   SINGULAR, UINT32,   schedule_count,   13) \
 X(a, STATIC,   SINGULAR, BOOL,     engaged,          14) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       15) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  mag_cal,          16)
 #define CFG_ECHO_PACKET_CALLBACK NULL
 #define CFG_ECHO_PACKET_DEFAULT NULL
+#define cfg_echo_packet_t_beacon_key_MSGTYPE beacon_key_report_t
 #define cfg_echo_packet_t_mag_cal_MSGTYPE mag_cal_report_t
 
 #define MAG_CAL_REPORT_FIELDLIST(X, a) \
@@ -1012,6 +1086,15 @@ X(a, STATIC,   SINGULAR, UINT32,   field_ut_x10,      7) \
 X(a, STATIC,   SINGULAR, UINT32,   residual_permille,   8)
 #define MAG_CAL_REPORT_CALLBACK NULL
 #define MAG_CAL_REPORT_DEFAULT NULL
+
+#define BEACON_KEY_REPORT_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    state,             1) \
+X(a, STATIC,   SINGULAR, UINT32,   gen,               2) \
+X(a, STATIC,   SINGULAR, BYTES,    kcv,               3) \
+X(a, STATIC,   SINGULAR, UENUM,    result,            4) \
+X(a, STATIC,   SINGULAR, UINT32,   tx_counter,        5)
+#define BEACON_KEY_REPORT_CALLBACK NULL
+#define BEACON_KEY_REPORT_DEFAULT NULL
 
 #define SIMPLE_SENSOR_READING_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   index,             1) \
@@ -1088,6 +1171,7 @@ extern const pb_msgdesc_t schedule_config_t_msg;
 extern const pb_msgdesc_t schedule_config_packet_t_msg;
 extern const pb_msgdesc_t cfg_echo_packet_t_msg;
 extern const pb_msgdesc_t mag_cal_report_t_msg;
+extern const pb_msgdesc_t beacon_key_report_t_msg;
 extern const pb_msgdesc_t simple_sensor_reading_t_msg;
 extern const pb_msgdesc_t system_state_packet_t_msg;
 extern const pb_msgdesc_t peripheral_packet_t_msg;
@@ -1112,6 +1196,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_PACKET_FIELDS &schedule_config_packet_t_msg
 #define CFG_ECHO_PACKET_FIELDS &cfg_echo_packet_t_msg
 #define MAG_CAL_REPORT_FIELDS &mag_cal_report_t_msg
+#define BEACON_KEY_REPORT_FIELDS &beacon_key_report_t_msg
 #define SIMPLE_SENSOR_READING_FIELDS &simple_sensor_reading_t_msg
 #define SYSTEM_STATE_PACKET_FIELDS &system_state_packet_t_msg
 #define PERIPHERAL_PACKET_FIELDS &peripheral_packet_t_msg
@@ -1122,7 +1207,8 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 /* PeripheralInfo_size depends on runtime parameters */
 /* BlePacket_size depends on runtime parameters */
 #define ACCELEROMETER_CONFIG_SIZE                6
-#define CFG_ECHO_PACKET_SIZE                     328
+#define BEACON_KEY_REPORT_SIZE                   21
+#define CFG_ECHO_PACKET_SIZE                     351
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        31
@@ -1136,7 +1222,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 181
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1364
+#define SCHEDULE_CONFIG_PACKET_SIZE              1387
 #define SCHEDULE_CONFIG_SIZE                     180
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 145

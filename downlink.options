@@ -3,3 +3,8 @@
 
 # Max 8 vertices per geofence (keeps wire size under ~70 bytes per fence)
 GeofenceData.vertices  max_count:8
+
+# Beacon key set (CMD_BEACON_KEY_SET): the derived AES-128 key is exactly
+# 16 bytes, like the LoRaWAN keys in ble.options. A frame carrying any other
+# length fails to decode, so a malformed key never reaches the store.
+BeaconKeySet.key       max_size:16 fixed_length:true

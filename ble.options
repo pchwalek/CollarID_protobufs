@@ -19,6 +19,11 @@ CfgEchoPacket.slot_report             max_size:128
 # mag_cal (MagCalReport) is scalars only and needs no options. It rides only
 # on status echoes (no fence_report/slot_report): at most 26 B, which puts
 # the worst status echo at 88 B.
+# beacon_key (BeaconKeyReport): kcv is the 3-byte key check value, empty
+# while no key is held, so NOT fixed_length (an unkeyed report must encode
+# nothing for it). Status echoes only, like mag_cal: at most 20 B, which puts
+# the worst status echo at 108 B.
+BeaconKeyReport.kcv                   max_size:3
 
 # ---- Fixed-size credentials (no dynamic allocation) -----------------------
 # OTAA

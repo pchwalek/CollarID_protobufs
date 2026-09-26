@@ -681,6 +681,117 @@ enum MagCalReason: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+/// ---- Lost-mode beacon key report (CfgEchoPacket.beacon_key) ----
+/// What the collar puts on air in lost mode (beacon/README.md). Reports the
+/// beacon slot; a command key (BeaconKeySlot, downlink.proto) will get its
+/// own field when that firmware lands.
+enum BeaconKeyState: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// no key held: the plaintext 0x4C frame, byte for byte what an unkeyed collar always sent
+  case none // = 0
+
+  /// key held and usable: the AES-128-CCM 0x4D frame
+  case keyed // = 1
+
+  /// A key is held but cannot be used, so the collar sends 0x4C and has
+  /// logged it: the store record failed to read (torn write, ECC) or the
+  /// 24-bit sequence is exhausted. A set with a higher gen clears it.
+  case fallback // = 2
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .none
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .none
+    case 1: self = .keyed
+    case 2: self = .fallback
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .none: return 0
+    case .keyed: return 1
+    case .fallback: return 2
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [BeaconKeyState] = [
+    .none,
+    .keyed,
+    .fallback,
+  ]
+
+}
+
+/// Outcome of the most recent key command since boot; NONE until one arrives.
+enum BeaconKeyResult: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case none // = 0
+
+  /// stored; in force from the next beacon
+  case applied // = 1
+
+  /// erased, counter kept (also when nothing was held)
+  case cleared // = 2
+
+  /// gen not above the collar's current generation; nothing changed
+  case rejectedGen // = 3
+
+  /// gen 0 or above 255, all-zero key, or a slot this build does not hold; nothing changed
+  case rejectedArg // = 4
+
+  /// the flash store could not be written; the previous state stands
+  case storeError // = 5
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .none
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .none
+    case 1: self = .applied
+    case 2: self = .cleared
+    case 3: self = .rejectedGen
+    case 4: self = .rejectedArg
+    case 5: self = .storeError
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .none: return 0
+    case .applied: return 1
+    case .cleared: return 2
+    case .rejectedGen: return 3
+    case .rejectedArg: return 4
+    case .storeError: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [BeaconKeyResult] = [
+    .none,
+    .applied,
+    .cleared,
+    .rejectedGen,
+    .rejectedArg,
+    .storeError,
+  ]
+
+}
+
 enum PeripheralType: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case peripheralSatcom // = 0
@@ -1089,7 +1200,7 @@ struct MagnetometerConfig: Sendable {
   var sampleIntervalS: UInt32 = 0
 
   /// Rate mode (MAG-1, docs/DESIGN_magnetometer_rate.md; fw gate: firmware
-  /// main build TBD (feat/mag-rate), the number is set at merge). Non-zero:
+  /// main build 425, merge c345dea 2026-09-25). Non-zero:
   /// the magnetometer streams X/Y/Z at this rate, paced by the 32.768 kHz
   /// crystal, into a 3-channel WAV with a time-anchor sidecar, and
   /// sample_interval_s is ignored. Allowed values are 1, 2, 4, 8 and 16 Hz;
@@ -1400,7 +1511,25 @@ struct CfgEchoPacket: @unchecked Sendable {
     set {_uniqueStorage()._engaged = newValue}
   }
 
-  /// 15 is held for the planned lost-mode beacon key status.
+  /// Lost-mode beacon key status (CMD_BEACON_KEY_SET / _CLEAR, downlink.proto;
+  /// DESIGN_radio_security.md section 4.3; fw gate: firmware main build TBD,
+  /// set at merge). Present on EVERY echo that carries neither fence_report
+  /// nor slot_report, from the first boot of firmware that has the key store,
+  /// keyed or not: an unkeyed collar sends it empty (2 B on the wire), which
+  /// is how a client tells "no key" (present, state NONE) from "not
+  /// supported" (absent). Pushed after a key command and answered to
+  /// ble_query = 1, which is how a client reads it back: the pre-flight check
+  /// compares gen and kcv with the server's record. At most 20 B on the wire.
+  /// Carries the generation and the 3-byte key check value, never the key.
+  var beaconKey: BeaconKeyReport {
+    get {return _storage._beaconKey ?? BeaconKeyReport()}
+    set {_uniqueStorage()._beaconKey = newValue}
+  }
+  /// Returns true if `beaconKey` has been explicitly set.
+  var hasBeaconKey: Bool {return _storage._beaconKey != nil}
+  /// Clears the value of `beaconKey`. Subsequent reads from it will return its default value.
+  mutating func clearBeaconKey() {_uniqueStorage()._beaconKey = nil}
+
   ///
   /// Magnetometer calibration (CMD_MAG_CALIBRATE, downlink.proto). Present on
   /// every echo that carries neither fence_report nor slot_report, once a run
@@ -1460,6 +1589,37 @@ struct MagCalReport: Sendable {
   var fieldUtX10: UInt32 = 0
 
   var residualPermille: UInt32 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+struct BeaconKeyReport: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var state: BeaconKeyState = .none
+
+  /// The collar's current provision generation: the top byte of its transmit
+  /// counter, which a clear and a factory reset keep. It is the key's own gen
+  /// while KEYED, and at all times the floor a new key set must exceed. 0 =
+  /// never provisioned (also after a mass erase, which loses the counter).
+  var gen: UInt32 = 0
+
+  /// Key check value, AES-128(key, sixteen zero bytes)[0..2]: 3 bytes while a
+  /// key is held, empty otherwise. Identifies the key without revealing it;
+  /// provisioning tools display it and compare it with the server's record.
+  var kcv: Data = Data()
+
+  var result: BeaconKeyResult = .none
+
+  /// The transmit counter as it stands: [31:24] gen, [23:0] the sequence that
+  /// never rewinds. Cleartext on every 0x4D frame anyway; here so a bench
+  /// check sees it survive resets, and so an exhausted sequence (0xFFFFFF)
+  /// explains a FALLBACK.
+  var txCounter: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1801,6 +1961,25 @@ extension MagCalReason: SwiftProtobuf._ProtoNameProviding {
     4: .same(proto: "MAG_CAL_REASON_FIELD_OUT_OF_RANGE"),
     5: .same(proto: "MAG_CAL_REASON_RESIDUAL_HIGH"),
     6: .same(proto: "MAG_CAL_REASON_STORAGE"),
+  ]
+}
+
+extension BeaconKeyState: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "BEACON_KEY_STATE_NONE"),
+    1: .same(proto: "BEACON_KEY_STATE_KEYED"),
+    2: .same(proto: "BEACON_KEY_STATE_FALLBACK"),
+  ]
+}
+
+extension BeaconKeyResult: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "BEACON_KEY_RESULT_NONE"),
+    1: .same(proto: "BEACON_KEY_RESULT_APPLIED"),
+    2: .same(proto: "BEACON_KEY_RESULT_CLEARED"),
+    3: .same(proto: "BEACON_KEY_RESULT_REJECTED_GEN"),
+    4: .same(proto: "BEACON_KEY_RESULT_REJECTED_ARG"),
+    5: .same(proto: "BEACON_KEY_RESULT_STORE_ERROR"),
   ]
 }
 
@@ -2884,6 +3063,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     12: .standard(proto: "slot_report"),
     13: .standard(proto: "schedule_count"),
     14: .same(proto: "engaged"),
+    15: .standard(proto: "beacon_key"),
     16: .standard(proto: "mag_cal"),
   ]
 
@@ -2902,6 +3082,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     var _slotReport: Data = Data()
     var _scheduleCount: UInt32 = 0
     var _engaged: Bool = false
+    var _beaconKey: BeaconKeyReport? = nil
     var _magCal: MagCalReport? = nil
 
     #if swift(>=5.10)
@@ -2931,6 +3112,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       _slotReport = source._slotReport
       _scheduleCount = source._scheduleCount
       _engaged = source._engaged
+      _beaconKey = source._beaconKey
       _magCal = source._magCal
     }
   }
@@ -2964,6 +3146,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         case 12: try { try decoder.decodeSingularBytesField(value: &_storage._slotReport) }()
         case 13: try { try decoder.decodeSingularUInt32Field(value: &_storage._scheduleCount) }()
         case 14: try { try decoder.decodeSingularBoolField(value: &_storage._engaged) }()
+        case 15: try { try decoder.decodeSingularMessageField(value: &_storage._beaconKey) }()
         case 16: try { try decoder.decodeSingularMessageField(value: &_storage._magCal) }()
         default: break
         }
@@ -3019,6 +3202,9 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       if _storage._engaged != false {
         try visitor.visitSingularBoolField(value: _storage._engaged, fieldNumber: 14)
       }
+      try { if let v = _storage._beaconKey {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 15)
+      } }()
       try { if let v = _storage._magCal {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 16)
       } }()
@@ -3045,6 +3231,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         if _storage._slotReport != rhs_storage._slotReport {return false}
         if _storage._scheduleCount != rhs_storage._scheduleCount {return false}
         if _storage._engaged != rhs_storage._engaged {return false}
+        if _storage._beaconKey != rhs_storage._beaconKey {return false}
         if _storage._magCal != rhs_storage._magCal {return false}
         return true
       }
@@ -3124,6 +3311,62 @@ extension MagCalReport: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     if lhs.reason != rhs.reason {return false}
     if lhs.fieldUtX10 != rhs.fieldUtX10 {return false}
     if lhs.residualPermille != rhs.residualPermille {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension BeaconKeyReport: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "BeaconKeyReport"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "state"),
+    2: .same(proto: "gen"),
+    3: .same(proto: "kcv"),
+    4: .same(proto: "result"),
+    5: .standard(proto: "tx_counter"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.state) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.gen) }()
+      case 3: try { try decoder.decodeSingularBytesField(value: &self.kcv) }()
+      case 4: try { try decoder.decodeSingularEnumField(value: &self.result) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.txCounter) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.state != .none {
+      try visitor.visitSingularEnumField(value: self.state, fieldNumber: 1)
+    }
+    if self.gen != 0 {
+      try visitor.visitSingularUInt32Field(value: self.gen, fieldNumber: 2)
+    }
+    if !self.kcv.isEmpty {
+      try visitor.visitSingularBytesField(value: self.kcv, fieldNumber: 3)
+    }
+    if self.result != .none {
+      try visitor.visitSingularEnumField(value: self.result, fieldNumber: 4)
+    }
+    if self.txCounter != 0 {
+      try visitor.visitSingularUInt32Field(value: self.txCounter, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: BeaconKeyReport, rhs: BeaconKeyReport) -> Bool {
+    if lhs.state != rhs.state {return false}
+    if lhs.gen != rhs.gen {return false}
+    if lhs.kcv != rhs.kcv {return false}
+    if lhs.result != rhs.result {return false}
+    if lhs.txCounter != rhs.txCounter {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
