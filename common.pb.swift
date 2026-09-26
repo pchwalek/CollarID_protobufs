@@ -84,11 +84,142 @@ struct PacketHeader: Sendable {
   /// Clears the value of `requestAck`. Subsequent reads from it will return its default value.
   mutating func clearRequestAck() {self._requestAck = nil}
 
+  /// Firmware build number = `git rev-parse --count HEAD` of collarID_thread,
+  /// injected at compile time (CMake, next to FIRMWARE_GIT_HASH). Ordered, so
+  /// the server gates capabilities with simple >= checks; absent on legacy
+  /// firmware (server treats missing as "capabilities unknown"). ~3 B on air.
+  var fwBuild: UInt32 {
+    get {return _fwBuild ?? 0}
+    set {_fwBuild = newValue}
+  }
+  /// Returns true if `fwBuild` has been explicitly set.
+  var hasFwBuild: Bool {return self._fwBuild != nil}
+  /// Clears the value of `fwBuild`. Subsequent reads from it will return its default value.
+  mutating func clearFwBuild() {self._fwBuild = nil}
+
+  /// CRC-32 over the device's nanopb-encoded schedule config — an OPAQUE
+  /// change detector, computed only on-device (never recomputed server-side;
+  /// cross-implementation protobuf encoding is not canonical). The server
+  /// stores last-seen and reacts to CHANGES: an unexpected new value means
+  /// the schedule was edited out-of-band (SD card / BLE) and the stored
+  /// config content is stale until the next ConfigPacket uplink. ~3 B on
+  /// air, same pattern as fw_build. Absent on legacy firmware.
+  var schedCrc: UInt32 {
+    get {return _schedCrc ?? 0}
+    set {_schedCrc = newValue}
+  }
+  /// Returns true if `schedCrc` has been explicitly set.
+  var hasSchedCrc: Bool {return self._schedCrc != nil}
+  /// Clears the value of `schedCrc`. Subsequent reads from it will return its default value.
+  mutating func clearSchedCrc() {self._schedCrc = nil}
+
+  /// Geofence membership bitmask: bit (fence_id-1) set while the collar's
+  /// confirmed-inside state holds for that fence (DESIGN_geofence_actions.md).
+  /// Absent on firmware predating fences AND on collars with no fences
+  /// resident — absence means "no zones", never an error (same contract as
+  /// errorFlags). Server derives entry/exit events from bit transitions,
+  /// with the uplink's own GPS fix as the audit trail. ~2 B on air.
+  var activeFences: UInt32 {
+    get {return _activeFences ?? 0}
+    set {_activeFences = newValue}
+  }
+  /// Returns true if `activeFences` has been explicitly set.
+  var hasActiveFences: Bool {return self._activeFences != nil}
+  /// Clears the value of `activeFences`. Subsequent reads from it will return its default value.
+  mutating func clearActiveFences() {self._activeFences = nil}
+
+  /// Faults on the wire (DESIGN_survivability.md S1). The server could not see a
+  /// reboot at all: packet_index is re-seeded from the card and carries on.
+  ///
+  /// boot_count: counts boots, wraps at 256, sent on EVERY uplink (~2 B). Any
+  /// change between two uplinks means the collar rebooted in between. It lives
+  /// in a backup register, so it restarts from 0 when power is removed: a drop
+  /// is a reboot too, not an error. Several changes in a short time are a
+  /// reboot loop.
+  var bootCount: UInt32 {
+    get {return _bootCount ?? 0}
+    set {_bootCount = newValue}
+  }
+  /// Returns true if `bootCount` has been explicitly set.
+  var hasBootCount: Bool {return self._bootCount != nil}
+  /// Clears the value of `bootCount`. Subsequent reads from it will return its default value.
+  mutating func clearBootCount() {self._bootCount = nil}
+
+  /// reset_cause + last_fatal: sent only on the first uplinks after a boot
+  /// (airtime is battery), so their absence means "nothing new", never "no
+  /// cause". reset_cause is the firmware's Reset_Cause_t: 0 unknown, 1 power
+  /// on, 2 pin/magnet, 3 software, 4 independent watchdog, 5 window watchdog,
+  /// 6 low-battery wake, 7 scheduled wake, 8 brownout, 9 post-DFU.
+  var resetCause: UInt32 {
+    get {return _resetCause ?? 0}
+    set {_resetCause = newValue}
+  }
+  /// Returns true if `resetCause` has been explicitly set.
+  var hasResetCause: Bool {return self._resetCause != nil}
+  /// Clears the value of `resetCause`. Subsequent reads from it will return its default value.
+  mutating func clearResetCause() {self._resetCause = nil}
+
+  /// What the previous session died of, when it died of something. Meaning by
+  /// reset_cause: software (3) = the Error_Handler call site's source line;
+  /// watchdog (4) = the 4-character tag of the thread that fed it last, little
+  /// endian; a CPU fault = the CFSR register. 0 or absent = a clean reset.
+  var lastFatal: UInt32 {
+    get {return _lastFatal ?? 0}
+    set {_lastFatal = newValue}
+  }
+  /// Returns true if `lastFatal` has been explicitly set.
+  var hasLastFatal: Bool {return self._lastFatal != nil}
+  /// Clears the value of `lastFatal`. Subsequent reads from it will return its default value.
+  mutating func clearLastFatal() {self._lastFatal = nil}
+
+  /// LoRaWAN link check, report only (firmware Core/Inc/lw_link_check.h). About
+  /// once an hour the collar asks the network whether it was heard. The answer
+  /// rides the NEXT uplink, once: absence means "no new answer", never "no
+  /// link". link_margin_db is dB above the demodulation floor at the best
+  /// gateway (0 = barely heard); link_gateways is how many gateways heard the
+  /// uplink that asked; link_misses is how many questions in a row went
+  /// unanswered before this answer (0 on a healthy link).
+  var linkMarginDb: UInt32 {
+    get {return _linkMarginDb ?? 0}
+    set {_linkMarginDb = newValue}
+  }
+  /// Returns true if `linkMarginDb` has been explicitly set.
+  var hasLinkMarginDb: Bool {return self._linkMarginDb != nil}
+  /// Clears the value of `linkMarginDb`. Subsequent reads from it will return its default value.
+  mutating func clearLinkMarginDb() {self._linkMarginDb = nil}
+
+  var linkGateways: UInt32 {
+    get {return _linkGateways ?? 0}
+    set {_linkGateways = newValue}
+  }
+  /// Returns true if `linkGateways` has been explicitly set.
+  var hasLinkGateways: Bool {return self._linkGateways != nil}
+  /// Clears the value of `linkGateways`. Subsequent reads from it will return its default value.
+  mutating func clearLinkGateways() {self._linkGateways = nil}
+
+  var linkMisses: UInt32 {
+    get {return _linkMisses ?? 0}
+    set {_linkMisses = newValue}
+  }
+  /// Returns true if `linkMisses` has been explicitly set.
+  var hasLinkMisses: Bool {return self._linkMisses != nil}
+  /// Clears the value of `linkMisses`. Subsequent reads from it will return its default value.
+  mutating func clearLinkMisses() {self._linkMisses = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
   fileprivate var _requestAck: Bool? = nil
+  fileprivate var _fwBuild: UInt32? = nil
+  fileprivate var _schedCrc: UInt32? = nil
+  fileprivate var _activeFences: UInt32? = nil
+  fileprivate var _bootCount: UInt32? = nil
+  fileprivate var _resetCause: UInt32? = nil
+  fileprivate var _lastFatal: UInt32? = nil
+  fileprivate var _linkMarginDb: UInt32? = nil
+  fileprivate var _linkGateways: UInt32? = nil
+  fileprivate var _linkMisses: UInt32? = nil
 }
 
 /// ---- GPS ----
@@ -178,6 +309,15 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     3: .same(proto: "epoch"),
     4: .standard(proto: "packet_index"),
     5: .standard(proto: "request_ack"),
+    6: .standard(proto: "fw_build"),
+    7: .standard(proto: "sched_crc"),
+    8: .standard(proto: "active_fences"),
+    9: .standard(proto: "boot_count"),
+    10: .standard(proto: "reset_cause"),
+    11: .standard(proto: "last_fatal"),
+    12: .standard(proto: "link_margin_db"),
+    13: .standard(proto: "link_gateways"),
+    14: .standard(proto: "link_misses"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -191,6 +331,15 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
       case 3: try { try decoder.decodeSingularUInt32Field(value: &self.epoch) }()
       case 4: try { try decoder.decodeSingularUInt32Field(value: &self.packetIndex) }()
       case 5: try { try decoder.decodeSingularBoolField(value: &self._requestAck) }()
+      case 6: try { try decoder.decodeSingularUInt32Field(value: &self._fwBuild) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self._schedCrc) }()
+      case 8: try { try decoder.decodeSingularUInt32Field(value: &self._activeFences) }()
+      case 9: try { try decoder.decodeSingularUInt32Field(value: &self._bootCount) }()
+      case 10: try { try decoder.decodeSingularUInt32Field(value: &self._resetCause) }()
+      case 11: try { try decoder.decodeSingularUInt32Field(value: &self._lastFatal) }()
+      case 12: try { try decoder.decodeSingularUInt32Field(value: &self._linkMarginDb) }()
+      case 13: try { try decoder.decodeSingularUInt32Field(value: &self._linkGateways) }()
+      case 14: try { try decoder.decodeSingularUInt32Field(value: &self._linkMisses) }()
       default: break
       }
     }
@@ -216,6 +365,33 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     try { if let v = self._requestAck {
       try visitor.visitSingularBoolField(value: v, fieldNumber: 5)
     } }()
+    try { if let v = self._fwBuild {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 6)
+    } }()
+    try { if let v = self._schedCrc {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 7)
+    } }()
+    try { if let v = self._activeFences {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 8)
+    } }()
+    try { if let v = self._bootCount {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 9)
+    } }()
+    try { if let v = self._resetCause {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 10)
+    } }()
+    try { if let v = self._lastFatal {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 11)
+    } }()
+    try { if let v = self._linkMarginDb {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 12)
+    } }()
+    try { if let v = self._linkGateways {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 13)
+    } }()
+    try { if let v = self._linkMisses {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 14)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -225,6 +401,15 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     if lhs.epoch != rhs.epoch {return false}
     if lhs.packetIndex != rhs.packetIndex {return false}
     if lhs._requestAck != rhs._requestAck {return false}
+    if lhs._fwBuild != rhs._fwBuild {return false}
+    if lhs._schedCrc != rhs._schedCrc {return false}
+    if lhs._activeFences != rhs._activeFences {return false}
+    if lhs._bootCount != rhs._bootCount {return false}
+    if lhs._resetCause != rhs._resetCause {return false}
+    if lhs._lastFatal != rhs._lastFatal {return false}
+    if lhs._linkMarginDb != rhs._linkMarginDb {return false}
+    if lhs._linkGateways != rhs._linkGateways {return false}
+    if lhs._linkMisses != rhs._linkMisses {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
