@@ -273,6 +273,48 @@ typedef struct config_report {
     uint32_t report_mask; /* fw 360+: scope of this report; 0 = everything */
 } config_report_t;
 
+typedef PB_BYTES_ARRAY_T(3) beacon_key_status_kcv_t;
+/* Lost-mode beacon key status on the LoRaWAN uplink (MessagePacket.beacon_key).
+ The Bluetooth echo's BeaconKeyReport (ble.proto) minus the transmit
+ counter, for a collar whose Bluetooth answer cannot be read after a write:
+ the legacy WB15 radio restarts its Bluetooth link on every settings write,
+ so a client there writes CMD_BEACON_KEY_SET / _CLEAR (downlink.proto) and
+ does not wait for the echo, and the server learns the outcome from this
+ report instead. It rides ONE LoRaWAN uplink after each boot and one after
+ each key command (set, clear, factory reset; whatever the result), never
+ every uplink, and never a point-to-point frame. The collar attaches it only
+ to a frame that stays at or under 200 B with it (the piggyback line of
+ cfg_ack / cfg_report); on a larger frame it steps aside and rides the next
+ uplink, so it never costs a GPS fix or a sensor block its place. A frame
+ carrying it can go out one data-rate rung higher than it would have
+ without it (the collar picks the rate from the frame size).
+
+ state and result are uint32, not the ble.proto enums, because
+ message.proto does not import ble.proto (the same rule as
+ downlink.proto ConfigMicrophone.sample_rate); the numbers are those enums':
+   state:  0 NONE (no key: the plaintext 0x4C beacon), 1 KEYED (the
+           encrypted 0x4D beacon), 2 FALLBACK (a key is held but cannot be
+           used: plaintext, and ErrorFlags bit 12 is up on the same frame)
+   result: the outcome of the key command this report follows, as
+           ble.proto BeaconKeyResult: 0 none since boot (every boot report),
+           1 APPLIED, 2 CLEARED, 3 REJECTED_GEN, 4 REJECTED_ARG,
+           5 STORE_ERROR
+ gen is the collar's generation floor (BeaconKeyReport.gen: the key's own
+ generation while KEYED, and what a new key set must exceed); kcv is the
+ 3-byte key check value AES-128(key, 0^16)[0..2] while a key is bound, empty
+ otherwise; never a key byte. A never-keyed collar sends it present and
+ empty (2 B). Sizes with the tag and length: 2 B never keyed, 6 B after a
+ clear (gen, result), 11 B keyed (the boot report), 13 B keyed after a set,
+ one byte more from generation 128 up: 14 B at most. Firmware gate:
+ firmware main build TBD, set at merge (the beacon key store's
+ RADIO_KEYS_MIN_FW_BUILD); older firmware never sends it. */
+typedef struct beacon_key_status {
+    uint32_t state;
+    uint32_t gen;
+    beacon_key_status_kcv_t kcv;
+    uint32_t result;
+} beacon_key_status_t;
+
 typedef struct message_packet {
     bool has_header;
     packet_header_t header;
@@ -294,6 +336,13 @@ typedef struct message_packet {
     ack_packet_t cfg_ack;
     bool has_cfg_report;
     config_report_t cfg_report;
+    /* Lost-mode beacon key status (BeaconKeyStatus above): once per boot and
+ once after each Bluetooth key command, LoRaWAN only, stripped (and
+ re-sent on the next uplink) rather than displacing data. Absent = no
+ report on this frame, never "no key". Fw gate: firmware main build
+ TBD, set at merge. */
+    bool has_beacon_key;
+    beacon_key_status_t beacon_key;
 } message_packet_t;
 
 
@@ -324,6 +373,7 @@ extern "C" {
 
 
 
+
 /* Initializer values for message structs */
 #define SYSTEM_INFO_PACKET_INIT_DEFAULT          {false, SYSTEM_SENSOR_SUMMARY_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, BATTERY_STATE_INIT_DEFAULT, false, METADATA_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT}
 #define METADATA_INIT_DEFAULT                    {0}
@@ -340,7 +390,8 @@ extern "C" {
 #define DEPLOYMENT_INIT_DEFAULT                  {false, PARTICULATE_DATA_INIT_DEFAULT, false, ENV_DATA_INIT_DEFAULT, false, 0, 0, false, ACC_STATS_INIT_DEFAULT, false, 0, 0, {GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT, GPS_DATA_2_INIT_DEFAULT}, false, ERROR_FLAGS_INIT_DEFAULT, 0, {ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT, ADDON_REPORT_INIT_DEFAULT}, false, {0, {0}}}
 #define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_REPORT_INIT_DEFAULT               {0, 0, 0, false, CONFIG_FRAGMENT_INIT_DEFAULT, 0}
-#define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT, false, ACK_PACKET_INIT_DEFAULT, false, CONFIG_REPORT_INIT_DEFAULT}
+#define BEACON_KEY_STATUS_INIT_DEFAULT           {0, 0, {0, {0}}, 0}
+#define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT, false, ACK_PACKET_INIT_DEFAULT, false, CONFIG_REPORT_INIT_DEFAULT, false, BEACON_KEY_STATUS_INIT_DEFAULT}
 #define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
 #define METADATA_INIT_ZERO                       {0}
 #define CONFIG_PACKET_INIT_ZERO                  {0, 0, 0, 0, 0, 0, 0, 0}
@@ -356,7 +407,8 @@ extern "C" {
 #define DEPLOYMENT_INIT_ZERO                     {false, PARTICULATE_DATA_INIT_ZERO, false, ENV_DATA_INIT_ZERO, false, 0, 0, false, ACC_STATS_INIT_ZERO, false, 0, 0, {GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO, GPS_DATA_2_INIT_ZERO}, false, ERROR_FLAGS_INIT_ZERO, 0, {ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO, ADDON_REPORT_INIT_ZERO}, false, {0, {0}}}
 #define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_REPORT_INIT_ZERO                  {0, 0, 0, false, CONFIG_FRAGMENT_INIT_ZERO, 0}
-#define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO, false, ACK_PACKET_INIT_ZERO, false, CONFIG_REPORT_INIT_ZERO}
+#define BEACON_KEY_STATUS_INIT_ZERO              {0, 0, {0, {0}}, 0}
+#define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO, false, ACK_PACKET_INIT_ZERO, false, CONFIG_REPORT_INIT_ZERO, false, BEACON_KEY_STATUS_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define METADATA_GPS_AVG_FIX_TIME_TAG            1
@@ -443,6 +495,10 @@ extern "C" {
 #define CONFIG_REPORT_FRAG_TOTAL_TAG             3
 #define CONFIG_REPORT_FRAG_TAG                   4
 #define CONFIG_REPORT_REPORT_MASK_TAG            5
+#define BEACON_KEY_STATUS_STATE_TAG              1
+#define BEACON_KEY_STATUS_GEN_TAG                2
+#define BEACON_KEY_STATUS_KCV_TAG                3
+#define BEACON_KEY_STATUS_RESULT_TAG             4
 #define MESSAGE_PACKET_HEADER_TAG                1
 #define MESSAGE_PACKET_SYSTEM_INFO_PACKET_TAG    2
 #define MESSAGE_PACKET_CONFIG_PACKET_TAG         3
@@ -451,6 +507,7 @@ extern "C" {
 #define MESSAGE_PACKET_RADIO_INFO_TAG            6
 #define MESSAGE_PACKET_CFG_ACK_TAG               9
 #define MESSAGE_PACKET_CFG_REPORT_TAG            10
+#define MESSAGE_PACKET_BEACON_KEY_TAG            11
 
 /* Struct field encoding specification for nanopb */
 #define SYSTEM_INFO_PACKET_FIELDLIST(X, a) \
@@ -611,6 +668,14 @@ X(a, STATIC,   SINGULAR, UINT32,   report_mask,       5)
 #define CONFIG_REPORT_DEFAULT NULL
 #define config_report_t_frag_MSGTYPE config_fragment_t
 
+#define BEACON_KEY_STATUS_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   state,             1) \
+X(a, STATIC,   SINGULAR, UINT32,   gen,               2) \
+X(a, STATIC,   SINGULAR, BYTES,    kcv,               3) \
+X(a, STATIC,   SINGULAR, UINT32,   result,            4)
+#define BEACON_KEY_STATUS_CALLBACK NULL
+#define BEACON_KEY_STATUS_DEFAULT NULL
+
 #define MESSAGE_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  header,            1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,system_info_packet,payload.system_info_packet),   2) \
@@ -619,7 +684,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (payload,ack_packet,payload.ack_packet),   4)
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,system_deployment_packet,payload.system_deployment_packet),   5) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  radio_info,        6) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_ack,           9) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_report,       10)
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_report,       10) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       11)
 #define MESSAGE_PACKET_CALLBACK NULL
 #define MESSAGE_PACKET_DEFAULT NULL
 #define message_packet_t_header_MSGTYPE packet_header_t
@@ -630,6 +696,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_report,       10)
 #define message_packet_t_radio_info_MSGTYPE radio_info_t
 #define message_packet_t_cfg_ack_MSGTYPE ack_packet_t
 #define message_packet_t_cfg_report_MSGTYPE config_report_t
+#define message_packet_t_beacon_key_MSGTYPE beacon_key_status_t
 
 extern const pb_msgdesc_t system_info_packet_t_msg;
 extern const pb_msgdesc_t metadata_t_msg;
@@ -646,6 +713,7 @@ extern const pb_msgdesc_t error_flags_t_msg;
 extern const pb_msgdesc_t deployment_t_msg;
 extern const pb_msgdesc_t addon_report_t_msg;
 extern const pb_msgdesc_t config_report_t_msg;
+extern const pb_msgdesc_t beacon_key_status_t_msg;
 extern const pb_msgdesc_t message_packet_t_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
@@ -664,6 +732,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define DEPLOYMENT_FIELDS &deployment_t_msg
 #define ADDON_REPORT_FIELDS &addon_report_t_msg
 #define CONFIG_REPORT_FIELDS &config_report_t_msg
+#define BEACON_KEY_STATUS_FIELDS &beacon_key_status_t_msg
 #define MESSAGE_PACKET_FIELDS &message_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
@@ -671,13 +740,14 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACC_STATS_SIZE                           64
 #define ACK_PACKET_SIZE                          20
 #define ADDON_REPORT_SIZE                        60
+#define BEACON_KEY_STATUS_SIZE                   23
 #define CONFIG_PACKET_SIZE                       16
 #define CONFIG_REPORT_SIZE                       384
 #define DEPLOYMENT_SIZE                          1888
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      2417
+#define MESSAGE_PACKET_SIZE                      2442
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33

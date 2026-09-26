@@ -433,5 +433,239 @@ class SizeBudget(unittest.TestCase):
         self.assertGreater(len(slot), BLE_READ_CEILING)
 
 
+
+# ------------------------------------------------ the LoRaWAN status report
+#
+# MessagePacket.beacon_key (message.proto BeaconKeyStatus): the echo's
+# report minus the transmit counter, once per boot and once after each key
+# command, for a collar whose echo cannot be read after a write (the legacy
+# WB15 radio restarts its Bluetooth link on every settings write). The
+# server marks an issued key provisioned when this report names its gen and
+# KCV (collarid-prod feat/beacon-key-uplink-confirm).
+
+UPLINK_FIELD = ("BeaconKeyStatus", 11)
+STATUS_FIELDS = {"state": ("uint32", 1),
+                 "gen": ("uint32", 2),
+                 "kcv": ("bytes", 3),
+                 "result": ("uint32", 4)}
+# The comment's short names for the ble.proto enum values it mirrors.
+STATE_WORDS = {"BEACON_KEY_STATE_NONE": "NONE",
+               "BEACON_KEY_STATE_KEYED": "KEYED",
+               "BEACON_KEY_STATE_FALLBACK": "FALLBACK"}
+RESULT_WORDS = {"BEACON_KEY_RESULT_APPLIED": "APPLIED",
+                "BEACON_KEY_RESULT_CLEARED": "CLEARED",
+                "BEACON_KEY_RESULT_REJECTED_GEN": "REJECTED_GEN",
+                "BEACON_KEY_RESULT_REJECTED_ARG": "REJECTED_ARG",
+                "BEACON_KEY_RESULT_STORE_ERROR": "STORE_ERROR"}
+
+
+def status_field(state=0, gen=0, kcv=None, result=0):
+    """MessagePacket.beacon_key as it goes on the air: tag 11, length, body."""
+    f = message_fields("message.proto", "BeaconKeyStatus")
+    body = encode([(f["state"][1], state), (f["gen"][1], gen),
+                   (f["kcv"][1], kcv), (f["result"][1], result)])
+    return encode([(UPLINK_FIELD[1], body)])
+
+
+def _status_comment():
+    text = read("message.proto")
+    end = text.index("message BeaconKeyStatus {")
+    start = text.rindex("\n\n", 0, end)
+    return text[start:end]
+
+
+class UplinkContract(unittest.TestCase):
+
+    def test_message_packet_field(self):
+        mp = message_fields("message.proto", "MessagePacket")
+        self.assertEqual(mp.get("beacon_key"), UPLINK_FIELD)
+        self.assertEqual(field_labels("message.proto", "MessagePacket")["beacon_key"],
+                         "optional")
+        nums = [n for _, n in mp.values()]
+        self.assertEqual(len(nums), len(set(nums)), "duplicate MessagePacket field")
+        # A sibling of cfg_ack / cfg_report, not a oneof member: it rides
+        # whatever uplink goes out.
+        self.assertEqual(mp["cfg_ack"][1], 9)
+        self.assertEqual(mp["cfg_report"][1], 10)
+
+    def test_status_fields(self):
+        self.assertEqual(message_fields("message.proto", "BeaconKeyStatus"),
+                         STATUS_FIELDS)
+
+    def test_numbers_are_the_echo_enums(self):
+        # uint32 on this side (message.proto does not import ble.proto); the
+        # comment names every value of both enums with the ble.proto number.
+        c = re.sub(r"\s+", " ", _status_comment().replace("//", " "))
+        for enum, words in (("BeaconKeyState", STATE_WORDS),
+                            ("BeaconKeyResult", RESULT_WORDS)):
+            for value, word in words.items():
+                num = ENUMS["ble.proto"][enum][value]
+                self.assertRegex(c, r"\b%d %s\b" % (num, word), value)
+        self.assertNotIn('import "ble.proto"', read("message.proto"))
+
+    def test_never_carries_the_key(self):
+        st = message_fields("message.proto", "BeaconKeyStatus")
+        self.assertEqual([f for f, (t, _) in st.items() if t == "bytes"], ["kcv"])
+        self.assertNotIn("tx_counter", st)
+
+    def test_options(self):
+        self.assertRegex(read("message.options"),
+                         r"(?m)^BeaconKeyStatus\.kcv\s+max_size:3\s*$")
+        self.assertNotRegex(read("message.options"), r"BeaconKeyStatus\.kcv.*fixed_length")
+
+    def test_rules_are_written_down(self):
+        c = _status_comment()
+        for phrase in ("ONE LoRaWAN uplink after each boot",
+                       "never a point-to-point frame",
+                       "200 B", "firmware main build TBD"):
+            self.assertIn(phrase, re.sub(r"\s*//\s*", " ", c), phrase)
+        mp = read("message.proto").split("message MessagePacket {")[1]
+        self.assertIn("firmware main build", mp.split("beacon_key = 11")[0])
+
+
+class UplinkGenerated(unittest.TestCase):
+
+    def test_nanopb_header(self):
+        h = read("message.pb.h")
+        self.assertRegex(h, r"#define MESSAGE_PACKET_BEACON_KEY_TAG\s+11\b")
+        self.assertIn("bool has_beacon_key;", c_struct("message.pb.h", "message_packet"))
+        self.assertIn("beacon_key_status_t beacon_key;", c_struct("message.pb.h", "message_packet"))
+        self.assertIn("typedef PB_BYTES_ARRAY_T(%d) beacon_key_status_kcv_t;" % KCV_LEN, h)
+        body = c_struct("message.pb.h", "beacon_key_status")
+        for line in ("uint32_t state;", "uint32_t gen;", "beacon_key_status_kcv_t kcv;",
+                     "uint32_t result;"):
+            self.assertIn(line, body)
+        for field, (_, num) in STATUS_FIELDS.items():
+            self.assertRegex(h, r"#define BEACON_KEY_STATUS_%s_TAG\s+%d\b"
+                             % (field.upper(), num))
+        fl = c_fieldlist("message.pb.h", "MESSAGE_PACKET_FIELDLIST")
+        self.assertRegex(fl, r"OPTIONAL, MESSAGE,\s+beacon_key,\s+11\)")
+        # Every varint at its 5-byte maximum plus the 3-byte check value.
+        self.assertRegex(h, r"#define BEACON_KEY_STATUS_SIZE\s+23\b")
+        self.assertIn("PB_BIND(BEACON_KEY_STATUS, beacon_key_status_t, AUTO)",
+                      read("message.pb.c"))
+
+    def test_c_names_do_not_collide_with_the_echo(self):
+        # The firmware includes message.pb.h and ble.pb.h in one unit.
+        m, b = read("message.pb.h"), read("ble.pb.h")
+        names = lambda h: set(re.findall(r"#define (\w+)", h)) | set(
+            re.findall(r"\b(\w+_t);", h)) | set(re.findall(r"\b([A-Z][A-Z0-9_]+) = \d", h))
+        mine = {n for n in names(m) if "BEACON_KEY" in n.upper()}
+        self.assertTrue(mine)
+        self.assertEqual(mine & names(b), set())
+
+    def test_swift(self):
+        s = read("message.pb.swift")
+        self.assertIn("struct BeaconKeyStatus: @unchecked Sendable {", s)
+        self.assertIn("var hasBeaconKey: Bool", s)
+        self.assertIn('11: .standard(proto: "beacon_key")', s)
+        self.assertIn("case 11: try { try decoder.decodeSingularMessageField(value: &self._beaconKey) }()", s)
+        self.assertIn("try visitor.visitSingularMessageField(value: v, fieldNumber: 11)", s)
+        self.assertIn("if lhs._beaconKey != rhs._beaconKey {return false}", s)
+        body = s.split("struct BeaconKeyStatus: @unchecked Sendable {")[1].split("\n}\n")[0]
+        for line in ("var state: UInt32 = 0", "var gen: UInt32 = 0",
+                     "var kcv: Data = Data()", "var result: UInt32 = 0"):
+            self.assertIn(line, body)
+
+
+def _message_pb2():
+    import sys
+    sys.path.insert(0, __import__("test_mag_cal_contract").ROOT)
+    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    try:
+        import message_pb2
+        return message_pb2
+    except Exception:
+        return None
+    finally:
+        sys.dont_write_bytecode = saved
+        sys.path.pop(0)
+
+
+@unittest.skipIf(PB2 is None, "protobuf runtime unavailable")
+class UplinkPython(unittest.TestCase):
+
+    def setUp(self):
+        self.m = _message_pb2()
+        self.assertIsNotNone(self.m)
+
+    def test_descriptors(self):
+        pkt = self.m.DESCRIPTOR.message_types_by_name["MessagePacket"]
+        f = pkt.fields_by_name["beacon_key"]
+        self.assertEqual((f.message_type.name, f.number), UPLINK_FIELD)
+        self.assertTrue(f.has_presence)
+        # proto3 optional: its own synthetic oneof, never the payload oneof.
+        self.assertNotEqual(getattr(f.containing_oneof, "name", None), "payload")
+        st = self.m.DESCRIPTOR.message_types_by_name["BeaconKeyStatus"]
+        self.assertEqual(GeneratedPython._fields(st), STATUS_FIELDS)
+
+    def test_present_and_empty_when_never_keyed(self):
+        """Present and empty (2 B) means "no key", absent means "no report
+        on this frame" (older firmware, or not the boot / post-command
+        uplink); the server tells them apart by presence."""
+        p = self.m.MessagePacket()
+        self.assertFalse(p.HasField("beacon_key"))
+        p.beacon_key.SetInParent()
+        self.assertEqual(p.SerializeToString(), b"\x5a\x00")
+        self.assertEqual(status_field(), b"\x5a\x00")
+        back = self.m.MessagePacket.FromString(b"\x5a\x00")
+        self.assertTrue(back.HasField("beacon_key"))
+        self.assertEqual((back.beacon_key.state, back.beacon_key.gen,
+                          back.beacon_key.kcv, back.beacon_key.result), (0, 0, b"", 0))
+
+    def test_sizes_in_every_state(self):
+        # (state, gen, kcv, result) -> bytes on the air with tag and length
+        cases = {
+            "never keyed (boot)":            ((0, 0, None, 0), 2),
+            "after a clear":                 ((0, 3, None, 2), 6),
+            "keyed (boot)":                  ((1, 3, SYNTHETIC_KCV, 0), 11),
+            "keyed after a set":             ((1, 3, SYNTHETIC_KCV, 1), 13),
+            "refused, still keyed":          ((1, 3, SYNTHETIC_KCV, 3), 13),
+            "fallback, torn record (boot)":  ((2, 3, None, 0), 6),
+            "fallback, sequence spent":      ((2, 3, SYNTHETIC_KCV, 0), 11),
+            "keyed after a set, gen 255":    ((1, GEN_MAX, b"\xff" * KCV_LEN, 5), 14),
+        }
+        for name, ((st, gen, kcv, res), size) in cases.items():
+            wire = status_field(st, gen, kcv, res)
+            self.assertEqual(len(wire), size, name)
+            p = self.m.MessagePacket()
+            p.beacon_key.SetInParent()
+            p.beacon_key.state, p.beacon_key.gen, p.beacon_key.result = st, gen, res
+            if kcv:
+                p.beacon_key.kcv = kcv
+            self.assertEqual(p.SerializeToString(), wire, name)
+
+    def test_rides_beside_a_deployment(self):
+        """A sibling of the payload: the deployment decodes unchanged with it,
+        and a decoder that predates the field skips it."""
+        p = self.m.MessagePacket()
+        p.header.system_uid = 0x7E57C0DE
+        p.system_deployment_packet.battery_percentage_x10 = 905
+        before = p.SerializeToString()
+        p.beacon_key.state, p.beacon_key.gen, p.beacon_key.kcv, p.beacon_key.result = \
+            1, 4, SYNTHETIC_KCV, 1
+        after = p.SerializeToString()
+        self.assertEqual(len(after) - len(before), 13)
+        self.assertTrue(after.startswith(before))       # appended after the payload
+        back = self.m.MessagePacket.FromString(after)
+        self.assertEqual(back.WhichOneof("payload"), "system_deployment_packet")
+        self.assertEqual(back.system_deployment_packet.battery_percentage_x10, 905)
+        self.assertEqual(back.beacon_key.kcv, SYNTHETIC_KCV)
+        # An old decoder: the same bytes into a MessagePacket without field 11.
+        old = self.m.MessagePacket.FromString(before + status_field(1, 4, SYNTHETIC_KCV, 1))
+        self.assertEqual(old.SerializeToString(), after)
+
+
+class UplinkSizeBudget(unittest.TestCase):
+
+    def test_at_most_14_bytes(self):
+        worst = status_field(max(ENUMS["ble.proto"]["BeaconKeyState"].values()), GEN_MAX,
+                             b"\xff" * KCV_LEN,
+                             max(ENUMS["ble.proto"]["BeaconKeyResult"].values()))
+        self.assertEqual(len(worst), 14)
+        # A few bytes under the Bluetooth report it mirrors (no counter).
+        self.assertLess(len(worst), len(encode([(ECHO_FIELD[1], report_worst())])))
+
+
 if __name__ == "__main__":
     unittest.main()

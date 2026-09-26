@@ -476,6 +476,58 @@ struct Deployment: @unchecked Sendable {
   fileprivate var _storage = _StorageClass.defaultInstance
 }
 
+/// Lost-mode beacon key status on the LoRaWAN uplink (MessagePacket.beacon_key).
+/// The Bluetooth echo's BeaconKeyReport (ble.proto) minus the transmit
+/// counter, for a collar whose Bluetooth answer cannot be read after a write:
+/// the legacy WB15 radio restarts its Bluetooth link on every settings write,
+/// so a client there writes CMD_BEACON_KEY_SET / _CLEAR (downlink.proto) and
+/// does not wait for the echo, and the server learns the outcome from this
+/// report instead. It rides ONE LoRaWAN uplink after each boot and one after
+/// each key command (set, clear, factory reset; whatever the result), never
+/// every uplink, and never a point-to-point frame. The collar attaches it only
+/// to a frame that stays at or under 200 B with it (the piggyback line of
+/// cfg_ack / cfg_report); on a larger frame it steps aside and rides the next
+/// uplink, so it never costs a GPS fix or a sensor block its place. A frame
+/// carrying it can go out one data-rate rung higher than it would have
+/// without it (the collar picks the rate from the frame size).
+///
+/// state and result are uint32, not the ble.proto enums, because
+/// message.proto does not import ble.proto (the same rule as
+/// downlink.proto ConfigMicrophone.sample_rate); the numbers are those enums':
+///   state:  0 NONE (no key: the plaintext 0x4C beacon), 1 KEYED (the
+///           encrypted 0x4D beacon), 2 FALLBACK (a key is held but cannot be
+///           used: plaintext, and ErrorFlags bit 12 is up on the same frame)
+///   result: the outcome of the key command this report follows, as
+///           ble.proto BeaconKeyResult: 0 none since boot (every boot report),
+///           1 APPLIED, 2 CLEARED, 3 REJECTED_GEN, 4 REJECTED_ARG,
+///           5 STORE_ERROR
+/// gen is the collar's generation floor (BeaconKeyReport.gen: the key's own
+/// generation while KEYED, and what a new key set must exceed); kcv is the
+/// 3-byte key check value AES-128(key, 0^16)[0..2] while a key is bound, empty
+/// otherwise; never a key byte. A never-keyed collar sends it present and
+/// empty (2 B). Sizes with the tag and length: 2 B never keyed, 6 B after a
+/// clear (gen, result), 11 B keyed (the boot report), 13 B keyed after a set,
+/// one byte more from generation 128 up: 14 B at most. Firmware gate:
+/// firmware main build TBD, set at merge (the beacon key store's
+/// RADIO_KEYS_MIN_FW_BUILD); older firmware never sends it.
+struct BeaconKeyStatus: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var state: UInt32 = 0
+
+  var gen: UInt32 = 0
+
+  var kcv: Data = Data()
+
+  var result: UInt32 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
 struct MessagePacket: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -533,6 +585,20 @@ struct MessagePacket: Sendable {
   /// Clears the value of `radioInfo`. Subsequent reads from it will return its default value.
   mutating func clearRadioInfo() {self._radioInfo = nil}
 
+  /// Lost-mode beacon key status (BeaconKeyStatus above): once per boot and
+  /// once after each Bluetooth key command, LoRaWAN only, stripped (and
+  /// re-sent on the next uplink) rather than displacing data. Absent = no
+  /// report on this frame, never "no key". Fw gate: firmware main build
+  /// TBD, set at merge.
+  var beaconKey: BeaconKeyStatus {
+    get {return _beaconKey ?? BeaconKeyStatus()}
+    set {_beaconKey = newValue}
+  }
+  /// Returns true if `beaconKey` has been explicitly set.
+  var hasBeaconKey: Bool {return self._beaconKey != nil}
+  /// Clears the value of `beaconKey`. Subsequent reads from it will return its default value.
+  mutating func clearBeaconKey() {self._beaconKey = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   enum OneOf_Payload: Equatable, Sendable {
@@ -547,6 +613,7 @@ struct MessagePacket: Sendable {
 
   fileprivate var _header: PacketHeader? = nil
   fileprivate var _radioInfo: RadioInfo? = nil
+  fileprivate var _beaconKey: BeaconKeyStatus? = nil
 }
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
@@ -1382,6 +1449,56 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
   }
 }
 
+extension BeaconKeyStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "BeaconKeyStatus"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "state"),
+    2: .same(proto: "gen"),
+    3: .same(proto: "kcv"),
+    4: .same(proto: "result"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.state) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.gen) }()
+      case 3: try { try decoder.decodeSingularBytesField(value: &self.kcv) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.result) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.state != 0 {
+      try visitor.visitSingularUInt32Field(value: self.state, fieldNumber: 1)
+    }
+    if self.gen != 0 {
+      try visitor.visitSingularUInt32Field(value: self.gen, fieldNumber: 2)
+    }
+    if !self.kcv.isEmpty {
+      try visitor.visitSingularBytesField(value: self.kcv, fieldNumber: 3)
+    }
+    if self.result != 0 {
+      try visitor.visitSingularUInt32Field(value: self.result, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: BeaconKeyStatus, rhs: BeaconKeyStatus) -> Bool {
+    if lhs.state != rhs.state {return false}
+    if lhs.gen != rhs.gen {return false}
+    if lhs.kcv != rhs.kcv {return false}
+    if lhs.result != rhs.result {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 extension MessagePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = "MessagePacket"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
@@ -1391,6 +1508,7 @@ extension MessagePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     4: .standard(proto: "ack_packet"),
     5: .standard(proto: "system_deployment_packet"),
     6: .standard(proto: "radio_info"),
+    11: .standard(proto: "beacon_key"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -1453,6 +1571,7 @@ extension MessagePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         }
       }()
       case 6: try { try decoder.decodeSingularMessageField(value: &self._radioInfo) }()
+      case 11: try { try decoder.decodeSingularMessageField(value: &self._beaconKey) }()
       default: break
       }
     }
@@ -1488,6 +1607,9 @@ extension MessagePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     try { if let v = self._radioInfo {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
     } }()
+    try { if let v = self._beaconKey {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1495,6 +1617,7 @@ extension MessagePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     if lhs._header != rhs._header {return false}
     if lhs.payload != rhs.payload {return false}
     if lhs._radioInfo != rhs._radioInfo {return false}
+    if lhs._beaconKey != rhs._beaconKey {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

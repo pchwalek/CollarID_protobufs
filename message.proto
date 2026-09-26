@@ -251,6 +251,47 @@ message ConfigReport {
     uint32 report_mask = 5;   // fw 360+: scope of this report; 0 = everything
 }
 
+// Lost-mode beacon key status on the LoRaWAN uplink (MessagePacket.beacon_key).
+// The Bluetooth echo's BeaconKeyReport (ble.proto) minus the transmit
+// counter, for a collar whose Bluetooth answer cannot be read after a write:
+// the legacy WB15 radio restarts its Bluetooth link on every settings write,
+// so a client there writes CMD_BEACON_KEY_SET / _CLEAR (downlink.proto) and
+// does not wait for the echo, and the server learns the outcome from this
+// report instead. It rides ONE LoRaWAN uplink after each boot and one after
+// each key command (set, clear, factory reset; whatever the result), never
+// every uplink, and never a point-to-point frame. The collar attaches it only
+// to a frame that stays at or under 200 B with it (the piggyback line of
+// cfg_ack / cfg_report); on a larger frame it steps aside and rides the next
+// uplink, so it never costs a GPS fix or a sensor block its place. A frame
+// carrying it can go out one data-rate rung higher than it would have
+// without it (the collar picks the rate from the frame size).
+//
+// state and result are uint32, not the ble.proto enums, because
+// message.proto does not import ble.proto (the same rule as
+// downlink.proto ConfigMicrophone.sample_rate); the numbers are those enums':
+//   state:  0 NONE (no key: the plaintext 0x4C beacon), 1 KEYED (the
+//           encrypted 0x4D beacon), 2 FALLBACK (a key is held but cannot be
+//           used: plaintext, and ErrorFlags bit 12 is up on the same frame)
+//   result: the outcome of the key command this report follows, as
+//           ble.proto BeaconKeyResult: 0 none since boot (every boot report),
+//           1 APPLIED, 2 CLEARED, 3 REJECTED_GEN, 4 REJECTED_ARG,
+//           5 STORE_ERROR
+// gen is the collar's generation floor (BeaconKeyReport.gen: the key's own
+// generation while KEYED, and what a new key set must exceed); kcv is the
+// 3-byte key check value AES-128(key, 0^16)[0..2] while a key is bound, empty
+// otherwise; never a key byte. A never-keyed collar sends it present and
+// empty (2 B). Sizes with the tag and length: 2 B never keyed, 6 B after a
+// clear (gen, result), 11 B keyed (the boot report), 13 B keyed after a set,
+// one byte more from generation 128 up: 14 B at most. Firmware gate:
+// firmware main build TBD, set at merge (the beacon key store's
+// RADIO_KEYS_MIN_FW_BUILD); older firmware never sends it.
+message BeaconKeyStatus {
+    uint32 state  = 1;
+    uint32 gen    = 2;
+    bytes  kcv    = 3;
+    uint32 result = 4;
+}
+
 message MessagePacket {
     PacketHeader header = 1;
 
@@ -270,6 +311,13 @@ message MessagePacket {
     // would exceed the region's payload budget and retries on the next one.
     optional AckPacket    cfg_ack    = 9;
     optional ConfigReport cfg_report = 10;
+
+    // Lost-mode beacon key status (BeaconKeyStatus above): once per boot and
+    // once after each Bluetooth key command, LoRaWAN only, stripped (and
+    // re-sent on the next uplink) rather than displacing data. Absent = no
+    // report on this frame, never "no key". Fw gate: firmware main build
+    // TBD, set at merge.
+    optional BeaconKeyStatus beacon_key = 11;
 }
 
 

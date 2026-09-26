@@ -142,6 +142,28 @@ rides every LoRaWAN deployment uplink as `ErrorFlags` bit 12
 (`BEACON_KEY_FALLBACK`), so the server learns of it without a Bluetooth
 session; the bit is never set while the state is `NONE` or `KEYED`.
 
+### Beacon key status on the LoRaWAN uplink (`MessagePacket.beacon_key`)
+
+The legacy WB15 radio restarts its Bluetooth link on every settings write, so
+a client cannot read the echo after writing a key there. It writes one
+`CMD_BEACON_KEY_SET` (or `_CLEAR`) frame and stops; the collar reports the
+outcome on LoRaWAN in `MessagePacket.beacon_key` (field 11, `BeaconKeyStatus`:
+`state`, `gen`, `kcv`, `result`, the echo's report without the transmit
+counter; `state` and `result` are `uint32` carrying the `ble.proto` enum
+numbers, because `message.proto` does not import `ble.proto`). It rides one
+LoRaWAN uplink after each boot and one after each key command (set, clear,
+factory reset, whatever the result), never every uplink and never a
+point-to-point frame, and only a frame that stays at or under 200 B with it:
+on a larger frame it waits for the next uplink rather than displacing data.
+2 B for a collar that was never keyed (present and empty, so absent means "no
+report on this frame", not "no key"), 11 B keyed, 14 B at most. The server
+marks an issued key provisioned when the report names its generation and KCV.
+MkII Mesh collars send it too; their Bluetooth echo stays the primary
+confirmation. A collar with LoRaWAN switched off never sends it: there the
+confirmation is a finder or the handheld page opening an encrypted beacon.
+`reference/test_beacon_key_contract.py` pins the numbers, the generated files
+and the sizes. Firmware gate: firmware main build TBD, set at merge.
+
 ## ErrorFlags bits (`Deployment.errorFlags`)
 
 `ErrorFlags.flag` is one bitmask shared by several conditions, carried on

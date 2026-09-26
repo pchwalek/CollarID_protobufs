@@ -51,6 +51,9 @@ PB_BIND(ADDON_REPORT, addon_report_t, AUTO)
 PB_BIND(CONFIG_REPORT, config_report_t, 2)
 
 
+PB_BIND(BEACON_KEY_STATUS, beacon_key_status_t, AUTO)
+
+
 PB_BIND(MESSAGE_PACKET, message_packet_t, 2)
 
 
