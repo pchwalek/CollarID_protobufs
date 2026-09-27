@@ -160,9 +160,29 @@ report on this frame", not "no key"), 11 B keyed, 14 B at most. The server
 marks an issued key provisioned when the report names its generation and KCV.
 MkII Mesh collars send it too; their Bluetooth echo stays the primary
 confirmation. A collar with LoRaWAN switched off never sends it: there the
-confirmation is a finder or the handheld page opening an encrypted beacon.
+confirmation is the status packet read back over Bluetooth (below), or a
+receiver that opens the collar's encrypted beacon, such as the one-off key
+check beacon a collar sends right after it takes a new key
+(`beacon/README.md`, "A beacon outside lost mode").
 `reference/test_beacon_key_contract.py` pins the numbers, the generated files
 and the sizes. Firmware gate: firmware main build TBD, set at merge.
+
+### Beacon key status on the read-only status packet (`SystemStatePacket.beacon_key`)
+
+The same `BeaconKeyReport` also rides `SystemStatePacket.beacon_key` (field
+8), the packet both radios serve from the read-only status characteristic
+that clients already read at connect for the firmware build. Reading it
+writes nothing, so the legacy WB15 radio keeps its link, and both radios pass
+the collar's bytes through without decoding them (a field they do not know
+survives). The collar pushes the packet again after every key command, so a
+client that installed a key in one write reads the outcome when it
+reconnects, with no LoRaWAN at all. `state`, `gen`, `kcv` and `result` are
+filled; `tx_counter` is never sent here. Present and empty when no key is held,
+absent on firmware without the key store; at most 14 B, and the collar's
+whole status packet stays at or under 95 B of the 140 B the characteristic
+holds. `reference/test_beacon_key_contract.py` pins the field, the generated
+files and the size budget. Firmware gate: firmware main build TBD, set at
+merge.
 
 ## ErrorFlags bits (`Deployment.errorFlags`)
 

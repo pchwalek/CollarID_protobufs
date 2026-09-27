@@ -525,6 +525,31 @@ message SystemStatePacket {
   // position is mortality there), it rides ErrorFlags bit 10. Absent on
   // older firmware.
   optional uint32 hw_diag = 7;
+  // Lost-mode beacon key status, read WITHOUT writing anything (fw gate:
+  // firmware main build TBD, set at merge). This packet is what both radios
+  // serve from the read-only status characteristic (9eaf9ebe-...), the one a
+  // client reads at connect for the firmware build. Both radios store the
+  // bytes the collar pushes over SPI and serve them as they are: neither
+  // decodes nor re-encodes them, so a field they have never heard of still
+  // reaches the client, and a READ restarts nothing (only a settings WRITE
+  // makes the legacy WB15 radio restart its Bluetooth link). That makes this
+  // the one place such a collar can show a key it took in a single write:
+  // after a CMD_BEACON_KEY_SET / _CLEAR (downlink.proto) the collar pushes
+  // this packet again, and the client reads the outcome on reconnect.
+  //
+  // The BeaconKeyReport of the echo (CfgEchoPacket.beacon_key) with state,
+  // gen, kcv and result, and tx_counter always 0 (not sent: it is cleartext
+  // on every 0x4D frame anyway). Present and empty when no key is held (2 B
+  // on the wire), absent on firmware without the key store: presence tells
+  // "no key" from "firmware too old", as on the echo. 2 B unkeyed, 13 B
+  // keyed after a set, 14 B at most (gen from 128 up). Never a key byte.
+  //
+  // Size: both radios declare this characteristic at 140 B (SizeStatuschar)
+  // and keep their old value when handed a longer one, so the whole BlePacket
+  // must stay at or under 140 B. The collar fills battery, sdcard,
+  // firmware_version, hw_diag and this field, never gps_data or sensors: at
+  // most 95 B with every one of those at its largest.
+  optional BeaconKeyReport beacon_key = 8;
 }
 
 // ================== PERIPHERAL CONNECTION ==================

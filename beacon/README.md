@@ -97,6 +97,22 @@ should keep the highest `ctr` seen per `uid` in a session, flag a frame at or
 below it as a replay or duplicate, and show the age of the fix from the
 authenticated `fix_epoch`.
 
+### A beacon outside lost mode: the key check
+
+Right after a collar takes a new key over Bluetooth, it sends ONE v2 frame
+under that key even when it is not in lost mode, on the radio settings its
+lost-mode beacon uses, so that a receiver holding the key (or the key's
+owner, through their server) can confirm the collar really has it. It is an
+ordinary v2 frame: same layout, same key, and a `ctr` taken from the same
+never-rewinding sequence as every other beacon (it is usually the first
+frame of the new generation, `seq` 0). Only a key that actually changed sends
+one: a retry of the key the collar already holds does not.
+
+A collar that has no GPS fix yet sends `fix_epoch` = 0 with `lat_e7` =
+`lon_e7` = 0. In any frame, `fix_epoch` 0 means "no position", never a place
+at 0, 0; a receiver shows it as such. A lost-mode beacon is never sent
+without a fix, so in practice only the key check carries it.
+
 ## Keys
 
 Each collar holds one 16-byte **device key**. Owners hold a 16-byte **beacon

@@ -23,7 +23,7 @@ import unittest
 
 from test_mag_cal_contract import (BLE_READ_CEILING, PB2, U32, encode,
                                    enum_values, mag_cal_worst, message_fields,
-                                   read)
+                                   read, varint)
 from test_mag_rate_contract import c_fieldlist, c_struct, field_labels
 
 # ble.options: one tunnel frame (ScheduleConfigPacket.cfg_downlink).
@@ -665,6 +665,224 @@ class UplinkSizeBudget(unittest.TestCase):
         self.assertEqual(len(worst), 14)
         # A few bytes under the Bluetooth report it mirrors (no counter).
         self.assertLess(len(worst), len(encode([(ECHO_FIELD[1], report_worst())])))
+
+
+
+# ------------------------------------------- the read-only status packet
+#
+# SystemStatePacket.beacon_key (ble.proto): the same BeaconKeyReport, on the
+# packet both radios serve from the read-only status characteristic
+# (9eaf9ebe-...). The legacy WB15 radio restarts its Bluetooth link on every
+# settings WRITE, so a client there cannot read the echo after a key write;
+# it can READ this packet on reconnect (a read restarts nothing), and the
+# collar pushes it again after every key command. Both radios store the
+# pushed bytes and serve them untouched (BLE_HeartRate and CollarID_BLE_wb5
+# custom_app.c statuschar_push_current_state), at most 140 B (their
+# SizeStatuschar). tx_counter is never sent here.
+
+STATUS_READ_FIELD = ("BeaconKeyReport", 8)
+STATUS_CHAR_CAP = 140        # SizeStatuschar on both radios
+FW_VERSION_MAX = 15          # ble.options firmware_version max_size:16, NUL included
+U64 = (1 << 64) - 1
+HW_DIAG_BITS = 0x1FF         # ble.proto hw_diag: bits 0-8
+
+
+def _f32(num):
+    """A float field at any value: tag with wire type 5, four bytes."""
+    return varint(num << 3 | 5) + b"\x7f\x7f\x7f\x7f"
+
+
+def status_report(state=0, gen=0, kcv=None, result=0):
+    f = message_fields("ble.proto", "BeaconKeyReport")
+    return encode([(f["state"][1], state), (f["gen"][1], gen),
+                   (f["kcv"][1], kcv), (f["result"][1], result)])
+
+
+def status_report_worst():
+    return status_report(max(ENUMS["ble.proto"]["BeaconKeyState"].values()), GEN_MAX,
+                         b"\xff" * KCV_LEN,
+                         max(ENUMS["ble.proto"]["BeaconKeyResult"].values()))
+
+
+def status_packet(beacon_key=None, bounded=True):
+    """The BlePacket BLE_Send_System_State builds (collarID_thread
+    ble_management.cpp): header epoch + system_uid; engage_state, battery
+    (charging, voltage, percentage), sdcard (detected, two uint64 sizes),
+    firmware_version "b<build> <hash>" (at most 15 characters), hw_diag and
+    beacon_key. The collar never fills gps_data or sensors. Every integer at
+    its largest; bounded keeps hw_diag to its nine defined bits."""
+    s = message_fields("ble.proto", "SystemStatePacket")
+    bat = message_fields("common.proto", "BatteryState")
+    sd = message_fields("common.proto", "SDCardState")
+    battery = encode([(bat["charging"][1], 1)]) + _f32(bat["voltage"][1]) + _f32(bat["percentage"][1])
+    sdcard = encode([(sd["detected"][1], 1), (sd["space_remaining"][1], U64),
+                     (sd["total_space"][1], U64)])
+    body = encode([(s["engage_state"][1], 1), (s["battery"][1], battery),
+                   (s["sdcard"][1], sdcard),
+                   (s["firmware_version"][1], b"b" + b"9" * (FW_VERSION_MAX - 1)),
+                   (s["hw_diag"][1], HW_DIAG_BITS if bounded else U32),
+                   (s["beacon_key"][1], beacon_key)])
+    h = message_fields("common.proto", "PacketHeader")
+    b = message_fields("ble.proto", "BlePacket")
+    header = encode([(h["epoch"][1], U32), (h["system_uid"][1], U32)])
+    return encode([(b["header"][1], header), (b["system_state_packet"][1], body)])
+
+
+def _status_read_comment():
+    body = read("ble.proto").split("message SystemStatePacket {")[1].split("\n}\n")[0]
+    return re.sub(r"\s*//\s*", " ", body.split("optional uint32 hw_diag = 7;")[1])
+
+
+class StatusReadContract(unittest.TestCase):
+
+    def test_field(self):
+        st = message_fields("ble.proto", "SystemStatePacket")
+        self.assertEqual(st.get("beacon_key"), STATUS_READ_FIELD)
+        self.assertEqual(field_labels("ble.proto", "SystemStatePacket")["beacon_key"], "optional")
+        nums = [n for _, n in st.values()]
+        self.assertEqual(len(nums), len(set(nums)), "duplicate SystemStatePacket field")
+        # Append-only: the seven fields every client already reads keep their numbers.
+        self.assertEqual({f: n for f, (_, n) in st.items() if f != "beacon_key"},
+                         {"engage_state": 1, "battery": 2, "sdcard": 3, "gps_data": 4,
+                          "sensors": 5, "firmware_version": 6, "hw_diag": 7})
+
+    def test_same_report_as_the_echo(self):
+        # One message for both places, so a client reads them with one decoder.
+        self.assertEqual(message_fields("ble.proto", "CfgEchoPacket")["beacon_key"][0],
+                         STATUS_READ_FIELD[0])
+        self.assertEqual(message_fields("ble.proto", "BeaconKeyReport"), REPORT_FIELDS)
+
+    def test_rules_are_written_down(self):
+        c = _status_read_comment()
+        for phrase in ("firmware main build TBD", "neither decodes nor re-encodes",
+                       "a READ restarts nothing", "tx_counter always 0",
+                       "Present and empty", "140 B", "never gps_data or sensors",
+                       "at most 95 B", "Never a key byte"):
+            self.assertIn(phrase, c, phrase)
+        self.assertRegex(read("ble.options"),
+                         r"SystemStatePacket\.beacon_key, tx_counter never sent there")
+
+
+class StatusReadGenerated(unittest.TestCase):
+
+    def test_nanopb_header(self):
+        h = read("ble.pb.h")
+        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_BEACON_KEY_TAG\s+8\b")
+        body = c_struct("ble.pb.h", "system_state_packet")
+        self.assertIn("bool has_beacon_key;", body)
+        self.assertIn("beacon_key_report_t beacon_key;", body)
+        fl = c_fieldlist("ble.pb.h", "SYSTEM_STATE_PACKET_FIELDLIST")
+        self.assertRegex(fl, r"OPTIONAL, MESSAGE,\s+beacon_key,\s+8\)")
+        self.assertIn("#define system_state_packet_t_beacon_key_MSGTYPE beacon_key_report_t", h)
+        # 145 before, plus the tag, a length byte and BEACON_KEY_REPORT_SIZE.
+        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+168\b")
+
+    def test_swift(self):
+        s = read("ble.pb.swift")
+        body = s.split("struct SystemStatePacket: @unchecked Sendable {")[1].split("\n}\n")[0]
+        self.assertIn("var beaconKey: BeaconKeyReport {", body)
+        self.assertIn("var hasBeaconKey: Bool", body)
+        ext = s.split("extension SystemStatePacket: SwiftProtobuf.Message")[1].split("\n}\n")[0]
+        self.assertIn('8: .standard(proto: "beacon_key")', ext)
+
+
+@unittest.skipIf(PB2 is None, "protobuf runtime unavailable")
+class StatusReadPython(unittest.TestCase):
+
+    def test_descriptor(self):
+        ble, _ = PB2
+        st = ble.DESCRIPTOR.message_types_by_name["SystemStatePacket"]
+        f = st.fields_by_name["beacon_key"]
+        self.assertEqual((f.message_type.name, f.number), STATUS_READ_FIELD)
+        self.assertTrue(f.has_presence)
+
+    def test_present_and_empty_when_no_key(self):
+        """Present and empty = firmware with the key store and no key; absent
+        = firmware without it. Tag 8, length 0."""
+        ble, _ = PB2
+        p = ble.SystemStatePacket()
+        self.assertFalse(p.HasField("beacon_key"))
+        p.beacon_key.SetInParent()
+        self.assertEqual(p.SerializeToString(), b"\x42\x00")
+        back = ble.SystemStatePacket.FromString(b"\x42\x00")
+        self.assertTrue(back.HasField("beacon_key"))
+        self.assertEqual((back.beacon_key.state, back.beacon_key.gen, back.beacon_key.kcv,
+                          back.beacon_key.result, back.beacon_key.tx_counter), (0, 0, b"", 0, 0))
+
+    def test_sizes(self):
+        ble, _ = PB2
+        cases = {
+            "no key":                 ((0, 0, None, 0), 2),
+            "keyed (boot)":           ((1, 3, SYNTHETIC_KCV, 0), 11),
+            "keyed after a set":      ((1, 3, SYNTHETIC_KCV, 1), 13),
+            "after a clear":          ((0, 3, None, 2), 6),
+            "fallback, torn record":  ((2, 3, None, 0), 6),
+            "worst (gen 255)":        ((2, GEN_MAX, b"\xff" * KCV_LEN, 5), 14),
+        }
+        f = STATUS_READ_FIELD[1]
+        for name, ((st, gen, kcv, res), size) in cases.items():
+            wire = encode([(f, status_report(st, gen, kcv, res))])
+            self.assertEqual(len(wire), size, name)
+            p = ble.SystemStatePacket()
+            p.beacon_key.SetInParent()
+            p.beacon_key.state, p.beacon_key.gen, p.beacon_key.result = st, gen, res
+            if kcv:
+                p.beacon_key.kcv = kcv
+            self.assertEqual(p.SerializeToString(), wire, name)
+
+    def test_encoder_agrees_with_runtime(self):
+        ble, _ = PB2
+        p = ble.BlePacket()
+        p.header.epoch = U32
+        p.header.system_uid = U32
+        s = p.system_state_packet
+        s.engage_state = True
+        s.battery.charging = True
+        s.battery.voltage = 1.0
+        s.battery.percentage = 1.0
+        s.sdcard.detected = True
+        s.sdcard.space_remaining = U64
+        s.sdcard.total_space = U64
+        s.firmware_version = "b" + "9" * (FW_VERSION_MAX - 1)
+        s.hw_diag = HW_DIAG_BITS
+        s.beacon_key.state, s.beacon_key.gen, s.beacon_key.kcv, s.beacon_key.result = \
+            2, GEN_MAX, b"\xff" * KCV_LEN, 5
+        self.assertEqual(len(p.SerializeToString()), len(status_packet(status_report_worst())))
+
+    def test_old_decoder_keeps_every_other_field(self):
+        """A client built before field 8 reads the build and the rest as
+        before: the report is an unknown field to it."""
+        ble, _ = PB2
+        p = ble.BlePacket()
+        p.header.system_uid = 0x7E57C0DE
+        p.system_state_packet.firmware_version = "b999 0123abc"
+        p.system_state_packet.hw_diag = 0x80
+        before = p.SerializeToString()
+        p.system_state_packet.beacon_key.state = 1
+        p.system_state_packet.beacon_key.gen = 3
+        p.system_state_packet.beacon_key.kcv = SYNTHETIC_KCV
+        p.system_state_packet.beacon_key.result = 1
+        after = p.SerializeToString()
+        self.assertEqual(len(after) - len(before), 13)
+        back = ble.BlePacket.FromString(after)
+        self.assertEqual(back.system_state_packet.firmware_version, "b999 0123abc")
+        self.assertEqual(back.system_state_packet.beacon_key.kcv, SYNTHETIC_KCV)
+
+
+class StatusReadBudget(unittest.TestCase):
+
+    def test_worst_status_packet_fits_the_characteristic(self):
+        worst = status_packet(status_report_worst())
+        self.assertEqual(len(worst), 92)
+        every_u32 = status_packet(status_report_worst(), bounded=False)
+        self.assertEqual(len(every_u32), 95)          # the number ble.proto states
+        self.assertLessEqual(len(every_u32), STATUS_CHAR_CAP)
+        # Without the report (firmware before the key store): 78 B.
+        self.assertEqual(len(status_packet()), 78)
+
+    def test_report_here_is_the_echo_report_without_the_counter(self):
+        self.assertEqual(len(encode([(STATUS_READ_FIELD[1], status_report_worst())])), 14)
+        self.assertEqual(len(encode([(ECHO_FIELD[1], report_worst())])), 20)
 
 
 if __name__ == "__main__":

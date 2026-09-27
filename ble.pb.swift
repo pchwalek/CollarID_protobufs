@@ -1732,6 +1732,39 @@ struct SystemStatePacket: @unchecked Sendable {
   /// Clears the value of `hwDiag`. Subsequent reads from it will return its default value.
   mutating func clearHwDiag() {_uniqueStorage()._hwDiag = nil}
 
+  /// Lost-mode beacon key status, read WITHOUT writing anything (fw gate:
+  /// firmware main build TBD, set at merge). This packet is what both radios
+  /// serve from the read-only status characteristic (9eaf9ebe-...), the one a
+  /// client reads at connect for the firmware build. Both radios store the
+  /// bytes the collar pushes over SPI and serve them as they are: neither
+  /// decodes nor re-encodes them, so a field they have never heard of still
+  /// reaches the client, and a READ restarts nothing (only a settings WRITE
+  /// makes the legacy WB15 radio restart its Bluetooth link). That makes this
+  /// the one place such a collar can show a key it took in a single write:
+  /// after a CMD_BEACON_KEY_SET / _CLEAR (downlink.proto) the collar pushes
+  /// this packet again, and the client reads the outcome on reconnect.
+  ///
+  /// The BeaconKeyReport of the echo (CfgEchoPacket.beacon_key) with state,
+  /// gen, kcv and result, and tx_counter always 0 (not sent: it is cleartext
+  /// on every 0x4D frame anyway). Present and empty when no key is held (2 B
+  /// on the wire), absent on firmware without the key store: presence tells
+  /// "no key" from "firmware too old", as on the echo. 2 B unkeyed, 13 B
+  /// keyed after a set, 14 B at most (gen from 128 up). Never a key byte.
+  ///
+  /// Size: both radios declare this characteristic at 140 B (SizeStatuschar)
+  /// and keep their old value when handed a longer one, so the whole BlePacket
+  /// must stay at or under 140 B. The collar fills battery, sdcard,
+  /// firmware_version, hw_diag and this field, never gps_data or sensors: at
+  /// most 95 B with every one of those at its largest.
+  var beaconKey: BeaconKeyReport {
+    get {return _storage._beaconKey ?? BeaconKeyReport()}
+    set {_uniqueStorage()._beaconKey = newValue}
+  }
+  /// Returns true if `beaconKey` has been explicitly set.
+  var hasBeaconKey: Bool {return _storage._beaconKey != nil}
+  /// Clears the value of `beaconKey`. Subsequent reads from it will return its default value.
+  mutating func clearBeaconKey() {_uniqueStorage()._beaconKey = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -3482,6 +3515,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     5: .same(proto: "sensors"),
     6: .standard(proto: "firmware_version"),
     7: .standard(proto: "hw_diag"),
+    8: .standard(proto: "beacon_key"),
   ]
 
   fileprivate class _StorageClass {
@@ -3492,6 +3526,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     var _sensors: SimpleSensorReading? = nil
     var _firmwareVersion: String = String()
     var _hwDiag: UInt32? = nil
+    var _beaconKey: BeaconKeyReport? = nil
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -3513,6 +3548,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       _sensors = source._sensors
       _firmwareVersion = source._firmwareVersion
       _hwDiag = source._hwDiag
+      _beaconKey = source._beaconKey
     }
   }
 
@@ -3538,6 +3574,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         case 5: try { try decoder.decodeSingularMessageField(value: &_storage._sensors) }()
         case 6: try { try decoder.decodeSingularStringField(value: &_storage._firmwareVersion) }()
         case 7: try { try decoder.decodeSingularUInt32Field(value: &_storage._hwDiag) }()
+        case 8: try { try decoder.decodeSingularMessageField(value: &_storage._beaconKey) }()
         default: break
         }
       }
@@ -3571,6 +3608,9 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       try { if let v = _storage._hwDiag {
         try visitor.visitSingularUInt32Field(value: v, fieldNumber: 7)
       } }()
+      try { if let v = _storage._beaconKey {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3587,6 +3627,7 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         if _storage._sensors != rhs_storage._sensors {return false}
         if _storage._firmwareVersion != rhs_storage._firmwareVersion {return false}
         if _storage._hwDiag != rhs_storage._hwDiag {return false}
+        if _storage._beaconKey != rhs_storage._beaconKey {return false}
         return true
       }
       if !storagesAreEqual {return false}

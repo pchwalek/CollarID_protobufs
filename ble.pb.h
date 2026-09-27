@@ -560,6 +560,32 @@ typedef struct system_state_packet {
  older firmware. */
     bool has_hw_diag;
     uint32_t hw_diag;
+    /* Lost-mode beacon key status, read WITHOUT writing anything (fw gate:
+ firmware main build TBD, set at merge). This packet is what both radios
+ serve from the read-only status characteristic (9eaf9ebe-...), the one a
+ client reads at connect for the firmware build. Both radios store the
+ bytes the collar pushes over SPI and serve them as they are: neither
+ decodes nor re-encodes them, so a field they have never heard of still
+ reaches the client, and a READ restarts nothing (only a settings WRITE
+ makes the legacy WB15 radio restart its Bluetooth link). That makes this
+ the one place such a collar can show a key it took in a single write:
+ after a CMD_BEACON_KEY_SET / _CLEAR (downlink.proto) the collar pushes
+ this packet again, and the client reads the outcome on reconnect.
+
+ The BeaconKeyReport of the echo (CfgEchoPacket.beacon_key) with state,
+ gen, kcv and result, and tx_counter always 0 (not sent: it is cleartext
+ on every 0x4D frame anyway). Present and empty when no key is held (2 B
+ on the wire), absent on firmware without the key store: presence tells
+ "no key" from "firmware too old", as on the echo. 2 B unkeyed, 13 B
+ keyed after a set, 14 B at most (gen from 128 up). Never a key byte.
+
+ Size: both radios declare this characteristic at 140 B (SizeStatuschar)
+ and keep their old value when handed a longer one, so the whole BlePacket
+ must stay at or under 140 B. The collar fills battery, sdcard,
+ firmware_version, hw_diag and this field, never gps_data or sensors: at
+ most 95 B with every one of those at its largest. */
+    bool has_beacon_key;
+    beacon_key_report_t beacon_key;
 } system_state_packet_t;
 
 typedef struct peripheral_packet {
@@ -721,7 +747,7 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0}
+#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
 #define PERIPHERAL_INFO_INIT_DEFAULT             {{{NULL}, NULL}}
 #define BLE_PACKET_INIT_DEFAULT                  {false, PACKET_HEADER_INIT_DEFAULT, 0, {SCHEDULE_CONFIG_PACKET_INIT_DEFAULT}}
@@ -744,7 +770,7 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0}
+#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
 #define PERIPHERAL_INFO_INIT_ZERO                {{{NULL}, NULL}}
 #define BLE_PACKET_INIT_ZERO                     {false, PACKET_HEADER_INIT_ZERO, 0, {SCHEDULE_CONFIG_PACKET_INIT_ZERO}}
@@ -883,6 +909,7 @@ extern "C" {
 #define SYSTEM_STATE_PACKET_SENSORS_TAG          5
 #define SYSTEM_STATE_PACKET_FIRMWARE_VERSION_TAG 6
 #define SYSTEM_STATE_PACKET_HW_DIAG_TAG          7
+#define SYSTEM_STATE_PACKET_BEACON_KEY_TAG       8
 #define PERIPHERAL_PACKET_MAC_ADDRESS_TAG        1
 #define PERIPHERAL_PACKET_TYPE_TAG               2
 #define PERIPHERAL_INFO_DEVICE_UIDS_TAG          1
@@ -1121,13 +1148,15 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  sdcard,            3) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  gps_data,          4) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  sensors,           5) \
 X(a, STATIC,   SINGULAR, STRING,   firmware_version,   6) \
-X(a, STATIC,   OPTIONAL, UINT32,   hw_diag,           7)
+X(a, STATIC,   OPTIONAL, UINT32,   hw_diag,           7) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,        8)
 #define SYSTEM_STATE_PACKET_CALLBACK NULL
 #define SYSTEM_STATE_PACKET_DEFAULT NULL
 #define system_state_packet_t_battery_MSGTYPE battery_state_t
 #define system_state_packet_t_sdcard_MSGTYPE sd_card_state_t
 #define system_state_packet_t_gps_data_MSGTYPE gps_data_t
 #define system_state_packet_t_sensors_MSGTYPE simple_sensor_reading_t
+#define system_state_packet_t_beacon_key_MSGTYPE beacon_key_report_t
 
 #define PERIPHERAL_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, mac_address,       1) \
@@ -1227,7 +1256,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_PACKET_SIZE              1387
 #define SCHEDULE_CONFIG_SIZE                     180
 #define SIMPLE_SENSOR_READING_SIZE               51
-#define SYSTEM_STATE_PACKET_SIZE                 145
+#define SYSTEM_STATE_PACKET_SIZE                 168
 #define TIME_WINDOW_SIZE                         30
 
 #ifdef __cplusplus

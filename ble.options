@@ -22,7 +22,10 @@ CfgEchoPacket.slot_report             max_size:128
 # beacon_key (BeaconKeyReport): kcv is the 3-byte key check value, empty
 # while no key is held, so NOT fixed_length (an unkeyed report must encode
 # nothing for it). Status echoes only, like mag_cal: at most 20 B, which puts
-# the worst status echo at 108 B.
+# the worst status echo at 108 B. The same message rides the read-only status
+# packet (SystemStatePacket.beacon_key, tx_counter never sent there): at most
+# 14 B, which puts the collar's worst status packet at 95 B of the 140 B the
+# radios' status characteristic holds.
 BeaconKeyReport.kcv                   max_size:3
 
 # ---- Fixed-size credentials (no dynamic allocation) -----------------------
