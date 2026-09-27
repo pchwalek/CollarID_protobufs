@@ -40,7 +40,7 @@ All integers are little-endian.
 [1..4]   u32  uid          the collar's on-air identifier
 [5..8]   i32  lat_e7       latitude  x 1e7, WGS-84
 [9..12]  i32  lon_e7       longitude x 1e7
-[13..16] u32  fix_epoch    UTC seconds of the GPS fix
+[13..16] u32  fix_epoch    UTC seconds the GPS fix was taken; 0 = no position
 [17]     u8   batt_pct     battery, 0..100
 ```
 
@@ -56,6 +56,29 @@ All integers are little-endian.
 
 The body is exactly v1's bytes [5..17]; only its confidentiality and
 integrity change.
+
+### No position
+
+`fix_epoch` = 0 means "no position", in either frame: never a place at 0, 0
+and never a time in 1970. The collar sends it with `lat_e7` = `lon_e7` = 0,
+and a receiver ignores the latitude and longitude of any frame whose
+`fix_epoch` is 0.
+
+A collar in lost mode sends its beacon at every interval, whether or not it
+has a GPS fix:
+
+- With a fix, the frame carries the collar's most recent accepted fix, and
+  `fix_epoch` is the time that fix was taken, not the time the frame was sent.
+  A collar that cannot get a new fix (under dense canopy, indoors) keeps
+  sending its last one with its original `fix_epoch`, so a position can be
+  hours old: show its age with it.
+- With none (no fix since the collar started), the frame carries the
+  no-position values above. A searcher still homes in on its RSSI, exactly as
+  on a v2 frame it cannot open.
+
+One collar's stream can therefore go fix, no position (after a restart), fix.
+A no-position frame is not a fix "going backwards" and does not replace the
+last fix a receiver has seen: compare the next fix against that one.
 
 ### Cipher
 
@@ -95,7 +118,7 @@ different generations as one sequence.
 Replay: a rebroadcast frame is byte-identical, and CCM cannot tell. A receiver
 should keep the highest `ctr` seen per `uid` in a session, flag a frame at or
 below it as a replay or duplicate, and show the age of the fix from the
-authenticated `fix_epoch`.
+authenticated `fix_epoch` (a frame with `fix_epoch` 0 has no fix to age).
 
 ### A beacon outside lost mode: the key check
 
@@ -108,10 +131,8 @@ never-rewinding sequence as every other beacon (it is usually the first
 frame of the new generation, `seq` 0). Only a key that actually changed sends
 one: a retry of the key the collar already holds does not.
 
-A collar that has no GPS fix yet sends `fix_epoch` = 0 with `lat_e7` =
-`lon_e7` = 0. In any frame, `fix_epoch` 0 means "no position", never a place
-at 0, 0; a receiver shows it as such. A lost-mode beacon is never sent
-without a fix, so in practice only the key check carries it.
+Like a lost-mode beacon, a key check from a collar without a GPS fix carries
+the no-position values (`fix_epoch` 0, see "No position" above).
 
 ## Keys
 
