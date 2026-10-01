@@ -134,6 +134,69 @@ bool beacon_v2_open(const aead_aes_t *dev_aes, const uint8_t *frame, size_t len,
 	return true;
 }
 
+/* ---- sealed report (0x52) ------------------------------------------------ */
+
+/* The report is the v2 construction with a longer body: the CCM layer must
+ * take the whole of one LoRa packet's worth (2026-09-30). */
+_Static_assert(BEACON_REPORT_MAX_BODY <= AEAD_CCM_MAX_PT, "aead_ccm must seal a 238 B report body");
+_Static_assert(BEACON_REPORT_OVERHEAD == 17u && BEACON_REPORT_MAX_BODY == 238u, "the public 0x52 layout");
+
+size_t beacon_report_seal(const aead_aes_t *dev_aes, uint32_t uid, uint32_t ctr,
+                          const uint8_t *body, size_t body_len,
+                          uint8_t *out, size_t out_cap)
+{
+	uint8_t nonce[BEACON_V2_NONCE_LEN];
+
+	if (!dev_aes || !body || !out) return 0;
+	if (body_len < BEACON_REPORT_MIN_BODY || body_len > BEACON_REPORT_MAX_BODY) return 0;
+	if (out_cap < body_len + BEACON_REPORT_OVERHEAD) return 0;
+	/* The header first: in place, body starts at out[9], so these nine bytes
+	 * never touch it. They are the AAD, read before anything is written over
+	 * the body (aead_ccm MACs the plaintext, then encrypts it in place). */
+	out[0] = (uint8_t)BEACON_REPORT_MAGIC;
+	put_u32le(&out[1], uid);
+	put_u32le(&out[5], ctr);
+	beacon_v2_nonce(uid, ctr, BEACON_DIR_BEACON, nonce);
+	if (!aead_ccm_seal(dev_aes, nonce, out, BEACON_V2_AAD_LEN, body, body_len,
+	                   &out[BEACON_V2_AAD_LEN], &out[BEACON_V2_AAD_LEN + body_len])) {
+		memset(out, 0, body_len + BEACON_REPORT_OVERHEAD);
+		return 0;
+	}
+	return body_len + BEACON_REPORT_OVERHEAD;
+}
+
+bool beacon_report_peek(const uint8_t *frame, size_t len, uint32_t *uid, uint32_t *ctr)
+{
+	if (!frame || !uid || !ctr) return false;
+	if (len < BEACON_REPORT_MIN_LEN || len > BEACON_REPORT_MAX_LEN) return false;
+	if (frame[0] != (uint8_t)BEACON_REPORT_MAGIC) return false;
+	*uid = get_u32le(&frame[1]);
+	*ctr = get_u32le(&frame[5]);
+	return true;
+}
+
+size_t beacon_report_open(const aead_aes_t *dev_aes, const uint8_t *frame, size_t len,
+                          uint32_t *uid, uint32_t *ctr, uint8_t *body, size_t body_cap)
+{
+	uint8_t nonce[BEACON_V2_NONCE_LEN];
+	uint32_t u, c;
+	size_t n;
+
+	if (!dev_aes || !uid || !ctr || !body) return 0;
+	if (!beacon_report_peek(frame, len, &u, &c)) return 0;
+	n = len - BEACON_REPORT_OVERHEAD;
+	if (body_cap < n) return 0;
+	beacon_v2_nonce(u, c, BEACON_DIR_BEACON, nonce);
+	/* aead_ccm zeroes body[0..n) when the tag does not verify. */
+	if (!aead_ccm_open(dev_aes, nonce, frame, BEACON_V2_AAD_LEN,
+	                   &frame[BEACON_V2_AAD_LEN], n, &frame[BEACON_V2_AAD_LEN + n], body)) {
+		return 0;
+	}
+	*uid = u;
+	*ctr = c;
+	return n;
+}
+
 /* ---- keys ---------------------------------------------------------------- */
 
 bool beacon_kdf_input(beacon_key_purpose_t purpose, uint32_t uid, uint8_t gen,

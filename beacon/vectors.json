@@ -8,7 +8,8 @@
   "body": "lat_e7 i32le || lon_e7 i32le || fix_epoch u32le || batt_pct u8 (13 B, = v1 [5..17])",
   "v1": "[0]=0x4C [1..4]=uid_le32 [5..17]=body (18 B plaintext)",
   "kdf": "dev_key = AES-CMAC(master, label(12 ASCII) || uid_le32 || gen); labels CID-LORA-BCN (beacon), CID-LORA-CMD (command)",
-  "kcv": "AES(key, 0^16)[0..2]"
+  "kcv": "AES(key, 0^16)[0..2]",
+  "report": "[0]=0x52 [1..4]=uid_le32 [5..8]=ctr_le32 (the v2 counter sequence) [9..9+n-1]=CCM ciphertext of the payload (n=1..238) [9+n..9+n+7]=8-byte tag; AAD, nonce and dev_key as v2; frame n+17 = 18..255 B"
  },
  "aes128": [
   {
@@ -724,6 +725,65 @@
    "fix_epoch": 4294967295,
    "batt_pct": 100,
    "frame": "4cffffffff00e9a43500d2496bffffffff64"
+  }
+ ],
+ "reports": [
+  {
+   "name": "R1 short report",
+   "master": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+   "uid": 2119630849,
+   "uid_hex": "7e570001",
+   "gen": 1,
+   "seq": 1,
+   "ctr": 16777217,
+   "ctr_hex": "01000001",
+   "dev_key": "30e18c9619028cec318538840698b739",
+   "kcv": "0d5236",
+   "nonce": "0100577e010000010000000000",
+   "aad": "520100577e01000001",
+   "payload": "0a0c08011095b6f8f40618dc05200128636f6c6c6172207265706f7274207632",
+   "ct": "8a8461c8ab41c1b6c8089f19a0d8a5dbdc6fcfd4ca6e3226fde9b450129dfb85",
+   "tag": "907e88296a89970b",
+   "frame": "520100577e010000018a8461c8ab41c1b6c8089f19a0d8a5dbdc6fcfd4ca6e3226fde9b450129dfb85907e88296a89970b",
+   "frame_len": 49
+  },
+  {
+   "name": "R2 one byte",
+   "master": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+   "uid": 2119630850,
+   "uid_hex": "7e570002",
+   "gen": 2,
+   "seq": 11259375,
+   "ctr": 44813807,
+   "ctr_hex": "02abcdef",
+   "dev_key": "08208f96ffa5c4307b75f62031e882b3",
+   "kcv": "b69253",
+   "nonce": "0200577eefcdab020000000000",
+   "aad": "520200577eefcdab02",
+   "payload": "0a",
+   "ct": "8f",
+   "tag": "148285f7c79f5c83",
+   "frame": "520200577eefcdab028f148285f7c79f5c83",
+   "frame_len": 18
+  },
+  {
+   "name": "R3 maximum 238 B",
+   "master": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+   "uid": 2119630851,
+   "uid_hex": "7e570003",
+   "gen": 255,
+   "seq": 16777214,
+   "ctr": 4294967294,
+   "ctr_hex": "fffffffe",
+   "dev_key": "d68f086277038ed567d4f67363a24c4b",
+   "kcv": "27bfa0",
+   "nonce": "0300577efeffffff0000000000",
+   "aad": "520300577efeffffff",
+   "payload": "0b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92b7dc01264b7095badf04294e7398bde2072c51769bc0e50a2f54799ec3e80d32577ca1c6eb10355a7fa4c9ee13385d82a7ccf1163b6085aacff4193e6388add2f71c41668bb0d5fa1f44698eb3d8fd22476c91b6db00254a6f94b9de03284d7297bce1062b50759abfe4092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43688db2d7fc21466b90b5daff24496e93b8dd02274c",
+   "ct": "4bfb8bb6a91d66aec725f747a1ba7f2147195d0f20488e90cb3b0526eaed1a5c9c5b32394faad2ae9836f6c7d204b1b499e6a3e57d15369384b2a8f68609fec5a8ff39dd0438d7d29c6a0d8f44adad34d9959a3999f5d0a02f0baa86f0cdc09bfbcb80a1b5c2bf6112587aaa9961777aa999ec6da2af26389b564841ec8d9e352689d2807b4d78c8ea921e495e6514e1a579e0de618ce40275587df90616b24475121b935753bb36c4751f38e80ea31572491a9eeb69330207c148574ae34fde48b1441695ad63d4b6d5d10e4b48c4c3a0199a478d03907a38bdb8d73124aa723a7dcbcbe2598c502b938b0e4a66",
+   "tag": "47cea8b1646d70d6",
+   "frame": "520300577efeffffff4bfb8bb6a91d66aec725f747a1ba7f2147195d0f20488e90cb3b0526eaed1a5c9c5b32394faad2ae9836f6c7d204b1b499e6a3e57d15369384b2a8f68609fec5a8ff39dd0438d7d29c6a0d8f44adad34d9959a3999f5d0a02f0baa86f0cdc09bfbcb80a1b5c2bf6112587aaa9961777aa999ec6da2af26389b564841ec8d9e352689d2807b4d78c8ea921e495e6514e1a579e0de618ce40275587df90616b24475121b935753bb36c4751f38e80ea31572491a9eeb69330207c148574ae34fde48b1441695ad63d4b6d5d10e4b48c4c3a0199a478d03907a38bdb8d73124aa723a7dcbcbe2598c502b938b0e4a6647cea8b1646d70d6",
+   "frame_len": 255
   }
  ]
 }

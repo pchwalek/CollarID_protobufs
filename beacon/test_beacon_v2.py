@@ -274,6 +274,132 @@ class TestV1(unittest.TestCase):
                 b.decode_v1(bad)
 
 
+# ---------------------------------------------------- sealed report (0x52)
+
+class TestReports(unittest.TestCase):
+    """The sealed report, added 2026-09-30: the v2 construction with a
+    variable-length body, and its three frozen vectors."""
+
+    def test_layout_constants(self):
+        self.assertEqual((b.MAGIC_REPORT, b.REPORT_OVERHEAD), (0x52, 17))
+        self.assertEqual((b.REPORT_MIN_PAYLOAD, b.REPORT_MAX_PAYLOAD), (1, 238))
+        self.assertEqual((b.REPORT_MIN_LEN, b.REPORT_MAX_LEN), (18, 255))
+        self.assertEqual(b.REPORT_OVERHEAD, b.AAD_LEN + b.TAG_LEN)
+
+    def test_vectors_are_the_frozen_frames(self):
+        self.assertEqual(len(VEC["reports"]), 3)
+        self.assertEqual([v["frame"] for v in VEC["reports"]], [c[-1] for c in mv.REPORT_CASES])
+        self.assertEqual([v["frame_len"] for v in VEC["reports"]], [49, 18, 255])
+        self.assertEqual([v["ctr_hex"] for v in VEC["reports"]], ["01000001", "02abcdef", "fffffffe"])
+
+    def test_vectors_open_with_key_and_with_master(self):
+        for v in VEC["reports"]:
+            frame, payload = hx(v["frame"]), hx(v["payload"])
+            self.assertEqual(len(frame), v["frame_len"])
+            self.assertEqual(len(frame), len(payload) + b.REPORT_OVERHEAD)
+            self.assertEqual(b.classify(frame), "report", v["name"])
+            self.assertEqual(b.peek_report(frame), (v["uid"], v["ctr"]), v["name"])
+            self.assertEqual(frame[:9].hex(), v["aad"])
+            self.assertEqual(frame[9:9 + len(payload)].hex(), v["ct"])
+            self.assertEqual(frame[9 + len(payload):].hex(), v["tag"])
+            self.assertEqual(b.nonce(v["uid"], v["ctr"]).hex(), v["nonce"])
+            got = b.open_report(hx(v["dev_key"]), frame)
+            self.assertEqual((got.uid, got.ctr, got.gen, got.seq, got.payload),
+                             (v["uid"], v["ctr"], v["gen"], v["seq"], payload), v["name"])
+            self.assertEqual(b.open_report_with_master(hx(v["master"]), frame), got, v["name"])
+            self.assertEqual(b.kdf(hx(v["master"]), "beacon", v["uid"], v["gen"]).hex(), v["dev_key"])
+            self.assertEqual(b.kcv(hx(v["dev_key"])).hex(), v["kcv"])
+
+    def test_vectors_reseal_byte_for_byte(self):
+        for v in VEC["reports"]:
+            frame = b.seal_report(hx(v["dev_key"]), v["uid"], v["ctr"], hx(v["payload"]))
+            self.assertEqual(frame.hex(), v["frame"], v["name"])
+
+    def test_tamper_every_bit_of_every_report_vector(self):
+        rejected = 0
+        for v in VEC["reports"]:
+            key, frame = hx(v["dev_key"]), hx(v["frame"])
+            for i in range(len(frame)):
+                for bit in range(8):
+                    t = bytearray(frame)
+                    t[i] ^= 1 << bit
+                    with self.assertRaises(ValueError if i == 0 else b.AuthError):   # byte 0: not a report any more
+                        b.open_report(key, bytes(t))
+                    rejected += 1
+        self.assertEqual(rejected, (49 + 18 + 255) * 8)
+
+    def test_wrong_key_length_and_magic(self):
+        r1, r2, r3 = VEC["reports"]
+        f1 = hx(r1["frame"])
+        for other in (r2, r3):
+            with self.assertRaises(b.AuthError):
+                b.open_report(hx(other["dev_key"]), f1)
+        with self.assertRaises(b.AuthError):
+            b.open_report_with_master(hx(mv.MASTER_BEACON_B), f1)
+        with self.assertRaises(b.AuthError):                                   # the next generation's key
+            b.open_report(b.kdf(hx(r1["master"]), "beacon", r1["uid"], r1["gen"] + 1), f1)
+        with self.assertRaises(b.AuthError):
+            b.open_report(hx(r1["dev_key"]), f1[:-1])                          # a byte short
+        with self.assertRaises(b.AuthError):
+            b.open_report(hx(r1["dev_key"]), f1 + b"\x00")                     # a byte long
+        f2 = hx(r2["frame"])
+        for bad in (f2[:-1], b"", bytes([0x52]) * 8, hx(r3["frame"]) + b"\x00", bytes([0x4D]) + f1[1:]):
+            with self.assertRaises(ValueError):
+                b.peek_report(bad)
+            self.assertNotEqual(b.classify(bad), "report")
+
+    def test_payload_bounds(self):
+        key = hx(VEC["reports"][0]["dev_key"])
+        for n in (0, 239, 300):
+            with self.assertRaises(ValueError):
+                b.seal_report(key, 1, 0x01000000, bytes(n))
+        self.assertEqual(len(b.seal_report(key, 1, 0x01000000, b"\x0a")), 18)
+        self.assertEqual(len(b.seal_report(key, 1, 0x01000000, bytes(238))), 255)
+        for uid, ctr in ((-1, 0), (1 << 32, 0), (0, 1 << 32)):
+            with self.assertRaises(ValueError):
+                b.seal_report(key, uid, ctr, b"\x0a")
+
+    def test_same_construction_as_v2(self):
+        # The report recipe with the beacon's magic and its 13-byte body IS
+        # beacon_v2.seal; with 0x52 the ciphertext is the same keystream (same
+        # key, same nonce) and only the tag differs, because the magic is in
+        # the AAD. So a report never opens as a beacon or the other way round.
+        for v in VEC["frames"]:
+            key, uid, ctr, body = hx(v["dev_key"]), v["uid"], v["ctr"], hx(v["body"])
+            hdr4d = bytes([0x4D]) + uid.to_bytes(4, "little") + ctr.to_bytes(4, "little")
+            ct, tag = b.ccm_seal(key, b.nonce(uid, ctr), hdr4d, body, 8)
+            self.assertEqual((hdr4d + ct + tag).hex(), v["frame"], v["name"])
+            rep = b.seal_report(key, uid, ctr, body)
+            self.assertEqual(len(rep), b.LEN_V2)                               # 13 + 17: the beacon's length
+            self.assertEqual(rep[9:22], hx(v["frame"])[9:22])
+            self.assertNotEqual(rep[22:], hx(v["frame"])[22:])
+            with self.assertRaises(b.AuthError):
+                b.open_frame(key, bytes([0x4D]) + rep[1:])
+            with self.assertRaises(b.AuthError):
+                b.open_report(key, bytes([0x52]) + hx(v["frame"])[1:])
+
+    def test_one_counter_sequence_is_required(self):
+        # Why the collar spends its beacon counter on reports: a report and a
+        # beacon under one key and one counter share the CCM keystream, so the
+        # XOR of their ciphertexts is the XOR of their plaintexts.
+        v = VEC["frames"][0]
+        key, uid, ctr, body = hx(v["dev_key"]), v["uid"], v["ctr"], hx(v["body"])
+        report = bytes(range(0x0A, 0x0A + 13))
+        rep = b.seal_report(key, uid, ctr, report)
+        leak = bytes(x ^ y for x, y in zip(rep[9:22], hx(v["frame"])[9:22]))
+        self.assertEqual(leak, bytes(x ^ y for x, y in zip(report, body)))
+
+    def test_a_plaintext_report_never_reads_as_sealed(self):
+        for n in range(1, 256):
+            self.assertIsNone(b.classify(bytes([0x0A]) + bytes(n - 1)))
+        for n in range(b.REPORT_MIN_LEN, b.REPORT_MAX_LEN + 1):
+            self.assertEqual(b.classify(bytes([0x52]) + bytes(n - 1)), "report")
+        self.assertEqual(b.classify(bytes([0x4C]) + bytes(17)), "v1")          # (magic, length) decides
+        self.assertEqual(b.classify(bytes([0x4D]) + bytes(29)), "v2")
+        self.assertIsNone(b.classify(bytes([0x52]) + bytes(16)))               # 17 B: no body
+        self.assertIsNone(b.classify(bytes([0x52]) + bytes(255)))              # 256 B: no LoRa packet
+
+
 # ---------------------------------------------------------- frozen vectors
 
 class TestVectorsFrozen(unittest.TestCase):
@@ -282,17 +408,22 @@ class TestVectorsFrozen(unittest.TestCase):
             self.assertEqual(fh.read(), mv.render(mv.build()))
 
     def test_format_and_counts(self):
+        # The reports section was added (2026-09-30) without touching any
+        # earlier entry, so the format version is still 1.
         self.assertEqual((VEC["format"], VEC["version"]), ("collarid-beacon-v2-vectors", 1))
-        self.assertEqual({k: len(VEC[k]) for k in ("aes128", "cmac", "ccm", "kdf", "frames", "v1")},
-                         {"aes128": 1, "cmac": 4, "ccm": 24, "kdf": 8, "frames": 14, "v1": 3})
+        # old: ... for k in ("aes128", "cmac", "ccm", "kdf", "frames", "v1") ... without "reports"
+        self.assertEqual({k: len(VEC[k]) for k in ("aes128", "cmac", "ccm", "kdf", "frames", "v1", "reports")},
+                         {"aes128": 1, "cmac": 4, "ccm": 24, "kdf": 8, "frames": 14, "v1": 3, "reports": 3})
 
     def test_everything_is_synthetic(self):
         masters = {mv.MASTER_BEACON_A, mv.MASTER_BEACON_B, mv.MASTER_COMMAND}
-        for v in VEC["kdf"] + VEC["frames"]:
+        # old: for v in VEC["kdf"] + VEC["frames"]:
+        for v in VEC["kdf"] + VEC["frames"] + VEC["reports"]:
             self.assertIn(v["master"], masters)
         # Real CollarID uids are STM32 UIDw0 wafer coordinates: both 16-bit
         # halves small. None of the synthetic uids has that shape.
-        for v in VEC["kdf"] + VEC["frames"] + VEC["v1"]:
+        # old: for v in VEC["kdf"] + VEC["frames"] + VEC["v1"]:
+        for v in VEC["kdf"] + VEC["frames"] + VEC["v1"] + VEC["reports"]:
             uid = v["uid"]
             self.assertFalse(0 < (uid >> 16) < 0x100 and 0 < (uid & 0xFFFF) < 0x100, "uid looks real: %08x" % uid)
         self.assertIn("synthetic", VEC["note"])
@@ -329,6 +460,27 @@ class TestCli(unittest.TestCase):
         self.assertEqual(json.loads(out)["error"], "authentication failed")
         self.assertNotIn("lat", out)
 
+    def test_report_peek_open_seal(self):
+        for v in VEC["reports"]:
+            rc, out = self.run_cli(["report-peek", v["frame"]])
+            self.assertEqual(rc, 0)
+            self.assertEqual(json.loads(out), {"uid": v["uid"], "ctr": v["ctr"], "gen": v["gen"], "seq": v["seq"],
+                                               "len": v["frame_len"], "payload_len": v["frame_len"] - 17})
+            rc, out = self.run_cli(["report-open", "--key", v["dev_key"], v["frame"]])
+            self.assertEqual((rc, json.loads(out)["payload"], json.loads(out)["ctr"]), (0, v["payload"], v["ctr"]))
+            rc, out = self.run_cli(["report-open", "--master", v["master"], v["frame"]])
+            self.assertEqual((rc, json.loads(out)["payload"]), (0, v["payload"]))
+            rc, out = self.run_cli(["report-seal", "--key", v["dev_key"], "--uid", "0x%08X" % v["uid"],
+                                    "--ctr", "0x%08X" % v["ctr"], v["payload"]])
+            self.assertEqual((rc, json.loads(out)), (0, {"frame": v["frame"], "len": v["frame_len"]}))
+
+    def test_report_open_with_wrong_key_fails_closed(self):
+        v = VEC["reports"][0]
+        rc, out = self.run_cli(["report-open", "--key", "00" * 16, v["frame"]])
+        self.assertEqual(rc, 1)
+        self.assertEqual(json.loads(out)["error"], "authentication failed")
+        self.assertNotIn("payload", out)
+
 
 # ----------------------------------------------- against `cryptography`
 
@@ -350,6 +502,12 @@ class TestAgainstCryptography(unittest.TestCase):
             c = _cmac.CMAC(_alg.AES(hx(v["master"])))
             c.update(hx(v["input"]))
             self.assertEqual(c.finalize().hex(), v["dev_key"], v["name"])
+
+    def test_reports(self):
+        for v in VEC["reports"]:
+            frame = hx(v["frame"])
+            payload = AESCCM(hx(v["dev_key"]), tag_length=8).decrypt(hx(v["nonce"]), frame[9:], frame[:9])
+            self.assertEqual(payload.hex(), v["payload"], v["name"])
 
 
 if __name__ == "__main__":

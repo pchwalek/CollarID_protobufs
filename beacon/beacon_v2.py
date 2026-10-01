@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """CollarID lost-mode beacon: reference codec for the v1 (0x4C, plaintext) and
-v2 (0x4D, AES-128-CCM) frames, and the key derivation a receiver needs.
+v2 (0x4D, AES-128-CCM) frames, the sealed report (0x52, the v2 construction
+with a variable-length body), and the key derivation a receiver needs.
 
 Standard library only, so it runs anywhere (a field laptop, a CI runner, a
 receiver's build script). It is a REFERENCE, written for clarity and for
@@ -19,6 +20,9 @@ Command line:
   beacon_v2.py derive --master HEX --uid UID --gen N [--purpose command]
   beacon_v2.py kcv    --key HEX
   beacon_v2.py v1     FRAMEHEX                    decode a v1 frame
+  beacon_v2.py report-peek FRAMEHEX               uid and counter of a sealed report, no key
+  beacon_v2.py report-open --key HEX FRAMEHEX     open a sealed report (also --master HEX)
+  beacon_v2.py report-seal --key HEX --uid UID --ctr CTR PAYLOADHEX
 """
 
 import argparse
@@ -359,13 +363,82 @@ def decode_v1(frame):
     return Beacon(1, uid, None, None, None, lat, lon, epoch, batt)
 
 
+# ------------------------------------------------- sealed report (0x52)
+#
+# Added 2026-09-30. A keyed collar's regular direct-radio report (the
+# protobuf it sends in the clear when it holds no key) sealed exactly as a v2
+# beacon: the same device key, the same AAD (the nine header bytes), the same
+# nonce (dir 0x00) and the same transmit counter sequence, shared with its v2
+# beacons so that no nonce repeats. Only the magic and the body length differ.
+
+MAGIC_REPORT = 0x52                                # 'R'
+REPORT_OVERHEAD = AAD_LEN + TAG_LEN                # 17: the cleartext header and the tag
+REPORT_MAX_LEN = 255                               # one LoRa packet
+REPORT_MIN_PAYLOAD = 1
+REPORT_MAX_PAYLOAD = REPORT_MAX_LEN - REPORT_OVERHEAD   # 238
+REPORT_MIN_LEN = REPORT_MIN_PAYLOAD + REPORT_OVERHEAD    # 18
+
+Report = namedtuple("Report", "uid ctr gen seq payload")
+
+
+def header_report(uid, ctr):
+    """The 9 cleartext bytes of a sealed report, which are also its AAD."""
+    if not 0 <= uid <= 0xFFFFFFFF or not 0 <= ctr <= 0xFFFFFFFF:
+        raise ValueError("uid and ctr are uint32")
+    return bytes([MAGIC_REPORT]) + uid.to_bytes(4, "little") + ctr.to_bytes(4, "little")
+
+
+def seal_report(dev_key, uid, ctr, payload):
+    """Build a sealed report frame (len(payload) + 17 bytes) from the report's
+    plaintext bytes (1..238), under the device's beacon key."""
+    payload = bytes(payload)
+    if not REPORT_MIN_PAYLOAD <= len(payload) <= REPORT_MAX_PAYLOAD:
+        raise ValueError("report payload must be %d..%d bytes" % (REPORT_MIN_PAYLOAD, REPORT_MAX_PAYLOAD))
+    hdr = header_report(uid, ctr)
+    ct, tag = ccm_seal(dev_key, nonce(uid, ctr, DIR_BEACON), hdr, payload, TAG_LEN)
+    frame = hdr + ct + tag
+    assert len(frame) == len(payload) + REPORT_OVERHEAD
+    return frame
+
+
+def peek_report(frame):
+    """(uid, ctr) from a sealed report's cleartext header; no key needed. A
+    receiver without the key learns which collar it hears and its counter,
+    never the report."""
+    frame = bytes(frame)
+    if not REPORT_MIN_LEN <= len(frame) <= REPORT_MAX_LEN or frame[0] != MAGIC_REPORT:
+        raise ValueError("not a sealed report frame")
+    return int.from_bytes(frame[1:5], "little"), int.from_bytes(frame[5:9], "little")
+
+
+def open_report(dev_key, frame):
+    """Open a sealed report with the device's beacon key. Raises AuthError;
+    nothing of the payload is returned on failure."""
+    frame = bytes(frame)
+    uid, ctr = peek_report(frame)
+    payload = ccm_open(dev_key, nonce(uid, ctr, DIR_BEACON), frame[:AAD_LEN],
+                       frame[AAD_LEN:-TAG_LEN], frame[-TAG_LEN:], TAG_LEN)
+    return Report(uid, ctr, ctr_gen(ctr), ctr_seq(ctr), payload)
+
+
+def open_report_with_master(master, frame):
+    """Open a sealed report holding only the owner's BEACON master: the
+    generation in the cleartext counter selects the key, as for v2."""
+    uid, ctr = peek_report(frame)
+    return open_report(kdf(master, "beacon", uid, ctr_gen(ctr)), frame)
+
+
 def classify(frame):
-    """'v1', 'v2' or None, by magic byte and length only."""
+    """'v1', 'v2', 'report' or None, by magic byte and length only. A
+    plaintext report starts 0x0A (its protobuf header field), so it is None
+    here, never 'report'."""
     frame = bytes(frame)
     if len(frame) == LEN_V1 and frame[0] == MAGIC_V1:
         return "v1"
     if len(frame) == LEN_V2 and frame[0] == MAGIC_V2:
         return "v2"
+    if REPORT_MIN_LEN <= len(frame) <= REPORT_MAX_LEN and frame[0] == MAGIC_REPORT:
+        return "report"
     return None
 
 
@@ -396,6 +469,18 @@ def main(argv=None):
     k.add_argument("--key", type=_hex, required=True)
     v = sub.add_parser("v1", help="decode a v1 frame")
     v.add_argument("frame", type=_hex, help="18 bytes hex")
+    rp = sub.add_parser("report-peek", help="uid and counter of a sealed report (0x52), no key")
+    rp.add_argument("frame", type=_hex, help="18..255 bytes hex")
+    ro = sub.add_parser("report-open", help="open a sealed report (0x52)")
+    rg = ro.add_mutually_exclusive_group(required=True)
+    rg.add_argument("--key", type=_hex, help="device beacon key, 16 bytes hex")
+    rg.add_argument("--master", type=_hex, help="owner's beacon master, 16 bytes hex")
+    ro.add_argument("frame", type=_hex, help="18..255 bytes hex")
+    rs = sub.add_parser("report-seal", help="seal a report payload into a 0x52 frame")
+    rs.add_argument("--key", type=_hex, required=True, help="device beacon key, 16 bytes hex")
+    rs.add_argument("--uid", type=_uid, required=True, help="on-air uid32 (0x... or decimal)")
+    rs.add_argument("--ctr", type=_uid, required=True, help="tx_counter, gen<<24 | seq (0x... or decimal)")
+    rs.add_argument("payload", type=_hex, help="the report's plaintext bytes, 1..238, hex")
     a = p.parse_args(argv)
     if a.cmd == "open":
         try:
@@ -412,6 +497,21 @@ def main(argv=None):
         print(json.dumps({"kcv": kcv(a.key).hex()}))
     elif a.cmd == "v1":
         print(json.dumps(decode_v1(a.frame)._asdict()))
+    elif a.cmd == "report-peek":
+        uid, ctr = peek_report(a.frame)
+        print(json.dumps({"uid": uid, "ctr": ctr, "gen": ctr_gen(ctr), "seq": ctr_seq(ctr),
+                          "len": len(a.frame), "payload_len": len(a.frame) - REPORT_OVERHEAD}))
+    elif a.cmd == "report-open":
+        try:
+            r = open_report_with_master(a.master, a.frame) if a.master else open_report(a.key, a.frame)
+        except AuthError as e:
+            print(json.dumps({"error": "authentication failed", "detail": str(e)}))
+            return 1
+        print(json.dumps({"uid": r.uid, "ctr": r.ctr, "gen": r.gen, "seq": r.seq,
+                          "payload": r.payload.hex()}))
+    elif a.cmd == "report-seal":
+        frame = seal_report(a.key, a.uid, a.ctr, a.payload)
+        print(json.dumps({"frame": frame.hex(), "len": len(frame)}))
     return 0
 
 

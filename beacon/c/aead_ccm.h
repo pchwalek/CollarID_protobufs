@@ -3,8 +3,9 @@
  * injected AES-128 forward block function.
  *
  * The lost-mode beacon v2 frame (beacon_frame.h, docs/DESIGN_radio_security.md
- * section 3) is sealed with CCM at L=2 (13-byte nonce, 2-byte length) and
- * M=8 (8-byte tag). Both sealing and opening need only the AES forward
+ * section 3) and the sealed report (0x52, the same construction with a
+ * variable-length body, 2026-09-30) are sealed with CCM at L=2 (13-byte
+ * nonce, 2-byte length) and M=8 (8-byte tag). Both sealing and opening need only the AES forward
  * direction, so the STM32U595, which has no AES hardware, runs RadioLib's
  * software AES (Radiolib/utils/Cryptography.cpp) through the aead_aes_t
  * callback and never links the inverse cipher for this path.
@@ -53,9 +54,14 @@ typedef struct {
 #define AEAD_CCM_NONCE_LEN   (15u - AEAD_CCM_L)      /* 13 */
 #define AEAD_CCM_TAG_LEN     8u                      /* M for the beacon frame */
 /* API limits, not RFC limits: bounded stack and no surprises on the collar.
- * A beacon has 9 B of AAD and a 13 B body. */
+ * A beacon has 9 B of AAD and a 13 B body; a sealed report (beacon_frame.h,
+ * 0x52, 2026-09-30) has the same 9 B of AAD and up to 238 B of body, all one
+ * 255 B LoRa packet holds once the header and the tag are added. The stack
+ * does not grow with it: the payload is processed one 16-byte block at a
+ * time. */
 #define AEAD_CCM_MAX_AAD     32u
-#define AEAD_CCM_MAX_PT      64u
+/* old: #define AEAD_CCM_MAX_PT 64u  (the beacon's 13 B body and the command frames only) */
+#define AEAD_CCM_MAX_PT      238u
 
 /* Encrypt-and-tag. ct receives pt_len bytes, tag receives tag_len bytes
  * (4, 6, 8, 10, 12, 14 or 16). ct may alias pt. Returns false (writing

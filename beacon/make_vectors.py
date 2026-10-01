@@ -7,6 +7,9 @@
 The file is FROZEN once published: every consumer (collar firmware host tests,
 server tests, website tests, third-party receivers) pins it. A change here is a
 wire-contract change and needs a new format version, never a silent rewrite.
+A new frame kind may ADD a section without touching an existing entry: the
+sealed reports (`reports`, 2026-09-30) were added that way, so the version
+stays 1 and every earlier vector is byte for byte what it was.
 
 Every master, key, uid and position below is synthetic. This repository is
 public: nothing in it may identify a real collar, a real key or a real place.
@@ -299,6 +302,36 @@ V1_CASES = [
     ("positive extremes, uid 0xFFFFFFFF", UID_ONES, 900000000, 1800000000, 4294967295, 100),
 ]
 
+# Sealed reports (0x52), added 2026-09-30 and frozen as first published:
+# implementations were built against exactly these frames, so the generator
+# re-seals each one and refuses to write a file in which any of them moved.
+# (name, master, uid, gen, seq, dev_key, kcv, payload hex, frozen frame hex).
+# The payloads are synthetic bytes, not a real report: R1 a short string
+# behind a 0x0A byte, R2 the single byte every plaintext report starts with,
+# R3 the 238 B maximum as a counting pattern.
+UID_REPORT_1 = 0x7E570001
+UID_REPORT_2 = 0x7E570002
+UID_REPORT_3 = 0x7E570003
+REPORT_R3_PAYLOAD = bytes((0x0B + 0x25 * i) & 0xFF for i in range(238)).hex()
+REPORT_CASES = [
+    ("R1 short report", MASTER_BEACON_A, UID_REPORT_1, 1, 1,
+     "30e18c9619028cec318538840698b739", "0d5236",
+     "0a0c08011095b6f8f40618dc05200128636f6c6c6172207265706f7274207632",
+     "520100577e010000018a8461c8ab41c1b6c8089f19a0d8a5dbdc6fcfd4ca6e3226fde9b450129dfb85907e88296a89970b"),
+    ("R2 one byte", MASTER_BEACON_A, UID_REPORT_2, 2, 11259375,
+     "08208f96ffa5c4307b75f62031e882b3", "b69253",
+     "0a",
+     "520200577eefcdab028f148285f7c79f5c83"),
+    ("R3 maximum 238 B", MASTER_BEACON_A, UID_REPORT_3, 255, 16777214,
+     "d68f086277038ed567d4f67363a24c4b", "27bfa0",
+     REPORT_R3_PAYLOAD,
+     "520300577efeffffff4bfb8bb6a91d66aec725f747a1ba7f2147195d0f20488e90cb3b0526eaed1a5c9c5b32394faad2ae9836f6c7"
+     "d204b1b499e6a3e57d15369384b2a8f68609fec5a8ff39dd0438d7d29c6a0d8f44adad34d9959a3999f5d0a02f0baa86f0cdc09bfb"
+     "cb80a1b5c2bf6112587aaa9961777aa999ec6da2af26389b564841ec8d9e352689d2807b4d78c8ea921e495e6514e1a579e0de618c"
+     "e40275587df90616b24475121b935753bb36c4751f38e80ea31572491a9eeb69330207c148574ae34fde48b1441695ad63d4b6d5d1"
+     "0e4b48c4c3a0199a478d03907a38bdb8d73124aa723a7dcbcbe2598c502b938b0e4a6647cea8b1646d70d6"),
+]
+
 
 def hx(bs):
     return bytes(bs).hex()
@@ -362,6 +395,24 @@ def build():
         v1.append(dict(name=name, uid=uid, uid_hex="%08x" % uid, lat_e7=lat, lon_e7=lon,
                        fix_epoch=epoch, batt_pct=batt, frame=hx(frame)))
 
+    reports = []
+    for name, master, uid, gen, seq, dev_key, kcv, payload, frozen in REPORT_CASES:
+        ctr = b.ctr_make(gen, seq)
+        key = b.kdf(bytes.fromhex(master), "beacon", uid, gen)
+        assert (hx(key), hx(b.kcv(key))) == (dev_key, kcv), name + ": key derivation"
+        frame = b.seal_report(key, uid, ctr, bytes.fromhex(payload))
+        assert hx(frame) == frozen, name + ": the frozen frame changed"
+        got = b.open_report(key, frame)
+        assert (got.uid, got.ctr, got.gen, got.seq, hx(got.payload)) == (uid, ctr, gen, seq, payload), name
+        assert b.open_report_with_master(bytes.fromhex(master), frame) == got, name
+        n = len(payload) // 2
+        reports.append(dict(name=name, master=master, uid=uid, uid_hex="%08x" % uid,
+                            gen=gen, seq=seq, ctr=ctr, ctr_hex="%08x" % ctr,
+                            dev_key=hx(key), kcv=hx(b.kcv(key)),
+                            nonce=hx(b.nonce(uid, ctr)), aad=hx(frame[:b.AAD_LEN]),
+                            payload=payload, ct=hx(frame[b.AAD_LEN:b.AAD_LEN + n]),
+                            tag=hx(frame[b.AAD_LEN + n:]), frame=hx(frame), frame_len=len(frame)))
+
     return {
         "format": FORMAT,
         "version": VERSION,
@@ -377,6 +428,9 @@ def build():
             "kdf": "dev_key = AES-CMAC(master, label(12 ASCII) || uid_le32 || gen); "
                    "labels CID-LORA-BCN (beacon), CID-LORA-CMD (command)",
             "kcv": "AES(key, 0^16)[0..2]",
+            "report": "[0]=0x52 [1..4]=uid_le32 [5..8]=ctr_le32 (the v2 counter sequence) "
+                      "[9..9+n-1]=CCM ciphertext of the payload (n=1..238) [9+n..9+n+7]=8-byte tag; "
+                      "AAD, nonce and dev_key as v2; frame n+17 = 18..255 B",
         },
         "aes128": aes,
         "cmac": cmac,
@@ -384,6 +438,7 @@ def build():
         "kdf": kdf,
         "frames": frames,
         "v1": v1,
+        "reports": reports,
     }
 
 
@@ -411,8 +466,9 @@ def main(argv=None):
     with open(a.out, "w", encoding="utf-8") as fh:
         fh.write(text)
     d = json.loads(text)
-    print("wrote %s: %d aes, %d cmac, %d ccm, %d kdf, %d frames, %d v1" % (
-        a.out, len(d["aes128"]), len(d["cmac"]), len(d["ccm"]), len(d["kdf"]), len(d["frames"]), len(d["v1"])))
+    print("wrote %s: %d aes, %d cmac, %d ccm, %d kdf, %d frames, %d v1, %d reports" % (
+        a.out, len(d["aes128"]), len(d["cmac"]), len(d["ccm"]), len(d["kdf"]), len(d["frames"]), len(d["v1"]),
+        len(d["reports"])))
     return 0
 
 
