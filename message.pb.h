@@ -751,7 +751,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33
-#define SYSTEM_INFO_PACKET_SIZE                  127
+#define SYSTEM_INFO_PACKET_SIZE                  138
 #define SYSTEM_SENSOR_SUMMARY_SIZE               51
 
 #ifdef __cplusplus

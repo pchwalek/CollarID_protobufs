@@ -1,0 +1,7 @@
+# common.options
+# Nanopb per-field options for common.proto.
+
+# SDCardState.product_name: the card's 5-character name plus NUL. Adds at most
+# 11 B to the BLE status packet (tag + 5 B name, tag + family, tag + bool),
+# from 95 B to 106 B of the 140 B status characteristic (ble.options).
+SDCardState.product_name              max_size:6

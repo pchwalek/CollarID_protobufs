@@ -85,10 +85,32 @@ message BatteryState {
 
 // ---- SD Card ----
 // Unified on uint64 for sizes to prevent overflow.
+// Which card the collar found, by the card's own ID register, for the apps
+// to name it and price it (2026-10-12). The firmware's table (sd_card_class.h)
+// gives the family; product_name is the card's five-character name as read,
+// so a client table can tell a 128 GB from a 1 TB Extreme (SN128 / SN01T)
+// and name a card the firmware does not know. UNKNOWN = not in the table:
+// "untested card" to a user.
+enum SDCardFamily {
+  SD_FAMILY_UNKNOWN                = 0;
+  SD_FAMILY_SANDISK_EXTREME        = 1;
+  SD_FAMILY_SANDISK_EXTREME_PRO    = 2;
+  SD_FAMILY_KIOXIA_EXCERIA_PLUS    = 3;
+  SD_FAMILY_SANDISK_HIGH_ENDURANCE = 4;
+}
+
 message SDCardState {
   bool   detected            = 1;
   uint64 space_remaining     = 2; // bytes
   uint64 total_space         = 3; // bytes
+  // From firmware build 496 (BLE status packet only; absent on LoRaWAN):
+  optional SDCardFamily family       = 4;
+  optional string       product_name = 5; // the card's name as read (5 characters)
+  // true: the collar switches this card off between saves (the efficient
+  // handling); false: it keeps the card powered while recording, which costs
+  // about twice the battery. Decided by the card's cluster size from build
+  // 496, by its name before.
+  optional bool         off_between_writes = 6;
 }
 
 // ---- Activity ----

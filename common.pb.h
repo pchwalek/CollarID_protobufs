@@ -10,6 +10,22 @@
 #endif
 
 /* Enum definitions */
+/* ---- SD Card ----
+ Unified on uint64 for sizes to prevent overflow.
+ Which card the collar found, by the card's own ID register, for the apps
+ to name it and price it (2026-10-12). The firmware's table (sd_card_class.h)
+ gives the family; product_name is the card's five-character name as read,
+ so a client table can tell a 128 GB from a 1 TB Extreme (SN128 / SN01T)
+ and name a card the firmware does not know. UNKNOWN = not in the table:
+ "untested card" to a user. */
+typedef enum sd_card_family {
+    SD_CARD_FAMILY_SD_FAMILY_UNKNOWN = 0,
+    SD_CARD_FAMILY_SD_FAMILY_SANDISK_EXTREME = 1,
+    SD_CARD_FAMILY_SD_FAMILY_SANDISK_EXTREME_PRO = 2,
+    SD_CARD_FAMILY_SD_FAMILY_KIOXIA_EXCERIA_PLUS = 3,
+    SD_CARD_FAMILY_SD_FAMILY_SANDISK_HIGH_ENDURANCE = 4
+} sd_card_family_t;
+
 /* ---- Activity ----
  Identical enum from both files. */
 typedef enum activity {
@@ -108,12 +124,21 @@ typedef struct battery_state {
     float percentage;
 } battery_state_t;
 
-/* ---- SD Card ----
- Unified on uint64 for sizes to prevent overflow. */
 typedef struct sd_card_state {
     bool detected;
     uint64_t space_remaining; /* bytes */
     uint64_t total_space; /* bytes */
+    /* From firmware build 496 (BLE status packet only; absent on LoRaWAN): */
+    bool has_family;
+    sd_card_family_t family;
+    bool has_product_name;
+    char product_name[6]; /* the card's name as read (5 characters) */
+    /* true: the collar switches this card off between saves (the efficient
+ handling); false: it keeps the card powered while recording, which costs
+ about twice the battery. Decided by the card's cluster size from build
+ 496, by its name before. */
+    bool has_off_between_writes;
+    bool off_between_writes;
 } sd_card_state_t;
 
 
@@ -122,6 +147,10 @@ extern "C" {
 #endif
 
 /* Helper constants for enums */
+#define _SD_CARD_FAMILY_MIN SD_CARD_FAMILY_SD_FAMILY_UNKNOWN
+#define _SD_CARD_FAMILY_MAX SD_CARD_FAMILY_SD_FAMILY_SANDISK_HIGH_ENDURANCE
+#define _SD_CARD_FAMILY_ARRAYSIZE ((sd_card_family_t)(SD_CARD_FAMILY_SD_FAMILY_SANDISK_HIGH_ENDURANCE+1))
+
 #define _ACTIVITY_MIN ACTIVITY_STILL
 #define _ACTIVITY_MAX ACTIVITY_RUN
 #define _ACTIVITY_ARRAYSIZE ((activity_t)(ACTIVITY_RUN+1))
@@ -129,17 +158,18 @@ extern "C" {
 
 
 
+#define sd_card_state_t_family_ENUMTYPE sd_card_family_t
 
 
 /* Initializer values for message structs */
 #define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_DEFAULT                    {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_DEFAULT               {0, 0, false, 0}
-#define SD_CARD_STATE_INIT_DEFAULT               {0, 0, 0}
+#define SD_CARD_STATE_INIT_DEFAULT               {0, 0, 0, false, _SD_CARD_FAMILY_MIN, false, "", false, 0}
 #define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_ZERO                       {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_ZERO                  {0, 0, false, 0}
-#define SD_CARD_STATE_INIT_ZERO                  {0, 0, 0}
+#define SD_CARD_STATE_INIT_ZERO                  {0, 0, 0, false, _SD_CARD_FAMILY_MIN, false, "", false, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define PACKET_HEADER_SYSTEM_UID_TAG             1
@@ -167,6 +197,9 @@ extern "C" {
 #define SD_CARD_STATE_DETECTED_TAG               1
 #define SD_CARD_STATE_SPACE_REMAINING_TAG        2
 #define SD_CARD_STATE_TOTAL_SPACE_TAG            3
+#define SD_CARD_STATE_FAMILY_TAG                 4
+#define SD_CARD_STATE_PRODUCT_NAME_TAG           5
+#define SD_CARD_STATE_OFF_BETWEEN_WRITES_TAG     6
 
 /* Struct field encoding specification for nanopb */
 #define PACKET_HEADER_FIELDLIST(X, a) \
@@ -206,7 +239,10 @@ X(a, STATIC,   OPTIONAL, FLOAT,    percentage,        3)
 #define SD_CARD_STATE_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, BOOL,     detected,          1) \
 X(a, STATIC,   SINGULAR, UINT64,   space_remaining,   2) \
-X(a, STATIC,   SINGULAR, UINT64,   total_space,       3)
+X(a, STATIC,   SINGULAR, UINT64,   total_space,       3) \
+X(a, STATIC,   OPTIONAL, UENUM,    family,            4) \
+X(a, STATIC,   OPTIONAL, STRING,   product_name,      5) \
+X(a, STATIC,   OPTIONAL, BOOL,     off_between_writes,   6)
 #define SD_CARD_STATE_CALLBACK NULL
 #define SD_CARD_STATE_DEFAULT NULL
 
@@ -225,7 +261,7 @@ extern const pb_msgdesc_t sd_card_state_t_msg;
 #define BATTERY_STATE_SIZE                       12
 #define GPS_DATA_SIZE                            25
 #define PACKET_HEADER_SIZE                       80
-#define SD_CARD_STATE_SIZE                       24
+#define SD_CARD_STATE_SIZE                       35
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -1256,7 +1256,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_PACKET_SIZE              1387
 #define SCHEDULE_CONFIG_SIZE                     180
 #define SIMPLE_SENSOR_READING_SIZE               51
-#define SYSTEM_STATE_PACKET_SIZE                 168
+#define SYSTEM_STATE_PACKET_SIZE                 179
 #define TIME_WINDOW_SIZE                         30
 
 #ifdef __cplusplus
