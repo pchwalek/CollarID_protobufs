@@ -103,13 +103,13 @@ message SDCardState {
   bool   detected            = 1;
   uint64 space_remaining     = 2; // bytes
   uint64 total_space         = 3; // bytes
-  // From firmware build 496 (BLE status packet only; absent on LoRaWAN):
+  // From firmware v1.24.0 (BLE status packet only; absent on LoRaWAN):
   optional SDCardFamily family       = 4;
   optional string       product_name = 5; // the card's name as read (5 characters)
   // true: the collar switches this card off between saves (the efficient
   // handling); false: it keeps the card powered while recording, which costs
-  // about twice the battery. Decided by the card's cluster size from build
-  // 496, by its name before.
+  // about twice the battery. Decided by the card's cluster size from
+  // firmware build 495 (v1.24.0), by its name before.
   optional bool         off_between_writes = 6;
 }
 

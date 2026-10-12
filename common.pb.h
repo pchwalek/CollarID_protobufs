@@ -128,15 +128,15 @@ typedef struct sd_card_state {
     bool detected;
     uint64_t space_remaining; /* bytes */
     uint64_t total_space; /* bytes */
-    /* From firmware build 496 (BLE status packet only; absent on LoRaWAN): */
+    /* From firmware v1.24.0 (BLE status packet only; absent on LoRaWAN): */
     bool has_family;
     sd_card_family_t family;
     bool has_product_name;
     char product_name[6]; /* the card's name as read (5 characters) */
     /* true: the collar switches this card off between saves (the efficient
  handling); false: it keeps the card powered while recording, which costs
- about twice the battery. Decided by the card's cluster size from build
- 496, by its name before. */
+ about twice the battery. Decided by the card's cluster size from
+ firmware build 495 (v1.24.0), by its name before. */
     bool has_off_between_writes;
     bool off_between_writes;
 } sd_card_state_t;
