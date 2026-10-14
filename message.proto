@@ -168,7 +168,13 @@ message ParticulateData{
 //             Clears when a key set, a key clear or a factory reset over
 //             Bluetooth leaves the state NONE or KEYED. Rides every LoRaWAN
 //             uplink while it lasts. Not a hardware fault.
-//   bits 13-31 free
+//   bit  13   SAFE_MODE: this boot runs in safe mode (firmware reset_loop.h):
+//             three fast resets in a row, and the subsystem the recorded
+//             fault named (microphone, sensors or GPS) is left off for this
+//             boot so the collar stops looping. Rides every uplink of that
+//             boot; the next boot after a steady session is a normal one.
+//             last_fatal (PacketHeader) says what the fault was.
+//   bits 14-31 free
 message ErrorFlags{
     uint32 flag = 1;
 }
