@@ -23,7 +23,13 @@ typedef enum sd_card_family {
     SD_CARD_FAMILY_SD_FAMILY_SANDISK_EXTREME = 1,
     SD_CARD_FAMILY_SD_FAMILY_SANDISK_EXTREME_PRO = 2,
     SD_CARD_FAMILY_SD_FAMILY_KIOXIA_EXCERIA_PLUS = 3,
-    SD_CARD_FAMILY_SD_FAMILY_SANDISK_HIGH_ENDURANCE = 4
+    SD_CARD_FAMILY_SD_FAMILY_SANDISK_HIGH_ENDURANCE = 4,
+    /* Since firmware v1.25.0 the firmware names cards by EXACT product name
+ (SanDisk's five characters are a code per capacity, not per line), and
+ a SanDisk or Kioxia name it has not held is reported as that maker's
+ untested card, with product_name carrying the name as read. */
+    SD_CARD_FAMILY_SD_FAMILY_SANDISK_UNTESTED = 5,
+    SD_CARD_FAMILY_SD_FAMILY_KIOXIA_UNTESTED = 6
 } sd_card_family_t;
 
 /* ---- Activity ----
@@ -148,8 +154,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _SD_CARD_FAMILY_MIN SD_CARD_FAMILY_SD_FAMILY_UNKNOWN
-#define _SD_CARD_FAMILY_MAX SD_CARD_FAMILY_SD_FAMILY_SANDISK_HIGH_ENDURANCE
-#define _SD_CARD_FAMILY_ARRAYSIZE ((sd_card_family_t)(SD_CARD_FAMILY_SD_FAMILY_SANDISK_HIGH_ENDURANCE+1))
+#define _SD_CARD_FAMILY_MAX SD_CARD_FAMILY_SD_FAMILY_KIOXIA_UNTESTED
+#define _SD_CARD_FAMILY_ARRAYSIZE ((sd_card_family_t)(SD_CARD_FAMILY_SD_FAMILY_KIOXIA_UNTESTED+1))
 
 #define _ACTIVITY_MIN ACTIVITY_STILL
 #define _ACTIVITY_MAX ACTIVITY_RUN
