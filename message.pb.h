@@ -181,7 +181,19 @@ typedef struct particulate_data {
              Clears when a key set, a key clear or a factory reset over
              Bluetooth leaves the state NONE or KEYED. Rides every LoRaWAN
              uplink while it lasts. Not a hardware fault.
-   bits 13-31 free */
+   bit  13   SAFE_MODE: this boot runs in safe mode (firmware reset_loop.h):
+             three fast resets in a row, and the subsystem the recorded
+             fault named (microphone, sensors or GPS) is left off for this
+             boot so the collar stops looping. Rides every uplink of that
+             boot; the next boot after a steady session is a normal one.
+             last_fatal (PacketHeader) says what the fault was.
+   bit  14   CARD_MISSING: this boot runs without its memory card
+             (firmware location_only.h): no card answered at boot on a
+             collar engaged in its flash store, so it sends GPS and reports
+             from the stored settings and records nothing. Bit 9 (storage)
+             rides with it; read 14 first. It probes for a card and
+             restarts when one answers. The only bit past a 2-byte varint.
+   bits 15-31 free */
 typedef struct error_flags {
     uint32_t flag;
 } error_flags_t;

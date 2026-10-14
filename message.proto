@@ -174,7 +174,13 @@ message ParticulateData{
 //             boot so the collar stops looping. Rides every uplink of that
 //             boot; the next boot after a steady session is a normal one.
 //             last_fatal (PacketHeader) says what the fault was.
-//   bits 14-31 free
+//   bit  14   CARD_MISSING: this boot runs without its memory card
+//             (firmware location_only.h): no card answered at boot on a
+//             collar engaged in its flash store, so it sends GPS and reports
+//             from the stored settings and records nothing. Bit 9 (storage)
+//             rides with it; read 14 first. It probes for a card and
+//             restarts when one answers. The only bit past a 2-byte varint.
+//   bits 15-31 free
 message ErrorFlags{
     uint32 flag = 1;
 }

@@ -775,7 +775,10 @@ class StatusReadGenerated(unittest.TestCase):
         self.assertRegex(fl, r"OPTIONAL, MESSAGE,\s+beacon_key,\s+8\)")
         self.assertIn("#define system_state_packet_t_beacon_key_MSGTYPE beacon_key_report_t", h)
         # 145 before, plus the tag, a length byte and BEACON_KEY_REPORT_SIZE.
-        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+168\b")
+        # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+168\b")
+        # 179 since SDCardState (7852625): the card's family, its name as read and
+        # whether it is switched off between writes; the firmware vendors the same.
+        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+179\b")
 
     def test_swift(self):
         s = read("ble.pb.swift")

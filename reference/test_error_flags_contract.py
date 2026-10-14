@@ -28,8 +28,14 @@ ALLOCATED = {
     10: "MIC",
     11: "LORAWAN_FCNT",
     12: "BEACON_KEY_FALLBACK",
+    13: "SAFE_MODE",
+    14: "CARD_MISSING",
 }
-FIRST_FREE = 13
+FIRST_FREE = 15
+# Bits allowed past the 2-byte budget: bit 14 rides only frames of a boot
+# without its card, which carry no sensor blocks, and the firmware's
+# UplinkBudget_Fit measures every frame (one byte more costs a GPS fix at worst).
+OVER_BUDGET_OK = {14}
 
 # ble.proto BeaconKeyState: the Bluetooth echo's view of the same condition.
 BEACON_KEY_STATE_FALLBACK = 2
@@ -120,8 +126,15 @@ class GeneratedC(unittest.TestCase):
 class SizeBudget(unittest.TestCase):
 
     def test_every_allocated_bit_fits_the_budget(self):
-        worst = (1 << FIRST_FREE) - 1                  # bits 0 .. 12 all set
+        # old: worst = (1 << FIRST_FREE) - 1                  # bits 0 .. 12 all set
+        worst = ((1 << FIRST_FREE) - 1) & ~sum(1 << b for b in OVER_BUDGET_OK)
         self.assertLessEqual(len(deployment_error_flags(worst)), ERROR_FLAGS_BUDGET)
+
+    def test_only_the_named_exception_is_over_budget(self):
+        for b in sorted(ALLOCATED):
+            over = len(deployment_error_flags(1 << b)) > ERROR_FLAGS_BUDGET
+            self.assertEqual(over, b in OVER_BUDGET_OK, b)
+        self.assertIn("The only bit past a 2-byte varint", "\n".join(proto_ledger()))
 
     def test_budget_is_stated_where_the_uplink_budget_is(self):
         self.assertIn("errorFlags %d" % ERROR_FLAGS_BUDGET, read("reference/GPS_BLOCK_V1.md"))
