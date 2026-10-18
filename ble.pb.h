@@ -164,6 +164,16 @@ typedef enum beacon_key_result {
     BEACON_KEY_RESULT_BEACON_KEY_RESULT_STORE_ERROR = 5 /* the flash store could not be written; the previous state stands */
 } beacon_key_result_t;
 
+typedef enum cpu_board_revision {
+    CPU_BOARD_REVISION_CPU_BOARD_REVISION_ORIGINAL = 0, /* PCBWay, April 2026 (the deployed collars) */
+    CPU_BOARD_REVISION_CPU_BOARD_REVISION_REVISED = 1 /* JLC, the PC4/PC5 marker divider; carries CHG_DIS on PC13 */
+} cpu_board_revision_t;
+
+typedef enum top_board_revision {
+    TOP_BOARD_REVISION_TOP_BOARD_REVISION_WIO = 0, /* the Wio-SX1262 module */
+    TOP_BOARD_REVISION_TOP_BOARD_REVISION_AMPLIFIER = 1 /* discrete SX1262 + amplifier (Mk III); takes CHG_DIS */
+} top_board_revision_t;
+
 typedef enum peripheral_type {
     PERIPHERAL_TYPE_PERIPHERAL_SATCOM = 0,
     PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT = 1
@@ -538,6 +548,26 @@ typedef struct simple_sensor_reading {
     bool particulate_outside_detection_limits;
 } simple_sensor_reading_t;
 
+/* 4 B at most. */
+typedef struct board_identity {
+    cpu_board_revision_t cpu;
+    top_board_revision_t top;
+} board_identity_t;
+
+/* No solar charging below a setpoint (docs/DESIGN_charge_inhibit.md in the
+ firmware). The setting reaches the collar through CONFIG.CSV
+ (battery_protection, battery_protection_min_temp_c); this packet reports it.
+ 9 B at most. */
+typedef struct battery_protection_report {
+    bool on; /* the setting; acts only on a Mk III unit */
+    int32_t min_temp_c; /* the setpoint, whole degrees C (-30 to +10) */
+    bool held_off; /* the charger is held off for the cold now (ErrorFlags bit 15) */
+    /* The latest die temperature reading, tenths of a degree C; absent when the
+ protection does not act on this unit or has not read yet. */
+    bool has_die_temp_x10;
+    int32_t die_temp_x10;
+} battery_protection_report_t;
+
 typedef struct system_state_packet {
     bool engage_state; /* engaged/disengaged */
     bool has_battery;
@@ -582,10 +612,24 @@ typedef struct system_state_packet {
  Size: both radios declare this characteristic at 140 B (SizeStatuschar)
  and keep their old value when handed a longer one, so the whole BlePacket
  must stay at or under 140 B. The collar fills battery, sdcard,
- firmware_version, hw_diag and this field, never gps_data or sensors: at
- most 95 B with every one of those at its largest. */
+ firmware_version, hw_diag, this field, board and battery_protection,
+ never gps_data or sensors: at most 123 B with every one of those at its
+ largest (95 B before the card's identity in SDCardState, v1.24.0, 106 B
+ before board and battery_protection; the firmware's test_radio_crypto
+ measures each). */
     bool has_beacon_key;
     beacon_key_report_t beacon_key;
+    /* The boards the collar is built from (firmware board_rev_rule.h). A client
+ shows the Battery protection settings only for a Mk III unit (the revised
+ cpuboard on the amplifier top board). Absent on firmware before
+ 2026-10-18: the client then does not know the boards. */
+    bool has_board;
+    board_identity_t board;
+    /* Battery protection's setting and state (firmware battery_protection.h),
+ on every unit: a card's setting is kept between collars. 11 B at most
+ here, 6 B for board. */
+    bool has_battery_protection;
+    battery_protection_report_t battery_protection;
 } system_state_packet_t;
 
 typedef struct peripheral_packet {
@@ -681,6 +725,14 @@ extern "C" {
 #define _BEACON_KEY_RESULT_MAX BEACON_KEY_RESULT_BEACON_KEY_RESULT_STORE_ERROR
 #define _BEACON_KEY_RESULT_ARRAYSIZE ((beacon_key_result_t)(BEACON_KEY_RESULT_BEACON_KEY_RESULT_STORE_ERROR+1))
 
+#define _CPU_BOARD_REVISION_MIN CPU_BOARD_REVISION_CPU_BOARD_REVISION_ORIGINAL
+#define _CPU_BOARD_REVISION_MAX CPU_BOARD_REVISION_CPU_BOARD_REVISION_REVISED
+#define _CPU_BOARD_REVISION_ARRAYSIZE ((cpu_board_revision_t)(CPU_BOARD_REVISION_CPU_BOARD_REVISION_REVISED+1))
+
+#define _TOP_BOARD_REVISION_MIN TOP_BOARD_REVISION_TOP_BOARD_REVISION_WIO
+#define _TOP_BOARD_REVISION_MAX TOP_BOARD_REVISION_TOP_BOARD_REVISION_AMPLIFIER
+#define _TOP_BOARD_REVISION_ARRAYSIZE ((top_board_revision_t)(TOP_BOARD_REVISION_TOP_BOARD_REVISION_AMPLIFIER+1))
+
 #define _PERIPHERAL_TYPE_MIN PERIPHERAL_TYPE_PERIPHERAL_SATCOM
 #define _PERIPHERAL_TYPE_MAX PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT
 #define _PERIPHERAL_TYPE_ARRAYSIZE ((peripheral_type_t)(PERIPHERAL_TYPE_PERIPHERAL_DETACHMENT+1))
@@ -722,6 +774,10 @@ extern "C" {
 #define simple_sensor_reading_t_activity_ENUMTYPE activity_t
 
 
+#define board_identity_t_cpu_ENUMTYPE cpu_board_revision_t
+#define board_identity_t_top_ENUMTYPE top_board_revision_t
+
+
 #define peripheral_packet_t_type_ENUMTYPE peripheral_type_t
 
 
@@ -747,7 +803,9 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT}
+#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, BOARD_IDENTITY_INIT_DEFAULT, false, BATTERY_PROTECTION_REPORT_INIT_DEFAULT}
+#define BOARD_IDENTITY_INIT_DEFAULT              {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
+#define BATTERY_PROTECTION_REPORT_INIT_DEFAULT   {0, 0, 0, false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
 #define PERIPHERAL_INFO_INIT_DEFAULT             {{{NULL}, NULL}}
 #define BLE_PACKET_INIT_DEFAULT                  {false, PACKET_HEADER_INIT_DEFAULT, 0, {SCHEDULE_CONFIG_PACKET_INIT_DEFAULT}}
@@ -770,7 +828,9 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO}
+#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, BOARD_IDENTITY_INIT_ZERO, false, BATTERY_PROTECTION_REPORT_INIT_ZERO}
+#define BOARD_IDENTITY_INIT_ZERO                 {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
+#define BATTERY_PROTECTION_REPORT_INIT_ZERO      {0, 0, 0, false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
 #define PERIPHERAL_INFO_INIT_ZERO                {{{NULL}, NULL}}
 #define BLE_PACKET_INIT_ZERO                     {false, PACKET_HEADER_INIT_ZERO, 0, {SCHEDULE_CONFIG_PACKET_INIT_ZERO}}
@@ -902,6 +962,12 @@ extern "C" {
 #define SIMPLE_SENSOR_READING_PARTICULATE_STATIC_OBSTRUCTED_TAG 10
 #define SIMPLE_SENSOR_READING_PARTICULATE_DYNAMIC_OBSTRUCTED_TAG 11
 #define SIMPLE_SENSOR_READING_PARTICULATE_OUTSIDE_DETECTION_LIMITS_TAG 12
+#define BOARD_IDENTITY_CPU_TAG                   1
+#define BOARD_IDENTITY_TOP_TAG                   2
+#define BATTERY_PROTECTION_REPORT_ON_TAG         1
+#define BATTERY_PROTECTION_REPORT_MIN_TEMP_C_TAG 2
+#define BATTERY_PROTECTION_REPORT_HELD_OFF_TAG   3
+#define BATTERY_PROTECTION_REPORT_DIE_TEMP_X10_TAG 4
 #define SYSTEM_STATE_PACKET_ENGAGE_STATE_TAG     1
 #define SYSTEM_STATE_PACKET_BATTERY_TAG          2
 #define SYSTEM_STATE_PACKET_SDCARD_TAG           3
@@ -910,6 +976,8 @@ extern "C" {
 #define SYSTEM_STATE_PACKET_FIRMWARE_VERSION_TAG 6
 #define SYSTEM_STATE_PACKET_HW_DIAG_TAG          7
 #define SYSTEM_STATE_PACKET_BEACON_KEY_TAG       8
+#define SYSTEM_STATE_PACKET_BOARD_TAG            9
+#define SYSTEM_STATE_PACKET_BATTERY_PROTECTION_TAG 10
 #define PERIPHERAL_PACKET_MAC_ADDRESS_TAG        1
 #define PERIPHERAL_PACKET_TYPE_TAG               2
 #define PERIPHERAL_INFO_DEVICE_UIDS_TAG          1
@@ -1149,7 +1217,9 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  gps_data,          4) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  sensors,           5) \
 X(a, STATIC,   SINGULAR, STRING,   firmware_version,   6) \
 X(a, STATIC,   OPTIONAL, UINT32,   hw_diag,           7) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,        8)
+X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,        8) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  board,             9) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  battery_protection,  10)
 #define SYSTEM_STATE_PACKET_CALLBACK NULL
 #define SYSTEM_STATE_PACKET_DEFAULT NULL
 #define system_state_packet_t_battery_MSGTYPE battery_state_t
@@ -1157,6 +1227,22 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,        8)
 #define system_state_packet_t_gps_data_MSGTYPE gps_data_t
 #define system_state_packet_t_sensors_MSGTYPE simple_sensor_reading_t
 #define system_state_packet_t_beacon_key_MSGTYPE beacon_key_report_t
+#define system_state_packet_t_board_MSGTYPE board_identity_t
+#define system_state_packet_t_battery_protection_MSGTYPE battery_protection_report_t
+
+#define BOARD_IDENTITY_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    cpu,               1) \
+X(a, STATIC,   SINGULAR, UENUM,    top,               2)
+#define BOARD_IDENTITY_CALLBACK NULL
+#define BOARD_IDENTITY_DEFAULT NULL
+
+#define BATTERY_PROTECTION_REPORT_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, BOOL,     on,                1) \
+X(a, STATIC,   SINGULAR, SINT32,   min_temp_c,        2) \
+X(a, STATIC,   SINGULAR, BOOL,     held_off,          3) \
+X(a, STATIC,   OPTIONAL, SINT32,   die_temp_x10,      4)
+#define BATTERY_PROTECTION_REPORT_CALLBACK NULL
+#define BATTERY_PROTECTION_REPORT_DEFAULT NULL
 
 #define PERIPHERAL_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, mac_address,       1) \
@@ -1205,6 +1291,8 @@ extern const pb_msgdesc_t mag_cal_report_t_msg;
 extern const pb_msgdesc_t beacon_key_report_t_msg;
 extern const pb_msgdesc_t simple_sensor_reading_t_msg;
 extern const pb_msgdesc_t system_state_packet_t_msg;
+extern const pb_msgdesc_t board_identity_t_msg;
+extern const pb_msgdesc_t battery_protection_report_t_msg;
 extern const pb_msgdesc_t peripheral_packet_t_msg;
 extern const pb_msgdesc_t peripheral_info_t_msg;
 extern const pb_msgdesc_t ble_packet_t_msg;
@@ -1230,6 +1318,8 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define BEACON_KEY_REPORT_FIELDS &beacon_key_report_t_msg
 #define SIMPLE_SENSOR_READING_FIELDS &simple_sensor_reading_t_msg
 #define SYSTEM_STATE_PACKET_FIELDS &system_state_packet_t_msg
+#define BOARD_IDENTITY_FIELDS &board_identity_t_msg
+#define BATTERY_PROTECTION_REPORT_FIELDS &battery_protection_report_t_msg
 #define PERIPHERAL_PACKET_FIELDS &peripheral_packet_t_msg
 #define PERIPHERAL_INFO_FIELDS &peripheral_info_t_msg
 #define BLE_PACKET_FIELDS &ble_packet_t_msg
@@ -1238,7 +1328,9 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 /* PeripheralInfo_size depends on runtime parameters */
 /* BlePacket_size depends on runtime parameters */
 #define ACCELEROMETER_CONFIG_SIZE                6
+#define BATTERY_PROTECTION_REPORT_SIZE           16
 #define BEACON_KEY_REPORT_SIZE                   21
+#define BOARD_IDENTITY_SIZE                      4
 #define CFG_ECHO_PACKET_SIZE                     351
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
@@ -1256,7 +1348,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_PACKET_SIZE              1387
 #define SCHEDULE_CONFIG_SIZE                     180
 #define SIMPLE_SENSOR_READING_SIZE               51
-#define SYSTEM_STATE_PACKET_SIZE                 179
+#define SYSTEM_STATE_PACKET_SIZE                 203
 #define TIME_WINDOW_SIZE                         30
 
 #ifdef __cplusplus

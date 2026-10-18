@@ -63,6 +63,13 @@ message PacketHeader {
   optional uint32 link_margin_db = 12;
   optional uint32 link_gateways = 13;
   optional uint32 link_misses = 14;
+  // The boards the collar is built from (firmware board_rev_rule.h, detected
+  // at boot): (top board << 4) | cpuboard. cpuboard 0 = original (PCBWay,
+  // April 2026), 1 = revised (JLC, the PC4/PC5 marker); top board 0 = Wio,
+  // 1 = amplifier. 0x11 is a Mk III unit, the only one battery protection acts
+  // on (ErrorFlags bit 15). Sent with reset_cause, on the first uplinks after a
+  // boot (~2 B); absent on firmware before 2026-10-18 and on later uplinks.
+  optional uint32 board = 15;
 }
 
 // ---- GPS ----

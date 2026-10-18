@@ -547,9 +547,52 @@ message SystemStatePacket {
   // Size: both radios declare this characteristic at 140 B (SizeStatuschar)
   // and keep their old value when handed a longer one, so the whole BlePacket
   // must stay at or under 140 B. The collar fills battery, sdcard,
-  // firmware_version, hw_diag and this field, never gps_data or sensors: at
-  // most 95 B with every one of those at its largest.
+  // firmware_version, hw_diag, this field, board and battery_protection,
+  // never gps_data or sensors: at most 123 B with every one of those at its
+  // largest (95 B before the card's identity in SDCardState, v1.24.0, 106 B
+  // before board and battery_protection; the firmware's test_radio_crypto
+  // measures each).
   optional BeaconKeyReport beacon_key = 8;
+  // The boards the collar is built from (firmware board_rev_rule.h). A client
+  // shows the Battery protection settings only for a Mk III unit (the revised
+  // cpuboard on the amplifier top board). Absent on firmware before
+  // 2026-10-18: the client then does not know the boards.
+  optional BoardIdentity board = 9;
+  // Battery protection's setting and state (firmware battery_protection.h),
+  // on every unit: a card's setting is kept between collars. 11 B at most
+  // here, 6 B for board.
+  optional BatteryProtectionReport battery_protection = 10;
+}
+
+// ================== BOARDS AND BATTERY PROTECTION ==================
+
+enum CpuBoardRevision {
+  CPU_BOARD_REVISION_ORIGINAL = 0;   // PCBWay, April 2026 (the deployed collars)
+  CPU_BOARD_REVISION_REVISED  = 1;   // JLC, the PC4/PC5 marker divider; carries CHG_DIS on PC13
+}
+
+enum TopBoardRevision {
+  TOP_BOARD_REVISION_WIO       = 0;  // the Wio-SX1262 module
+  TOP_BOARD_REVISION_AMPLIFIER = 1;  // discrete SX1262 + amplifier (Mk III); takes CHG_DIS
+}
+
+// 4 B at most.
+message BoardIdentity {
+  CpuBoardRevision cpu = 1;
+  TopBoardRevision top = 2;
+}
+
+// No solar charging below a setpoint (docs/DESIGN_charge_inhibit.md in the
+// firmware). The setting reaches the collar through CONFIG.CSV
+// (battery_protection, battery_protection_min_temp_c); this packet reports it.
+// 9 B at most.
+message BatteryProtectionReport {
+  bool on = 1;                 // the setting; acts only on a Mk III unit
+  sint32 min_temp_c = 2;       // the setpoint, whole degrees C (-30 to +10)
+  bool held_off = 3;           // the charger is held off for the cold now (ErrorFlags bit 15)
+  // The latest die temperature reading, tenths of a degree C; absent when the
+  // protection does not act on this unit or has not read yet.
+  optional sint32 die_temp_x10 = 4;
 }
 
 // ================== PERIPHERAL CONNECTION ==================

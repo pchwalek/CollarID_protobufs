@@ -794,6 +794,82 @@ enum BeaconKeyResult: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+enum CpuBoardRevision: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// PCBWay, April 2026 (the deployed collars)
+  case original // = 0
+
+  /// JLC, the PC4/PC5 marker divider; carries CHG_DIS on PC13
+  case revised // = 1
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .original
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .original
+    case 1: self = .revised
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .original: return 0
+    case .revised: return 1
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [CpuBoardRevision] = [
+    .original,
+    .revised,
+  ]
+
+}
+
+enum TopBoardRevision: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+
+  /// the Wio-SX1262 module
+  case wio // = 0
+
+  /// discrete SX1262 + amplifier (Mk III); takes CHG_DIS
+  case amplifier // = 1
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .wio
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .wio
+    case 1: self = .amplifier
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .wio: return 0
+    case .amplifier: return 1
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [TopBoardRevision] = [
+    .wio,
+    .amplifier,
+  ]
+
+}
+
 enum PeripheralType: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
   case peripheralSatcom // = 0
@@ -1754,8 +1830,11 @@ struct SystemStatePacket: @unchecked Sendable {
   /// Size: both radios declare this characteristic at 140 B (SizeStatuschar)
   /// and keep their old value when handed a longer one, so the whole BlePacket
   /// must stay at or under 140 B. The collar fills battery, sdcard,
-  /// firmware_version, hw_diag and this field, never gps_data or sensors: at
-  /// most 95 B with every one of those at its largest.
+  /// firmware_version, hw_diag, this field, board and battery_protection,
+  /// never gps_data or sensors: at most 123 B with every one of those at its
+  /// largest (95 B before the card's identity in SDCardState, v1.24.0, 106 B
+  /// before board and battery_protection; the firmware's test_radio_crypto
+  /// measures each).
   var beaconKey: BeaconKeyReport {
     get {return _storage._beaconKey ?? BeaconKeyReport()}
     set {_uniqueStorage()._beaconKey = newValue}
@@ -1765,11 +1844,87 @@ struct SystemStatePacket: @unchecked Sendable {
   /// Clears the value of `beaconKey`. Subsequent reads from it will return its default value.
   mutating func clearBeaconKey() {_uniqueStorage()._beaconKey = nil}
 
+  /// The boards the collar is built from (firmware board_rev_rule.h). A client
+  /// shows the Battery protection settings only for a Mk III unit (the revised
+  /// cpuboard on the amplifier top board). Absent on firmware before
+  /// 2026-10-18: the client then does not know the boards.
+  var board: BoardIdentity {
+    get {return _storage._board ?? BoardIdentity()}
+    set {_uniqueStorage()._board = newValue}
+  }
+  /// Returns true if `board` has been explicitly set.
+  var hasBoard: Bool {return _storage._board != nil}
+  /// Clears the value of `board`. Subsequent reads from it will return its default value.
+  mutating func clearBoard() {_uniqueStorage()._board = nil}
+
+  /// Battery protection's setting and state (firmware battery_protection.h),
+  /// on every unit: a card's setting is kept between collars. 11 B at most
+  /// here, 6 B for board.
+  var batteryProtection: BatteryProtectionReport {
+    get {return _storage._batteryProtection ?? BatteryProtectionReport()}
+    set {_uniqueStorage()._batteryProtection = newValue}
+  }
+  /// Returns true if `batteryProtection` has been explicitly set.
+  var hasBatteryProtection: Bool {return _storage._batteryProtection != nil}
+  /// Clears the value of `batteryProtection`. Subsequent reads from it will return its default value.
+  mutating func clearBatteryProtection() {_uniqueStorage()._batteryProtection = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
   fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+/// 4 B at most.
+struct BoardIdentity: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  var cpu: CpuBoardRevision = .original
+
+  var top: TopBoardRevision = .wio
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+/// No solar charging below a setpoint (docs/DESIGN_charge_inhibit.md in the
+/// firmware). The setting reaches the collar through CONFIG.CSV
+/// (battery_protection, battery_protection_min_temp_c); this packet reports it.
+/// 9 B at most.
+struct BatteryProtectionReport: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// the setting; acts only on a Mk III unit
+  var on: Bool = false
+
+  /// the setpoint, whole degrees C (-30 to +10)
+  var minTempC: Int32 = 0
+
+  /// the charger is held off for the cold now (ErrorFlags bit 15)
+  var heldOff: Bool = false
+
+  /// The latest die temperature reading, tenths of a degree C; absent when the
+  /// protection does not act on this unit or has not read yet.
+  var dieTempX10: Int32 {
+    get {return _dieTempX10 ?? 0}
+    set {_dieTempX10 = newValue}
+  }
+  /// Returns true if `dieTempX10` has been explicitly set.
+  var hasDieTempX10: Bool {return self._dieTempX10 != nil}
+  /// Clears the value of `dieTempX10`. Subsequent reads from it will return its default value.
+  mutating func clearDieTempX10() {self._dieTempX10 = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _dieTempX10: Int32? = nil
 }
 
 struct PeripheralPacket: @unchecked Sendable {
@@ -2015,6 +2170,20 @@ extension BeaconKeyResult: SwiftProtobuf._ProtoNameProviding {
     3: .same(proto: "BEACON_KEY_RESULT_REJECTED_GEN"),
     4: .same(proto: "BEACON_KEY_RESULT_REJECTED_ARG"),
     5: .same(proto: "BEACON_KEY_RESULT_STORE_ERROR"),
+  ]
+}
+
+extension CpuBoardRevision: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "CPU_BOARD_REVISION_ORIGINAL"),
+    1: .same(proto: "CPU_BOARD_REVISION_REVISED"),
+  ]
+}
+
+extension TopBoardRevision: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "TOP_BOARD_REVISION_WIO"),
+    1: .same(proto: "TOP_BOARD_REVISION_AMPLIFIER"),
   ]
 }
 
@@ -3516,6 +3685,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     6: .standard(proto: "firmware_version"),
     7: .standard(proto: "hw_diag"),
     8: .standard(proto: "beacon_key"),
+    9: .same(proto: "board"),
+    10: .standard(proto: "battery_protection"),
   ]
 
   fileprivate class _StorageClass {
@@ -3527,6 +3698,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     var _firmwareVersion: String = String()
     var _hwDiag: UInt32? = nil
     var _beaconKey: BeaconKeyReport? = nil
+    var _board: BoardIdentity? = nil
+    var _batteryProtection: BatteryProtectionReport? = nil
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -3549,6 +3722,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       _firmwareVersion = source._firmwareVersion
       _hwDiag = source._hwDiag
       _beaconKey = source._beaconKey
+      _board = source._board
+      _batteryProtection = source._batteryProtection
     }
   }
 
@@ -3575,6 +3750,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         case 6: try { try decoder.decodeSingularStringField(value: &_storage._firmwareVersion) }()
         case 7: try { try decoder.decodeSingularUInt32Field(value: &_storage._hwDiag) }()
         case 8: try { try decoder.decodeSingularMessageField(value: &_storage._beaconKey) }()
+        case 9: try { try decoder.decodeSingularMessageField(value: &_storage._board) }()
+        case 10: try { try decoder.decodeSingularMessageField(value: &_storage._batteryProtection) }()
         default: break
         }
       }
@@ -3611,6 +3788,12 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       try { if let v = _storage._beaconKey {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
       } }()
+      try { if let v = _storage._board {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
+      } }()
+      try { if let v = _storage._batteryProtection {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3628,10 +3811,104 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         if _storage._firmwareVersion != rhs_storage._firmwareVersion {return false}
         if _storage._hwDiag != rhs_storage._hwDiag {return false}
         if _storage._beaconKey != rhs_storage._beaconKey {return false}
+        if _storage._board != rhs_storage._board {return false}
+        if _storage._batteryProtection != rhs_storage._batteryProtection {return false}
         return true
       }
       if !storagesAreEqual {return false}
     }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension BoardIdentity: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "BoardIdentity"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "cpu"),
+    2: .same(proto: "top"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self.cpu) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.top) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.cpu != .original {
+      try visitor.visitSingularEnumField(value: self.cpu, fieldNumber: 1)
+    }
+    if self.top != .wio {
+      try visitor.visitSingularEnumField(value: self.top, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: BoardIdentity, rhs: BoardIdentity) -> Bool {
+    if lhs.cpu != rhs.cpu {return false}
+    if lhs.top != rhs.top {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension BatteryProtectionReport: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "BatteryProtectionReport"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "on"),
+    2: .standard(proto: "min_temp_c"),
+    3: .standard(proto: "held_off"),
+    4: .standard(proto: "die_temp_x10"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularBoolField(value: &self.on) }()
+      case 2: try { try decoder.decodeSingularSInt32Field(value: &self.minTempC) }()
+      case 3: try { try decoder.decodeSingularBoolField(value: &self.heldOff) }()
+      case 4: try { try decoder.decodeSingularSInt32Field(value: &self._dieTempX10) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if self.on != false {
+      try visitor.visitSingularBoolField(value: self.on, fieldNumber: 1)
+    }
+    if self.minTempC != 0 {
+      try visitor.visitSingularSInt32Field(value: self.minTempC, fieldNumber: 2)
+    }
+    if self.heldOff != false {
+      try visitor.visitSingularBoolField(value: self.heldOff, fieldNumber: 3)
+    }
+    try { if let v = self._dieTempX10 {
+      try visitor.visitSingularSInt32Field(value: v, fieldNumber: 4)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: BatteryProtectionReport, rhs: BatteryProtectionReport) -> Bool {
+    if lhs.on != rhs.on {return false}
+    if lhs.minTempC != rhs.minTempC {return false}
+    if lhs.heldOff != rhs.heldOff {return false}
+    if lhs._dieTempX10 != rhs._dieTempX10 {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
