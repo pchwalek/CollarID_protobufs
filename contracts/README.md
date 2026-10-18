@@ -54,15 +54,12 @@ None of these changes a byte on the air; each is recorded where it is tested.
 
 The spec names bit 15 `charge_held_off` (`first_free` 16) and the CONFIG.CSV keys
 `battery_protection` and `battery_protection_min_temp_c` after `wb_addon_capable`. Merged
-everywhere on 2026-10-18; the copies in collarid-prod, collaridwebsite and CollarIDApp are
-synced and their contract tests check bit 15 (the website and app the words, the server
-the decoder field).
+everywhere on 2026-10-18; every repo's copy is synced and its contract test checks bit 15
+(the website and app the words, the server the decoder field, the firmware its define).
 
-Still to sync: collarID_thread and CollarID_BLE. Their contracts work rides branches that
-are not on main (the firmware's Bluetooth fleet update, the radio's build report). When it
-lands, run `python3 sync.py --only collarID_thread --only CollarID_BLE`, and give the
-firmware's configure-time ErrorFlags check its bit 15 row:
-`"ERROR_FLAG_CHARGE_HELD_OFF|Core/Inc/charge_inhibit_rule.h|charge_held_off"`.
+The firmware and radio copies followed the same day, with their branches (the Bluetooth
+fleet update, the radio's build report): all six repos are synced, and the firmware's
+configure-time ErrorFlags check pins `ERROR_FLAG_CHARGE_HELD_OFF` to bit 15.
 
 ## Changing a contract
 
