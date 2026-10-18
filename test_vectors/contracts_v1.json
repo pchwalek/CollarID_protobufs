@@ -1,0 +1,575 @@
+{
+ "version": 1,
+ "contracts_sha256": "cb67e94463cf648c913d9e9c3ce524094c2ca4ec3821ebb0c69a57a870135a7d",
+ "about": "Made by contracts/make_vectors.py from contracts/reference.py. Do not edit by hand.",
+ "special_mode": [
+  {
+   "code": 1,
+   "bytes": "12021801"
+  },
+  {
+   "code": 2,
+   "bytes": "12021802"
+  },
+  {
+   "code": 3,
+   "bytes": "12021803"
+  },
+  {
+   "code": 4,
+   "bytes": "12021804"
+  },
+  {
+   "code": 5,
+   "bytes": "12021805"
+  }
+ ],
+ "special_mode_decode": [
+  {
+   "bytes": "120618b981d0ea04",
+   "code": 1297350841
+  },
+  {
+   "bytes": "120618f781d0ea04",
+   "code": 1297350903
+  },
+  {
+   "bytes": "120318ac02",
+   "code": 300
+  },
+  {
+   "bytes": "",
+   "code": null
+  },
+  {
+   "bytes": "1a00",
+   "code": null
+  },
+  {
+   "bytes": "120408011802",
+   "code": 2
+  }
+ ],
+ "mtu": [
+  {
+   "code": 1297350679,
+   "mtu": 23,
+   "u5_payload": 20,
+   "radio_payload": 20
+  },
+  {
+   "code": 1297350760,
+   "mtu": 104,
+   "u5_payload": 90,
+   "radio_payload": 90
+  },
+  {
+   "code": 1297350841,
+   "mtu": 185,
+   "u5_payload": 171,
+   "radio_payload": 171
+  },
+  {
+   "code": 1297350903,
+   "mtu": 247,
+   "u5_payload": 182,
+   "radio_payload": 233
+  },
+  {
+   "code": 1297351173,
+   "mtu": 517,
+   "u5_payload": 182,
+   "radio_payload": 244
+  },
+  {
+   "code": 2,
+   "mtu": null,
+   "u5_payload": null,
+   "radio_payload": null
+  }
+ ],
+ "status_version": [
+  {
+   "bytes": "1a0e320c623531312062346464343739",
+   "version": "b511 b4dd479",
+   "build": 511
+  },
+  {
+   "bytes": "1a1432126235313220653566373766362d6469727479",
+   "version": "b512 e5f77f6-dirty",
+   "build": 512
+  },
+  {
+   "bytes": "1a06320462372078",
+   "version": "b7 x",
+   "build": 7
+  },
+  {
+   "bytes": "1a053203646576",
+   "version": "dev",
+   "build": null
+  },
+  {
+   "bytes": "1a023200",
+   "version": "",
+   "build": null
+  },
+  {
+   "bytes": "1a0b32096275696c6420353131",
+   "version": "build 511",
+   "build": null
+  },
+  {
+   "bytes": "1202180a",
+   "version": null,
+   "build": null
+  }
+ ],
+ "image_build": [
+  {
+   "tag": "FWBUILD",
+   "image": "006a756e6b2046574255494c443a3531313a206d6f7265",
+   "build": 511
+  },
+  {
+   "tag": "RADIOBUILD",
+   "image": "524144494f4255494c443a3135373a00",
+   "build": 157
+  },
+  {
+   "tag": "FWBUILD",
+   "image": "46574255494c443a3531313a20616e642046574255494c443a3531323a",
+   "build": null
+  },
+  {
+   "tag": "FWBUILD",
+   "image": "46574255494c443a3531313a2046574255494c443a3531313a",
+   "build": 511
+  },
+  {
+   "tag": "FWBUILD",
+   "image": "6e6f207374616d702068657265",
+   "build": null
+  },
+  {
+   "tag": "RADIOBUILD",
+   "image": "46574255494c443a3531313a",
+   "build": null
+  }
+ ],
+ "caps": [
+  {
+   "bytes": null,
+   "present": false,
+   "fmt": 0,
+   "bits": 0,
+   "family": null,
+   "build": null,
+   "kind": "older"
+  },
+  {
+   "bytes": "43500101",
+   "present": true,
+   "fmt": 1,
+   "bits": 1,
+   "family": 1,
+   "build": null,
+   "kind": "wb5m"
+  },
+  {
+   "bytes": "43500207",
+   "present": true,
+   "fmt": 2,
+   "bits": 7,
+   "family": 1,
+   "build": null,
+   "kind": "wb5m"
+  },
+  {
+   "bytes": "4350030701",
+   "present": true,
+   "fmt": 3,
+   "bits": 7,
+   "family": 1,
+   "build": null,
+   "kind": "wb5m"
+  },
+  {
+   "bytes": "4350030702",
+   "present": true,
+   "fmt": 3,
+   "bits": 7,
+   "family": 2,
+   "build": null,
+   "kind": "nrf54l15"
+  },
+  {
+   "bytes": "4350030709",
+   "present": true,
+   "fmt": 3,
+   "bits": 7,
+   "family": null,
+   "build": null,
+   "kind": "unknown"
+  },
+  {
+   "bytes": "43500407019d000000",
+   "present": true,
+   "fmt": 4,
+   "bits": 7,
+   "family": 1,
+   "build": 157,
+   "kind": "wb5m"
+  },
+  {
+   "bytes": "435004070203000000",
+   "present": true,
+   "fmt": 4,
+   "bits": 7,
+   "family": 2,
+   "build": 3,
+   "kind": "nrf54l15"
+  },
+  {
+   "bytes": "435004070104030201",
+   "present": true,
+   "fmt": 4,
+   "bits": 7,
+   "family": 1,
+   "build": 16909060,
+   "kind": "wb5m"
+  },
+  {
+   "bytes": "43500307",
+   "present": true,
+   "fmt": 3,
+   "bits": 7,
+   "family": null,
+   "build": null,
+   "kind": "unknown"
+  },
+  {
+   "bytes": "5859030701",
+   "present": true,
+   "fmt": 0,
+   "bits": 0,
+   "family": null,
+   "build": null,
+   "kind": "unknown"
+  },
+  {
+   "bytes": "43",
+   "present": true,
+   "fmt": 0,
+   "bits": 0,
+   "family": null,
+   "build": null,
+   "kind": "unknown"
+  }
+ ],
+ "u5_stream": [
+  {
+   "image": {
+    "length": 102700,
+    "seed": 11,
+    "patch": [
+     [
+      0,
+      "0000142001020008"
+     ],
+     [
+      102684,
+      "46574255494c443a3930303a"
+     ]
+    ]
+   },
+   "image_crc32": 1059870546,
+   "git_hash": "b4dd479",
+   "mtu": null,
+   "payload": 96,
+   "padded_len": 103648,
+   "header": "5535465701000000e0940100b8990b0b62346464343739000000000011f74a40",
+   "stream_len": 103680,
+   "stream_crc32": 1778243707,
+   "frames": 1080,
+   "first_frame": "110000000060005535465701000000e0940100b8990b0b62346464343739000000000011f74a40000014200102000833587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92b7dc0126393c8540",
+   "last_frame": "11370400006000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff4241dcde",
+   "end_frame": "12"
+  },
+  {
+   "image": {
+    "length": 102700,
+    "seed": 11,
+    "patch": [
+     [
+      0,
+      "0000142001020008"
+     ],
+     [
+      102684,
+      "46574255494c443a3930303a"
+     ]
+    ]
+   },
+   "image_crc32": 1059870546,
+   "git_hash": "",
+   "mtu": 247,
+   "payload": 182,
+   "padded_len": 103708,
+   "header": "55354657010000001c950100c08af4970000000000000000000000002474f762",
+   "stream_len": 103740,
+   "stream_crc32": 3195172692,
+   "frames": 570,
+   "first_frame": "1100000000b60055354657010000001c950100c08af4970000000000000000000000002474f762000014200102000833587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92b7dc01264b7095badf04294e7398bde2072c51769bc0e50a2f54799ec3e80d32577ca1c6eb10355a7fa4c9ee13385d82a7ccf1163b6085aacff4193e6388add2f71c41668bb0d5fa1f44698eb3d8fd22476c91b6db00254a6f9407b22f43",
+   "last_frame": "1139020000b600ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe6a0c11a",
+   "end_frame": "12"
+  },
+  {
+   "image": {
+    "length": 110000,
+    "seed": 3,
+    "patch": [
+     [
+      0,
+      "0000142001020008"
+     ],
+     [
+      109984,
+      "46574255494c443a3930303a"
+     ]
+    ]
+   },
+   "image_crc32": 3038053997,
+   "git_hash": "e5f77f6a",
+   "mtu": 185,
+   "payload": 171,
+   "padded_len": 111118,
+   "header": "55354657010000000eb20100981be108653566373766366100000000800f6793",
+   "stream_len": 111150,
+   "stream_crc32": 4066969718,
+   "frames": 650,
+   "first_frame": "1100000000ab0055354657010000000eb20100981be108653566373766366100000000800f679300001420010200082b50759abfe4092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43688db2d7fc21466b90b5daff24496e93b8dd02274c7196bbe0052a4f7499bee3082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0f506b59feb",
+   "last_frame": "1189020000ab00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7db91cde",
+   "end_frame": "12"
+  },
+  {
+   "image": {
+    "length": 103328,
+    "seed": 5,
+    "patch": [
+     [
+      0,
+      "0000142001020008"
+     ],
+     [
+      103312,
+      "46574255494c443a3930303a"
+     ]
+    ]
+   },
+   "image_crc32": 3811527789,
+   "git_hash": "12345678",
+   "mtu": 110,
+   "payload": 96,
+   "padded_len": 103648,
+   "header": "5535465701000000e0940100caab89e1313233343536373800000000eec43ac1",
+   "stream_len": 103680,
+   "stream_crc32": 2206198281,
+   "frames": 1080,
+   "first_frame": "110000000060005535465701000000e0940100caab89e1313233343536373800000000eec43ac100001420010200082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0f51a3f6489aed3f81d42678cb1d6fb208c773b5d",
+   "last_frame": "11370400006000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff4241dcde",
+   "end_frame": "12"
+  }
+ ],
+ "radio_start": [
+  {
+   "image": {
+    "length": 4000,
+    "seed": 7,
+    "patch": [
+     [
+      320,
+      "34120008"
+     ]
+    ]
+   },
+   "image_crc32": 1164044921,
+   "target": 1,
+   "mtu": null,
+   "payload": 96,
+   "start_frame": "1001a00f000079ea6145213f4847",
+   "last_frame": "11290000004000e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43688db2d7fc21466b90b5daff24496e93b8dd028af1c653",
+   "first_frame": "11000000006000072c51769bc0e50a2f54799ec3e80d32577ca1c6eb10355a7fa4c9ee13385d82a7ccf1163b6085aacff4193e6388add2f71c41668bb0d5fa1f44698eb3d8fd22476c91b6db00254a6f94b9de03284d7297bce1062b50759abfe4092e53789dc25d8a89a1",
+   "frames": 42,
+   "end_frame": "12"
+  },
+  {
+   "image": {
+    "length": 4000,
+    "seed": 7,
+    "patch": [
+     [
+      0,
+      "3db8f396"
+     ]
+    ]
+   },
+   "image_crc32": 1346541056,
+   "target": 2,
+   "mtu": null,
+   "payload": 96,
+   "start_frame": "1002a00f0000009642504cee6de6",
+   "last_frame": "11290000004000e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43688db2d7fc21466b90b5daff24496e93b8dd028af1c653",
+   "first_frame": "110000000060003db8f3969bc0e50a2f54799ec3e80d32577ca1c6eb10355a7fa4c9ee13385d82a7ccf1163b6085aacff4193e6388add2f71c41668bb0d5fa1f44698eb3d8fd22476c91b6db00254a6f94b9de03284d7297bce1062b50759abfe4092e53789dc2326e0dc4",
+   "frames": 42,
+   "end_frame": "12"
+  },
+  {
+   "image": {
+    "length": 15000,
+    "seed": 9,
+    "patch": [
+     [
+      320,
+      "34120008"
+     ]
+    ]
+   },
+   "image_crc32": 3378980226,
+   "target": 1,
+   "mtu": 247,
+   "payload": 233,
+   "start_frame": "1001983a0000822567c94ad5fb92",
+   "last_frame": "11400000005800496e93b8dd02274c7196bbe0052a4f7499bee3082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92b7dcd4b3fe64",
+   "first_frame": "1100000000e900092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43688db2d7fc21466b90b5daff24496e93b8dd02274c7196bbe0052a4f7499bee3082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186abd0f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92b7dc01264b7095badf04294e7398bde2072c51769bc0e50a2f54799ec3e80d32577ca1c6eb10355a7fa4c9ee13385d82a7ccf1163b6085aacff4193e6388add2f71c41668bb0d5fa1f44698eb3d8fd22476c91782f12db",
+   "frames": 65,
+   "end_frame": "12"
+  }
+ ],
+ "error_flags": [
+  {
+   "word": 0,
+   "keys": []
+  },
+  {
+   "word": 128,
+   "keys": [
+    "diagnostics_ran"
+   ]
+  },
+  {
+   "word": 129,
+   "keys": [
+    "accelerometer",
+    "diagnostics_ran"
+   ]
+  },
+  {
+   "word": 255,
+   "keys": [
+    "accelerometer",
+    "magnetometer",
+    "light",
+    "environment",
+    "gps",
+    "particulate",
+    "lora",
+    "diagnostics_ran"
+   ]
+  },
+  {
+   "word": 256,
+   "keys": [
+    "mortality"
+   ]
+  },
+  {
+   "word": 24576,
+   "keys": [
+    "safe_mode",
+    "card_missing"
+   ]
+  },
+  {
+   "word": 1152,
+   "keys": [
+    "diagnostics_ran",
+    "mic"
+   ]
+  },
+  {
+   "word": 6656,
+   "keys": [
+    "storage",
+    "lorawan_fcnt",
+    "beacon_key_fallback"
+   ]
+  },
+  {
+   "word": 32768,
+   "keys": [
+    "charge_held_off"
+   ]
+  },
+  {
+   "word": 49152,
+   "keys": [
+    "card_missing",
+    "charge_held_off"
+   ]
+  },
+  {
+   "word": 32767,
+   "keys": [
+    "accelerometer",
+    "magnetometer",
+    "light",
+    "environment",
+    "gps",
+    "particulate",
+    "lora",
+    "diagnostics_ran",
+    "mortality",
+    "storage",
+    "mic",
+    "lorawan_fcnt",
+    "beacon_key_fallback",
+    "safe_mode",
+    "card_missing"
+   ]
+  },
+  {
+   "word": 65535,
+   "keys": [
+    "accelerometer",
+    "magnetometer",
+    "light",
+    "environment",
+    "gps",
+    "particulate",
+    "lora",
+    "diagnostics_ran",
+    "mortality",
+    "storage",
+    "mic",
+    "lorawan_fcnt",
+    "beacon_key_fallback",
+    "safe_mode",
+    "card_missing",
+    "charge_held_off"
+   ]
+  },
+  {
+   "word": 65536,
+   "keys": [
+    "bit16"
+   ]
+  },
+  {
+   "word": 2147483648,
+   "keys": [
+    "bit31"
+   ]
+  }
+ ]
+}

@@ -2,6 +2,15 @@
 
 This directory contains the Protocol Buffer definitions for the CollarID project. These files serve as the single source of truth for communication between the embedded hardware (C) and the mobile application (Swift).
 
+## Contracts
+
+`contracts/` holds what more than one CollarID repo implements besides these
+messages: the Bluetooth characteristics, the radio's capability answer, the
+firmware-update protocol, build reporting, the ErrorFlags bits and the
+CONFIG.CSV keys, with test vectors (`test_vectors/contracts_v1.json`) that the
+firmware, the station, the server, the website and the app all run.
+`contracts/README.md` says how to change one.
+
 ## 📁 File Structure
 * `ble.proto`: BLE service and characteristic definitions.
 * `common.proto`: Shared types (BatteryState, GPSData, PacketHeader, etc.).
