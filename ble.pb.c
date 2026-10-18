@@ -63,7 +63,13 @@ PB_BIND(BEACON_KEY_REPORT, beacon_key_report_t, AUTO)
 PB_BIND(SIMPLE_SENSOR_READING, simple_sensor_reading_t, AUTO)
 
 
-PB_BIND(SYSTEM_STATE_PACKET, system_state_packet_t, AUTO)
+PB_BIND(SYSTEM_STATE_PACKET, system_state_packet_t, 2)
+
+
+PB_BIND(BOARD_IDENTITY, board_identity_t, AUTO)
+
+
+PB_BIND(BATTERY_PROTECTION_REPORT, battery_protection_report_t, AUTO)
 
 
 PB_BIND(PERIPHERAL_PACKET, peripheral_packet_t, AUTO)
@@ -73,6 +79,8 @@ PB_BIND(PERIPHERAL_INFO, peripheral_info_t, AUTO)
 
 
 PB_BIND(BLE_PACKET, ble_packet_t, 2)
+
+
 
 
 

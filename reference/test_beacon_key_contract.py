@@ -741,10 +741,13 @@ class StatusReadContract(unittest.TestCase):
         self.assertEqual(field_labels("ble.proto", "SystemStatePacket")["beacon_key"], "optional")
         nums = [n for _, n in st.values()]
         self.assertEqual(len(nums), len(set(nums)), "duplicate SystemStatePacket field")
-        # Append-only: the seven fields every client already reads keep their numbers.
+        # Append-only: the fields every client already reads keep their numbers;
+        # board (9) and battery_protection (10) came after the key (2026-10-18).
+        # old: {... "firmware_version": 6, "hw_diag": 7}
         self.assertEqual({f: n for f, (_, n) in st.items() if f != "beacon_key"},
                          {"engage_state": 1, "battery": 2, "sdcard": 3, "gps_data": 4,
-                          "sensors": 5, "firmware_version": 6, "hw_diag": 7})
+                          "sensors": 5, "firmware_version": 6, "hw_diag": 7,
+                          "board": 9, "battery_protection": 10})
 
     def test_same_report_as_the_echo(self):
         # One message for both places, so a client reads them with one decoder.
@@ -757,7 +760,7 @@ class StatusReadContract(unittest.TestCase):
         for phrase in ("firmware main build TBD", "neither decodes nor re-encodes",
                        "a READ restarts nothing", "tx_counter always 0",
                        "Present and empty", "140 B", "never gps_data or sensors",
-                       "at most 95 B", "Never a key byte"):
+                       "at most 123 B", "Never a key byte"):   # old: "at most 95 B" (before the card identity and battery protection)
             self.assertIn(phrase, c, phrase)
         self.assertRegex(read("ble.options"),
                          r"SystemStatePacket\.beacon_key, tx_counter never sent there")
@@ -778,7 +781,11 @@ class StatusReadGenerated(unittest.TestCase):
         # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+168\b")
         # 179 since SDCardState (7852625): the card's family, its name as read and
         # whether it is switched off between writes; the firmware vendors the same.
-        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+179\b")
+        # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+179\b")
+        # 203 since board (2 + BOARD_IDENTITY_SIZE 4) and battery_protection
+        # (2 + BATTERY_PROTECTION_REPORT_SIZE 16), 2026-10-18: nanopb's bound;
+        # what the collar sends is at most 123 B (the comment above the field).
+        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+203\b")
 
     def test_swift(self):
         s = read("ble.pb.swift")

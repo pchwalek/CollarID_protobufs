@@ -192,8 +192,17 @@ typedef struct particulate_data {
              collar engaged in its flash store, so it sends GPS and reports
              from the stored settings and records nothing. Bit 9 (storage)
              rides with it; read 14 first. It probes for a card and
-             restarts when one answers. The only bit past a 2-byte varint.
-   bits 15-31 free */
+             restarts when one answers. Past a 2-byte varint (see bit 15).
+   bit  15   CHARGE_HELD_OFF: battery protection holds the solar charger off
+             because the cell is too cold to charge (firmware
+             battery_protection.h; Mk III units with the setting on). Not a
+             fault: "Charging paused: too cold", so a winter collar whose
+             battery falls on a sunny day does not read as a broken panel.
+             Rides every LoRaWAN uplink while it lasts. Bits 14 and 15 are
+             the only bits past a 2-byte varint: a frame that carries one is
+             a byte longer, and the firmware's UplinkBudget_Fit measures
+             every frame (a GPS fix fewer on a full one, at worst).
+   bits 16-31 free */
 typedef struct error_flags {
     uint32_t flag;
 } error_flags_t;
@@ -759,7 +768,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      2442
+#define MESSAGE_PACKET_SIZE                      2448
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33
