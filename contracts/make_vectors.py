@@ -142,9 +142,7 @@ def make():
                                  "end_frame": hx(bytes([D["frame_end"]]))})
 
     # ErrorFlags.flag
-    # old: words = [0, 0x80, 0x81, 0xFF, 1 << 8, (1 << 13) | (1 << 14), (1 << 10) | 0x80, (1 << 9) | (1 << 11) | (1 << 12),
-    # old:          1 << 15, 0x7FFF, 1 << 31]
-    # 1 << 15 is charge_held_off since 2026-10-18; 1 << 16 is now the first free bit.
+    # 1 << 15 is charge_held_off; 1 << 16 is the first free bit.
     words = [0, 0x80, 0x81, 0xFF, 1 << 8, (1 << 13) | (1 << 14), (1 << 10) | 0x80, (1 << 9) | (1 << 11) | (1 << 12),
              1 << 15, (1 << 14) | (1 << 15), 0x7FFF, 0xFFFF, 1 << 16, 1 << 31]
     v["error_flags"] = [{"word": w, "keys": R.error_flag_keys(w)} for w in words]

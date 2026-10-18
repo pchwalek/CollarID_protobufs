@@ -50,17 +50,6 @@ None of these changes a byte on the air; each is recorded where it is tested.
   update page's safety gate and refused by the configure pages and the app.
   The collar always sends the hash, so the vectors leave that case out.
 
-## Battery protection (2026-10-18)
-
-The spec names bit 15 `charge_held_off` (`first_free` 16) and the CONFIG.CSV keys
-`battery_protection` and `battery_protection_min_temp_c` after `wb_addon_capable`. Merged
-everywhere on 2026-10-18; every repo's copy is synced and its contract test checks bit 15
-(the website and app the words, the server the decoder field, the firmware its define).
-
-The firmware and radio copies followed the same day, with their branches (the Bluetooth
-fleet update, the radio's build report): all six repos are synced, and the firmware's
-configure-time ErrorFlags check pins `ERROR_FLAG_CHARGE_HELD_OFF` to bit 15.
-
 ## Changing a contract
 
 1. Change `collarid_contracts.json` (and `reference.py` if the behaviour moves).
