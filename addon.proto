@@ -28,6 +28,17 @@ enum AddonCommandType {
   ADDON_CMD_FACTORY_RESET    = 12;  // owner only: defaults + reboot
 }
 
+// What a node reports about its command key (docs/DESIGN_addon_auth.md in
+// CollarID_BLE, section 4). A node with no key behaves as before this field
+// existed and sends none of the key fields.
+enum AddonKeyState {
+  ADDON_KEY_NONE             = 0;
+  ADDON_KEY_CURRENT          = 1;   // commands need a MAC under it
+  ADDON_KEY_CURRENT_PENDING  = 2;   // either key verifies; the pending one promotes
+  ADDON_KEY_PENDING_ONLY     = 3;   // a first key: plain is still taken until it promotes
+  ADDON_KEY_FALLBACK         = 4;   // the key store was unreadable: running unkeyed
+}
+
 enum AddonMotorState {
   ADDON_MOTOR_IDLE      = 0;
   ADDON_MOTOR_DETACHING = 1;
@@ -45,6 +56,15 @@ message AddonStatus {
   uint32 paired_uid     = 7;  // collar this node serves; 0 = unpaired
   uint32 batt_loaded_mv = 8;  // last under-motor-load reading; 0 = none
   uint32 fired          = 9;  // 1 = scheduled detach already fired
+  // Command keys (docs/DESIGN_addon_auth.md section 5). All 0 on an unkeyed
+  // node, so its status is byte-identical to before.
+  fixed32 nonce         = 10; // fresh each wake while the node holds a key;
+                              // every command and time reply of this wake is
+                              // MAC'd over it
+  AddonKeyState key_state = 11;
+  uint32 key_gen        = 12; // current key's generation, 1..255; 0 = none
+  uint32 kcv            = 13; // AES(key, 0^16)[0..2] as b0<<16 | b1<<8 | b2
+  uint32 pending_gen    = 14; // pending key's generation; 0 = none
 }
 
 // collar -> node
@@ -53,6 +73,11 @@ message AddonCommand {
   uint32 param         = 2;
   uint32 src_uid       = 3;  // sending collar identity (pairing filter)
   uint32 sender_epoch  = 4;  // optional opportunistic RTC sync (§5.1); 0 = none
+  // To a keyed node (key_state != 0 in its status); both 0 otherwise.
+  uint32 seq           = 5;  // 1, 2, ... per node, again from 1 when its nonce changes
+  fixed64 mac          = 6;  // first 8 bytes of AES-CMAC(pair_key, m), little-endian;
+                             // m = 0x01, 0x01 (command), node uid, collar uid,
+                             // nonce, seq, cmd, param, sender_epoch (u32 LE each)
 }
 
 // collar -> node (explicit time discipline; any AddonCommand.sender_epoch
@@ -60,4 +85,8 @@ message AddonCommand {
 message AddonTime {
   uint32 epoch   = 1;  // UTC seconds; node gates >= 2026-01-01
   uint32 src_uid = 2;
+  // To a keyed node, as for AddonCommand; m uses direction 0x02 and cmd =
+  // param = 0.
+  uint32 seq     = 3;
+  fixed64 mac    = 4;
 }

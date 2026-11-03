@@ -32,6 +32,17 @@ typedef enum addon_command_type {
     ADDON_COMMAND_TYPE_ADDON_CMD_FACTORY_RESET = 12 /* owner only: defaults + reboot */
 } addon_command_type_t;
 
+/* What a node reports about its command key (docs/DESIGN_addon_auth.md in
+ CollarID_BLE, section 4). A node with no key behaves as before this field
+ existed and sends none of the key fields. */
+typedef enum addon_key_state {
+    ADDON_KEY_STATE_ADDON_KEY_NONE = 0,
+    ADDON_KEY_STATE_ADDON_KEY_CURRENT = 1, /* commands need a MAC under it */
+    ADDON_KEY_STATE_ADDON_KEY_CURRENT_PENDING = 2, /* either key verifies; the pending one promotes */
+    ADDON_KEY_STATE_ADDON_KEY_PENDING_ONLY = 3, /* a first key: plain is still taken until it promotes */
+    ADDON_KEY_STATE_ADDON_KEY_FALLBACK = 4 /* the key store was unreadable: running unkeyed */
+} addon_key_state_t;
+
 typedef enum addon_motor_state {
     ADDON_MOTOR_STATE_ADDON_MOTOR_IDLE = 0,
     ADDON_MOTOR_STATE_ADDON_MOTOR_DETACHING = 1,
@@ -50,6 +61,15 @@ typedef struct addon_status {
     uint32_t paired_uid; /* collar this node serves; 0 = unpaired */
     uint32_t batt_loaded_mv; /* last under-motor-load reading; 0 = none */
     uint32_t fired; /* 1 = scheduled detach already fired */
+    /* Command keys (docs/DESIGN_addon_auth.md section 5). All 0 on an unkeyed
+ node, so its status is byte-identical to before. */
+    uint32_t nonce; /* fresh each wake while the node holds a key; */
+    /* every command and time reply of this wake is
+ MAC'd over it */
+    addon_key_state_t key_state;
+    uint32_t key_gen; /* current key's generation, 1..255; 0 = none */
+    uint32_t kcv; /* AES(key, 0^16)[0..2] as b0<<16 | b1<<8 | b2 */
+    uint32_t pending_gen; /* pending key's generation; 0 = none */
 } addon_status_t;
 
 /* collar -> node */
@@ -58,6 +78,9 @@ typedef struct addon_command {
     uint32_t param;
     uint32_t src_uid; /* sending collar identity (pairing filter) */
     uint32_t sender_epoch; /* optional opportunistic RTC sync (§5.1); 0 = none */
+    /* To a keyed node (key_state != 0 in its status); both 0 otherwise. */
+    uint32_t seq; /* 1, 2, ... per node, again from 1 when its nonce changes */
+    uint64_t mac; /* first 8 bytes of AES-CMAC(pair_key, m), little-endian; */
 } addon_command_t;
 
 /* collar -> node (explicit time discipline; any AddonCommand.sender_epoch
@@ -65,6 +88,10 @@ typedef struct addon_command {
 typedef struct addon_time {
     uint32_t epoch; /* UTC seconds; node gates >= 2026-01-01 */
     uint32_t src_uid;
+    /* To a keyed node, as for AddonCommand; m uses direction 0x02 and cmd =
+ param = 0. */
+    uint32_t seq;
+    uint64_t mac;
 } addon_time_t;
 
 
@@ -81,24 +108,29 @@ extern "C" {
 #define _ADDON_COMMAND_TYPE_MAX ADDON_COMMAND_TYPE_ADDON_CMD_FACTORY_RESET
 #define _ADDON_COMMAND_TYPE_ARRAYSIZE ((addon_command_type_t)(ADDON_COMMAND_TYPE_ADDON_CMD_FACTORY_RESET+1))
 
+#define _ADDON_KEY_STATE_MIN ADDON_KEY_STATE_ADDON_KEY_NONE
+#define _ADDON_KEY_STATE_MAX ADDON_KEY_STATE_ADDON_KEY_FALLBACK
+#define _ADDON_KEY_STATE_ARRAYSIZE ((addon_key_state_t)(ADDON_KEY_STATE_ADDON_KEY_FALLBACK+1))
+
 #define _ADDON_MOTOR_STATE_MIN ADDON_MOTOR_STATE_ADDON_MOTOR_IDLE
 #define _ADDON_MOTOR_STATE_MAX ADDON_MOTOR_STATE_ADDON_MOTOR_ATTACHING
 #define _ADDON_MOTOR_STATE_ARRAYSIZE ((addon_motor_state_t)(ADDON_MOTOR_STATE_ADDON_MOTOR_ATTACHING+1))
 
 #define addon_status_t_node_type_ENUMTYPE addon_node_type_t
 #define addon_status_t_motor_state_ENUMTYPE addon_motor_state_t
+#define addon_status_t_key_state_ENUMTYPE addon_key_state_t
 
 #define addon_command_t_cmd_ENUMTYPE addon_command_type_t
 
 
 
 /* Initializer values for message structs */
-#define ADDON_STATUS_INIT_DEFAULT                {0, _ADDON_NODE_TYPE_MIN, 0, 0, 0, _ADDON_MOTOR_STATE_MIN, 0, 0, 0}
-#define ADDON_COMMAND_INIT_DEFAULT               {_ADDON_COMMAND_TYPE_MIN, 0, 0, 0}
-#define ADDON_TIME_INIT_DEFAULT                  {0, 0}
-#define ADDON_STATUS_INIT_ZERO                   {0, _ADDON_NODE_TYPE_MIN, 0, 0, 0, _ADDON_MOTOR_STATE_MIN, 0, 0, 0}
-#define ADDON_COMMAND_INIT_ZERO                  {_ADDON_COMMAND_TYPE_MIN, 0, 0, 0}
-#define ADDON_TIME_INIT_ZERO                     {0, 0}
+#define ADDON_STATUS_INIT_DEFAULT                {0, _ADDON_NODE_TYPE_MIN, 0, 0, 0, _ADDON_MOTOR_STATE_MIN, 0, 0, 0, 0, _ADDON_KEY_STATE_MIN, 0, 0, 0}
+#define ADDON_COMMAND_INIT_DEFAULT               {_ADDON_COMMAND_TYPE_MIN, 0, 0, 0, 0, 0}
+#define ADDON_TIME_INIT_DEFAULT                  {0, 0, 0, 0}
+#define ADDON_STATUS_INIT_ZERO                   {0, _ADDON_NODE_TYPE_MIN, 0, 0, 0, _ADDON_MOTOR_STATE_MIN, 0, 0, 0, 0, _ADDON_KEY_STATE_MIN, 0, 0, 0}
+#define ADDON_COMMAND_INIT_ZERO                  {_ADDON_COMMAND_TYPE_MIN, 0, 0, 0, 0, 0}
+#define ADDON_TIME_INIT_ZERO                     {0, 0, 0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define ADDON_STATUS_UID_TAG                     1
@@ -110,12 +142,21 @@ extern "C" {
 #define ADDON_STATUS_PAIRED_UID_TAG              7
 #define ADDON_STATUS_BATT_LOADED_MV_TAG          8
 #define ADDON_STATUS_FIRED_TAG                   9
+#define ADDON_STATUS_NONCE_TAG                   10
+#define ADDON_STATUS_KEY_STATE_TAG               11
+#define ADDON_STATUS_KEY_GEN_TAG                 12
+#define ADDON_STATUS_KCV_TAG                     13
+#define ADDON_STATUS_PENDING_GEN_TAG             14
 #define ADDON_COMMAND_CMD_TAG                    1
 #define ADDON_COMMAND_PARAM_TAG                  2
 #define ADDON_COMMAND_SRC_UID_TAG                3
 #define ADDON_COMMAND_SENDER_EPOCH_TAG           4
+#define ADDON_COMMAND_SEQ_TAG                    5
+#define ADDON_COMMAND_MAC_TAG                    6
 #define ADDON_TIME_EPOCH_TAG                     1
 #define ADDON_TIME_SRC_UID_TAG                   2
+#define ADDON_TIME_SEQ_TAG                       3
+#define ADDON_TIME_MAC_TAG                       4
 
 /* Struct field encoding specification for nanopb */
 #define ADDON_STATUS_FIELDLIST(X, a) \
@@ -127,7 +168,12 @@ X(a, STATIC,   SINGULAR, UINT32,   batt_mv,           5) \
 X(a, STATIC,   SINGULAR, UENUM,    motor_state,       6) \
 X(a, STATIC,   SINGULAR, UINT32,   paired_uid,        7) \
 X(a, STATIC,   SINGULAR, UINT32,   batt_loaded_mv,    8) \
-X(a, STATIC,   SINGULAR, UINT32,   fired,             9)
+X(a, STATIC,   SINGULAR, UINT32,   fired,             9) \
+X(a, STATIC,   SINGULAR, FIXED32,  nonce,            10) \
+X(a, STATIC,   SINGULAR, UENUM,    key_state,        11) \
+X(a, STATIC,   SINGULAR, UINT32,   key_gen,          12) \
+X(a, STATIC,   SINGULAR, UINT32,   kcv,              13) \
+X(a, STATIC,   SINGULAR, UINT32,   pending_gen,      14)
 #define ADDON_STATUS_CALLBACK NULL
 #define ADDON_STATUS_DEFAULT NULL
 
@@ -135,13 +181,17 @@ X(a, STATIC,   SINGULAR, UINT32,   fired,             9)
 X(a, STATIC,   SINGULAR, UENUM,    cmd,               1) \
 X(a, STATIC,   SINGULAR, UINT32,   param,             2) \
 X(a, STATIC,   SINGULAR, UINT32,   src_uid,           3) \
-X(a, STATIC,   SINGULAR, UINT32,   sender_epoch,      4)
+X(a, STATIC,   SINGULAR, UINT32,   sender_epoch,      4) \
+X(a, STATIC,   SINGULAR, UINT32,   seq,               5) \
+X(a, STATIC,   SINGULAR, FIXED64,  mac,               6)
 #define ADDON_COMMAND_CALLBACK NULL
 #define ADDON_COMMAND_DEFAULT NULL
 
 #define ADDON_TIME_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
-X(a, STATIC,   SINGULAR, UINT32,   src_uid,           2)
+X(a, STATIC,   SINGULAR, UINT32,   src_uid,           2) \
+X(a, STATIC,   SINGULAR, UINT32,   seq,               3) \
+X(a, STATIC,   SINGULAR, FIXED64,  mac,               4)
 #define ADDON_TIME_CALLBACK NULL
 #define ADDON_TIME_DEFAULT NULL
 
@@ -155,10 +205,10 @@ extern const pb_msgdesc_t addon_time_t_msg;
 #define ADDON_TIME_FIELDS &addon_time_t_msg
 
 /* Maximum encoded size of messages (where known) */
-#define ADDON_COMMAND_SIZE                       20
+#define ADDON_COMMAND_SIZE                       35
 #define ADDON_PB_H_MAX_SIZE                      ADDON_STATUS_SIZE
-#define ADDON_STATUS_SIZE                        46
-#define ADDON_TIME_SIZE                          12
+#define ADDON_STATUS_SIZE                        71
+#define ADDON_TIME_SIZE                          27
 
 #ifdef __cplusplus
 } /* extern "C" */
