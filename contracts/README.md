@@ -21,7 +21,7 @@ CollarID_BLE (`common/collar_bus.h`, `tools/check_bus_contract.py`).
 
 | Repo | Its copies | Its test | Runs |
 |---|---|---|---|
-| collarID_thread (firmware) | `Core/Inc/collarid_contracts.h`, `test/host/contracts/` | `test/host` (ctest): `test_contracts`, `test_config_parser` (`the_written_keys_are_the_contract`), the configure-time ErrorFlags check, `test_contracts_copy_*` | ErrorFlags bits 0-15 against the firmware's own defines (bits 0-6 from `HW_DiagMask`); the update stream header; the keys `write_config_file` really writes |
+| collarID_thread (firmware) | `Core/Inc/collarid_contracts.h`, `test/host/contracts/` | `test/host` (ctest): `test_contracts`, `test_config_parser` (`the_written_keys_are_the_contract`), the configure-time ErrorFlags check, `test_contracts_copy_*` | ErrorFlags bits 0-16 against the firmware's own defines (bits 0-6 from `HW_DiagMask`); the update stream header; the keys `write_config_file` really writes |
 | collarID_thread (flash station) | `scripts/fleet_flash/collarid_contracts.py` | `scripts/fleet_flash/test_contracts.py` | Characteristic IDs, special modes, MTU to payload, status version, image stamps, capability bytes, update stream and frames, radio START |
 | CollarID_BLE | `common/collarid_contracts.h`, `tools/contracts/` | `tools/check_contracts.py` | `collar_bus.h` against the spec: IDs, capability format, frame codes, targets, special modes |
 | collarid-prod | `api/collarid_contracts.py`, `tests/contracts/` | `tests/test_contracts.py` | Every ErrorFlags word through `decoder.decode_hex` (each field, `hw_faults` with the microphone folded onto bit 8); the registry's FWBUILD stamp (`main._fw_build_of_image`) |

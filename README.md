@@ -200,9 +200,12 @@ deployment uplinks while any of them persists (LoRaWAN; point-to-point frames
 carry only bit 8). The comment above `message ErrorFlags` in `message.proto`
 is the ledger: bits 0-6 boot hardware diagnostics, 7 diagnostics ran, 8
 `MORTALITY`, 9 `STORAGE`, 10 `MIC`, 11 `LORAWAN_FCNT`, 12
-`BEACON_KEY_FALLBACK`, 13-31 free. Take a new bit from the ledger, and change
-the firmware, the server's decoder and the website's data-schema table with
-it. `reference/test_error_flags_contract.py` pins the allocation, checks the
-generated `message.pb.h` carries the same comment, and checks that every
-allocated bit fits the 5 B the uplink budget reserves for the word
-(`reference/GPS_BLOCK_V1.md`): bit 13 is the last bit that does.
+`BEACON_KEY_FALLBACK`, 13 `SAFE_MODE`, 14 `CARD_MISSING`, 15
+`CHARGE_HELD_OFF`, 16 `NO_RELEASE_UNIT`, 17-31 free. Take a new bit from the
+ledger, and change the firmware, the server's decoder and the website's
+data-schema table with it (`contracts/collarid_contracts.json` too, then
+`contracts/sync.py`). `reference/test_error_flags_contract.py` pins the
+allocation, checks the generated `message.pb.h` carries the same comment, and
+checks that every allocated bit fits the 5 B the uplink budget reserves for
+the word (`reference/GPS_BLOCK_V1.md`): bit 13 is the last bit that does;
+bits 14, 15 and 16 are its named exceptions (`OVER_BUDGET_OK`).

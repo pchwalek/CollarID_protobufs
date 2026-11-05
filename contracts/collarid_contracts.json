@@ -62,7 +62,7 @@
     }
   },
   "error_flags": {
-    "first_free": 16,
+    "first_free": 17,
     "bits": [
       {
         "bit": 0,
@@ -143,6 +143,11 @@
         "bit": 15,
         "key": "charge_held_off",
         "what": "battery protection holds the solar charger off: too cold to charge (not a fault)"
+      },
+      {
+        "bit": 16,
+        "key": "no_release_unit",
+        "what": "a release command reached the collar with no release unit checked in, so it was not queued (not a fault)"
       }
     ]
   },

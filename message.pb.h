@@ -198,11 +198,20 @@ typedef struct particulate_data {
              battery_protection.h; Mk III units with the setting on). Not a
              fault: "Charging paused: too cold", so a winter collar whose
              battery falls on a sunny day does not read as a broken panel.
-             Rides every LoRaWAN uplink while it lasts. Bits 14 and 15 are
-             the only bits past a 2-byte varint: a frame that carries one is
-             a byte longer, and the firmware's UplinkBudget_Fit measures
-             every frame (a GPS fix fewer on a full one, at worst).
-   bits 16-31 free */
+             Rides every LoRaWAN uplink while it lasts. Bits 14, 15 and 16
+             are the only bits past a 2-byte varint: a frame that carries
+             one is a byte longer, and the firmware's UplinkBudget_Fit
+             measures every frame (a GPS fix fewer on a full one, at worst).
+   bit  16   NO_RELEASE_UNIT: a release command reached the collar (a
+             LoRaWAN Drop Off, Arm or Disarm, or a detach zone firing) while
+             no release unit had checked in with it
+             (AddonStore_PrimaryDetachUid() is 0), so the command was not
+             queued. Rides the next 3 uplinks after the drop, even if a
+             release unit checks in meanwhile (the command was still
+             dropped); a new drop starts the 3 again. RAM only, so a reboot
+             clears it. Not a fault: the server closes the collar's newest
+             open release command as refused, and the map says why.
+   bits 17-31 free */
 typedef struct error_flags {
     uint32_t flag;
 } error_flags_t;
