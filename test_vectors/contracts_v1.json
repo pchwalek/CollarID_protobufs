@@ -1,6 +1,6 @@
 {
  "version": 1,
- "contracts_sha256": "cb67e94463cf648c913d9e9c3ce524094c2ca4ec3821ebb0c69a57a870135a7d",
+ "contracts_sha256": "20e45c8969d4790eeb4a5329f287bf1edb01fd25dfe0e0517206a524e3c8b71e",
  "about": "Made by contracts/make_vectors.py from contracts/reference.py. Do not edit by hand.",
  "special_mode": [
   {
@@ -562,7 +562,42 @@
   {
    "word": 65536,
    "keys": [
-    "bit16"
+    "no_release_unit"
+   ]
+  },
+  {
+   "word": 98304,
+   "keys": [
+    "charge_held_off",
+    "no_release_unit"
+   ]
+  },
+  {
+   "word": 131071,
+   "keys": [
+    "accelerometer",
+    "magnetometer",
+    "light",
+    "environment",
+    "gps",
+    "particulate",
+    "lora",
+    "diagnostics_ran",
+    "mortality",
+    "storage",
+    "mic",
+    "lorawan_fcnt",
+    "beacon_key_fallback",
+    "safe_mode",
+    "card_missing",
+    "charge_held_off",
+    "no_release_unit"
+   ]
+  },
+  {
+   "word": 131072,
+   "keys": [
+    "bit17"
    ]
   },
   {

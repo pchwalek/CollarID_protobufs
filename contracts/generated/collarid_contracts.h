@@ -3,7 +3,7 @@
 #define COLLARID_CONTRACTS_H
 
 #define CID_CONTRACTS_VERSION 1u
-#define CID_CONTRACTS_SHA256 "cb67e94463cf648c913d9e9c3ce524094c2ca4ec3821ebb0c69a57a870135a7d"
+#define CID_CONTRACTS_SHA256 "20e45c8969d4790eeb4a5329f287bf1edb01fd25dfe0e0517206a524e3c8b71e"
 
 /* Bluetooth service and characteristics */
 #define CID_GATT_SERVICE "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7"
@@ -71,7 +71,8 @@
 #define CID_ERROR_FLAG_SAFE_MODE (1u << 13)   /* safe mode: a subsystem is off after three fast resets */
 #define CID_ERROR_FLAG_CARD_MISSING (1u << 14)   /* running without its memory card (location only) */
 #define CID_ERROR_FLAG_CHARGE_HELD_OFF (1u << 15)   /* battery protection holds the solar charger off: too cold to charge (not a fault) */
-#define CID_ERROR_FLAGS_FIRST_FREE 16u
+#define CID_ERROR_FLAG_NO_RELEASE_UNIT (1u << 16)   /* a release command reached the collar with no release unit checked in, so it was not queued (not a fault) */
+#define CID_ERROR_FLAGS_FIRST_FREE 17u
 
 /* CONFIG.CSV: X-macro lists, X("key") per key, in file order */
 #define CID_CONFIG_CSV_SCHEDULE_HEADER "parameter_name"

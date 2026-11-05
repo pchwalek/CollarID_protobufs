@@ -69,7 +69,7 @@
     }
   },
   "error_flags": {
-    "first_free": 16,
+    "first_free": 17,
     "bits": [
       {
         "bit": 0,
@@ -150,6 +150,11 @@
         "bit": 15,
         "key": "charge_held_off",
         "what": "battery protection holds the solar charger off: too cold to charge (not a fault)"
+      },
+      {
+        "bit": 16,
+        "key": "no_release_unit",
+        "what": "a release command reached the collar with no release unit checked in, so it was not queued (not a fault)"
       }
     ]
   },
@@ -258,6 +263,6 @@
     ]
   }
 };
-  C.CONTRACTS_SHA256 = 'cb67e94463cf648c913d9e9c3ce524094c2ca4ec3821ebb0c69a57a870135a7d';
+  C.CONTRACTS_SHA256 = '20e45c8969d4790eeb4a5329f287bf1edb01fd25dfe0e0517206a524e3c8b71e';
   return Object.freeze(C);
 });
