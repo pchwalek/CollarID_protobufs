@@ -110,6 +110,11 @@ enum SDCardFamily {
   // untested card, with product_name carrying the name as read.
   SD_FAMILY_SANDISK_UNTESTED       = 5;
   SD_FAMILY_KIOXIA_UNTESTED        = 6;
+  // After firmware v1.25.0: the Kioxia Exceria High Endurance (name DR512 at
+  // 512 GB), power measured 2026-11-10. Earlier firmware reports it as
+  // KIOXIA_UNTESTED with product_name DR512, so a client names it by the
+  // name first.
+  SD_FAMILY_KIOXIA_HIGH_ENDURANCE  = 7;
 }
 
 message SDCardState {

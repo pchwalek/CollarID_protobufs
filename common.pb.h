@@ -29,7 +29,12 @@ typedef enum sd_card_family {
  a SanDisk or Kioxia name it has not held is reported as that maker's
  untested card, with product_name carrying the name as read. */
     SD_CARD_FAMILY_SD_FAMILY_SANDISK_UNTESTED = 5,
-    SD_CARD_FAMILY_SD_FAMILY_KIOXIA_UNTESTED = 6
+    SD_CARD_FAMILY_SD_FAMILY_KIOXIA_UNTESTED = 6,
+    /* After firmware v1.25.0: the Kioxia Exceria High Endurance (name DR512 at
+ 512 GB), power measured 2026-11-10. Earlier firmware reports it as
+ KIOXIA_UNTESTED with product_name DR512, so a client names it by the
+ name first. */
+    SD_CARD_FAMILY_SD_FAMILY_KIOXIA_HIGH_ENDURANCE = 7
 } sd_card_family_t;
 
 /* ---- Activity ----
@@ -162,8 +167,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _SD_CARD_FAMILY_MIN SD_CARD_FAMILY_SD_FAMILY_UNKNOWN
-#define _SD_CARD_FAMILY_MAX SD_CARD_FAMILY_SD_FAMILY_KIOXIA_UNTESTED
-#define _SD_CARD_FAMILY_ARRAYSIZE ((sd_card_family_t)(SD_CARD_FAMILY_SD_FAMILY_KIOXIA_UNTESTED+1))
+#define _SD_CARD_FAMILY_MAX SD_CARD_FAMILY_SD_FAMILY_KIOXIA_HIGH_ENDURANCE
+#define _SD_CARD_FAMILY_ARRAYSIZE ((sd_card_family_t)(SD_CARD_FAMILY_SD_FAMILY_KIOXIA_HIGH_ENDURANCE+1))
 
 #define _ACTIVITY_MIN ACTIVITY_STILL
 #define _ACTIVITY_MAX ACTIVITY_RUN
