@@ -20,6 +20,82 @@ fileprivate struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAP
   typealias Version = _2
 }
 
+/// ---- SD Card ----
+/// Unified on uint64 for sizes to prevent overflow.
+/// Which card the collar found, by the card's own ID register, for the apps
+/// to name it and price it (2026-10-12). The firmware's table (sd_card_class.h)
+/// gives the family; product_name is the card's five-character name as read,
+/// so a client table can tell a 128 GB from a 1 TB Extreme (SN128 / SN01T)
+/// and name a card the firmware does not know. UNKNOWN = not in the table:
+/// "untested card" to a user.
+enum SDCardFamily: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case sdFamilyUnknown // = 0
+  case sdFamilySandiskExtreme // = 1
+  case sdFamilySandiskExtremePro // = 2
+  case sdFamilyKioxiaExceriaPlus // = 3
+  case sdFamilySandiskHighEndurance // = 4
+
+  /// Since firmware v1.25.0 the firmware names cards by EXACT product name
+  /// (SanDisk's five characters are a code per capacity, not per line), and
+  /// a SanDisk or Kioxia name it has not held is reported as that maker's
+  /// untested card, with product_name carrying the name as read.
+  case sdFamilySandiskUntested // = 5
+  case sdFamilyKioxiaUntested // = 6
+
+  /// After firmware v1.25.0: the Kioxia Exceria High Endurance (name DR512 at
+  /// 512 GB), power measured 2026-11-10. Earlier firmware reports it as
+  /// KIOXIA_UNTESTED with product_name DR512, so a client names it by the
+  /// name first.
+  case sdFamilyKioxiaHighEndurance // = 7
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .sdFamilyUnknown
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .sdFamilyUnknown
+    case 1: self = .sdFamilySandiskExtreme
+    case 2: self = .sdFamilySandiskExtremePro
+    case 3: self = .sdFamilyKioxiaExceriaPlus
+    case 4: self = .sdFamilySandiskHighEndurance
+    case 5: self = .sdFamilySandiskUntested
+    case 6: self = .sdFamilyKioxiaUntested
+    case 7: self = .sdFamilyKioxiaHighEndurance
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .sdFamilyUnknown: return 0
+    case .sdFamilySandiskExtreme: return 1
+    case .sdFamilySandiskExtremePro: return 2
+    case .sdFamilyKioxiaExceriaPlus: return 3
+    case .sdFamilySandiskHighEndurance: return 4
+    case .sdFamilySandiskUntested: return 5
+    case .sdFamilyKioxiaUntested: return 6
+    case .sdFamilyKioxiaHighEndurance: return 7
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [SDCardFamily] = [
+    .sdFamilyUnknown,
+    .sdFamilySandiskExtreme,
+    .sdFamilySandiskExtremePro,
+    .sdFamilyKioxiaExceriaPlus,
+    .sdFamilySandiskHighEndurance,
+    .sdFamilySandiskUntested,
+    .sdFamilyKioxiaUntested,
+    .sdFamilyKioxiaHighEndurance,
+  ]
+
+}
+
 /// ---- Activity ----
 /// Identical enum from both files.
 enum Activity: SwiftProtobuf.Enum, Swift.CaseIterable {
@@ -206,6 +282,35 @@ struct PacketHeader: Sendable {
   /// Clears the value of `linkMisses`. Subsequent reads from it will return its default value.
   mutating func clearLinkMisses() {self._linkMisses = nil}
 
+  /// The boards the collar is built from (firmware board_rev_rule.h, detected
+  /// at boot): (top board << 4) | cpuboard. cpuboard 0 = original (PCBWay,
+  /// April 2026), 1 = revised (JLC, the PC4/PC5 marker); top board 0 = Wio,
+  /// 1 = amplifier. 0x11 is a Mk III unit, the only one battery protection acts
+  /// on (ErrorFlags bit 15). Sent with reset_cause, on the first uplinks after a
+  /// boot (~2 B); absent on firmware before 2026-10-18 and on later uplinks.
+  var board: UInt32 {
+    get {return _board ?? 0}
+    set {_board = newValue}
+  }
+  /// Returns true if `board` has been explicitly set.
+  var hasBoard: Bool {return self._board != nil}
+  /// Clears the value of `board`. Subsequent reads from it will return its default value.
+  mutating func clearBoard() {self._board = nil}
+
+  /// CRC-32 (reflected 0xEDB88320, the sched_crc table) over the nanopb
+  /// encoding of a downlink.proto RadioSettings filled with ALL its fields
+  /// from the collar's live direct-radio and lost-mode settings. Proves which
+  /// radio settings a collar runs, as sched_crc does for the schedule
+  /// (sched_crc does not cover them). Absent = firmware that predates it.
+  var radioCrc: UInt32 {
+    get {return _radioCrc ?? 0}
+    set {_radioCrc = newValue}
+  }
+  /// Returns true if `radioCrc` has been explicitly set.
+  var hasRadioCrc: Bool {return self._radioCrc != nil}
+  /// Clears the value of `radioCrc`. Subsequent reads from it will return its default value.
+  mutating func clearRadioCrc() {self._radioCrc = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -220,6 +325,8 @@ struct PacketHeader: Sendable {
   fileprivate var _linkMarginDb: UInt32? = nil
   fileprivate var _linkGateways: UInt32? = nil
   fileprivate var _linkMisses: UInt32? = nil
+  fileprivate var _board: UInt32? = nil
+  fileprivate var _radioCrc: UInt32? = nil
 }
 
 /// ---- GPS ----
@@ -271,8 +378,6 @@ struct BatteryState: Sendable {
   fileprivate var _percentage: Float? = nil
 }
 
-/// ---- SD Card ----
-/// Unified on uint64 for sizes to prevent overflow.
 struct SDCardState: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -286,12 +391,62 @@ struct SDCardState: Sendable {
   /// bytes
   var totalSpace: UInt64 = 0
 
+  /// From firmware v1.24.0 (BLE status packet only; absent on LoRaWAN):
+  var family: SDCardFamily {
+    get {return _family ?? .sdFamilyUnknown}
+    set {_family = newValue}
+  }
+  /// Returns true if `family` has been explicitly set.
+  var hasFamily: Bool {return self._family != nil}
+  /// Clears the value of `family`. Subsequent reads from it will return its default value.
+  mutating func clearFamily() {self._family = nil}
+
+  /// the card's name as read (5 characters)
+  var productName: String {
+    get {return _productName ?? String()}
+    set {_productName = newValue}
+  }
+  /// Returns true if `productName` has been explicitly set.
+  var hasProductName: Bool {return self._productName != nil}
+  /// Clears the value of `productName`. Subsequent reads from it will return its default value.
+  mutating func clearProductName() {self._productName = nil}
+
+  /// true: the collar switches this card off between saves (the efficient
+  /// handling); false: it keeps the card powered while recording, which costs
+  /// about twice the battery. Decided by the card's cluster size from
+  /// firmware build 495 (v1.24.0), by its name before.
+  var offBetweenWrites: Bool {
+    get {return _offBetweenWrites ?? false}
+    set {_offBetweenWrites = newValue}
+  }
+  /// Returns true if `offBetweenWrites` has been explicitly set.
+  var hasOffBetweenWrites: Bool {return self._offBetweenWrites != nil}
+  /// Clears the value of `offBetweenWrites`. Subsequent reads from it will return its default value.
+  mutating func clearOffBetweenWrites() {self._offBetweenWrites = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
+
+  fileprivate var _family: SDCardFamily? = nil
+  fileprivate var _productName: String? = nil
+  fileprivate var _offBetweenWrites: Bool? = nil
 }
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
+
+extension SDCardFamily: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "SD_FAMILY_UNKNOWN"),
+    1: .same(proto: "SD_FAMILY_SANDISK_EXTREME"),
+    2: .same(proto: "SD_FAMILY_SANDISK_EXTREME_PRO"),
+    3: .same(proto: "SD_FAMILY_KIOXIA_EXCERIA_PLUS"),
+    4: .same(proto: "SD_FAMILY_SANDISK_HIGH_ENDURANCE"),
+    5: .same(proto: "SD_FAMILY_SANDISK_UNTESTED"),
+    6: .same(proto: "SD_FAMILY_KIOXIA_UNTESTED"),
+    7: .same(proto: "SD_FAMILY_KIOXIA_HIGH_ENDURANCE"),
+  ]
+}
 
 extension Activity: SwiftProtobuf._ProtoNameProviding {
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
@@ -318,6 +473,8 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     12: .standard(proto: "link_margin_db"),
     13: .standard(proto: "link_gateways"),
     14: .standard(proto: "link_misses"),
+    15: .same(proto: "board"),
+    16: .standard(proto: "radio_crc"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -340,6 +497,8 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
       case 12: try { try decoder.decodeSingularUInt32Field(value: &self._linkMarginDb) }()
       case 13: try { try decoder.decodeSingularUInt32Field(value: &self._linkGateways) }()
       case 14: try { try decoder.decodeSingularUInt32Field(value: &self._linkMisses) }()
+      case 15: try { try decoder.decodeSingularUInt32Field(value: &self._board) }()
+      case 16: try { try decoder.decodeSingularUInt32Field(value: &self._radioCrc) }()
       default: break
       }
     }
@@ -392,6 +551,12 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     try { if let v = self._linkMisses {
       try visitor.visitSingularUInt32Field(value: v, fieldNumber: 14)
     } }()
+    try { if let v = self._board {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 15)
+    } }()
+    try { if let v = self._radioCrc {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 16)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -410,6 +575,8 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     if lhs._linkMarginDb != rhs._linkMarginDb {return false}
     if lhs._linkGateways != rhs._linkGateways {return false}
     if lhs._linkMisses != rhs._linkMisses {return false}
+    if lhs._board != rhs._board {return false}
+    if lhs._radioCrc != rhs._radioCrc {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -525,6 +692,9 @@ extension SDCardState: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     1: .same(proto: "detected"),
     2: .standard(proto: "space_remaining"),
     3: .standard(proto: "total_space"),
+    4: .same(proto: "family"),
+    5: .standard(proto: "product_name"),
+    6: .standard(proto: "off_between_writes"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -536,12 +706,19 @@ extension SDCardState: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
       case 1: try { try decoder.decodeSingularBoolField(value: &self.detected) }()
       case 2: try { try decoder.decodeSingularUInt64Field(value: &self.spaceRemaining) }()
       case 3: try { try decoder.decodeSingularUInt64Field(value: &self.totalSpace) }()
+      case 4: try { try decoder.decodeSingularEnumField(value: &self._family) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self._productName) }()
+      case 6: try { try decoder.decodeSingularBoolField(value: &self._offBetweenWrites) }()
       default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if self.detected != false {
       try visitor.visitSingularBoolField(value: self.detected, fieldNumber: 1)
     }
@@ -551,6 +728,15 @@ extension SDCardState: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     if self.totalSpace != 0 {
       try visitor.visitSingularUInt64Field(value: self.totalSpace, fieldNumber: 3)
     }
+    try { if let v = self._family {
+      try visitor.visitSingularEnumField(value: v, fieldNumber: 4)
+    } }()
+    try { if let v = self._productName {
+      try visitor.visitSingularStringField(value: v, fieldNumber: 5)
+    } }()
+    try { if let v = self._offBetweenWrites {
+      try visitor.visitSingularBoolField(value: v, fieldNumber: 6)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -558,6 +744,9 @@ extension SDCardState: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     if lhs.detected != rhs.detected {return false}
     if lhs.spaceRemaining != rhs.spaceRemaining {return false}
     if lhs.totalSpace != rhs.totalSpace {return false}
+    if lhs._family != rhs._family {return false}
+    if lhs._productName != rhs._productName {return false}
+    if lhs._offBetweenWrites != rhs._offBetweenWrites {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -70,6 +70,13 @@ message PacketHeader {
   // on (ErrorFlags bit 15). Sent with reset_cause, on the first uplinks after a
   // boot (~2 B); absent on firmware before 2026-10-18 and on later uplinks.
   optional uint32 board = 15;
+
+  // CRC-32 (reflected 0xEDB88320, the sched_crc table) over the nanopb
+  // encoding of a downlink.proto RadioSettings filled with ALL its fields
+  // from the collar's live direct-radio and lost-mode settings. Proves which
+  // radio settings a collar runs, as sched_crc does for the schedule
+  // (sched_crc does not cover them). Absent = firmware that predates it.
+  optional uint32 radio_crc = 16;
 }
 
 // ---- GPS ----

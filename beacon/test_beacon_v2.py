@@ -510,5 +510,83 @@ class TestAgainstCryptography(unittest.TestCase):
             self.assertEqual(payload.hex(), v["payload"], v["name"])
 
 
+class CommandFrameTests(unittest.TestCase):
+    """The signed handheld command (0x44) and its acknowledgement (0x4B)."""
+
+    def setUp(self):
+        self.vec = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors.json")))
+
+    def test_vectors_open(self):
+        for v in self.vec["commands"]:
+            key = bytes.fromhex(v["cmd_key"])
+            got = b.open_command(key, bytes.fromhex(v["frame"]))
+            self.assertEqual((got.uid, got.ctr, got.echo, got.valid_from, got.valid_to, got.body.hex()),
+                             (v["uid"], v["ctr"], v["echo"], v["valid_from"], v["valid_to"], v["body"]))
+            self.assertEqual(b.classify(bytes.fromhex(v["frame"])), "command")
+        for v in self.vec["command_acks"]:
+            got = b.open_command_ack(bytes.fromhex(v["cmd_key"]), bytes.fromhex(v["frame"]))
+            self.assertEqual((got.result, got.command, got.detail, got.rssi, got.snr_q4),
+                             (v["result"], v["command"], v["detail"], v["rssi"], v["snr_q4"]))
+            self.assertEqual(b.classify(bytes.fromhex(v["frame"])), "command_ack")
+
+    def test_beacon_key_never_opens_a_command(self):
+        v = self.vec["commands"][0]
+        beacon = b.kdf(bytes.fromhex(v["master"]), "beacon", v["uid"], v["gen"])
+        with self.assertRaises(b.AuthError):
+            b.open_command(beacon, bytes.fromhex(v["frame"]))
+
+    def test_every_byte_is_authenticated(self):
+        v = self.vec["commands"][1]
+        key, frame = bytes.fromhex(v["cmd_key"]), bytearray.fromhex(v["frame"])
+        for i in range(len(frame)):
+            bad = bytearray(frame)
+            bad[i] ^= 0x01
+            if i == 0:
+                with self.assertRaises(ValueError):
+                    b.open_command(key, bytes(bad))
+                continue
+            with self.assertRaises(b.AuthError):
+                b.open_command(key, bytes(bad))
+
+    def test_ack_direction_differs(self):
+        # The same key and counter in the two directions never give the same
+        # keystream: a command frame cannot be opened as an ACK or back.
+        v = self.vec["command_acks"][0]
+        key = bytes.fromhex(v["cmd_key"])
+        frame = bytearray.fromhex(v["frame"])
+        frame[0] = b.MAGIC_COMMAND
+        with self.assertRaises((b.AuthError, ValueError)):
+            b.open_command(key, bytes(frame))
+
+    def test_freshness(self):
+        c = b.Command(1, 1, 0, 1, 0, 100, 200, b"\x10")
+        self.assertTrue(b.command_fresh(c, 0, 100))
+        self.assertTrue(b.command_fresh(c, 0, 200))
+        self.assertFalse(b.command_fresh(c, 0, 99))
+        self.assertFalse(b.command_fresh(c, 0, 201))
+        open_ended = c._replace(valid_to=0)
+        self.assertTrue(b.command_fresh(open_ended, 0, 10 ** 9))
+        live = c._replace(echo=173)
+        self.assertTrue(b.command_fresh(live, 173, 0))
+        self.assertFalse(b.command_fresh(live, 174, 150))
+
+    def test_lengths(self):
+        key = bytes(16)
+        with self.assertRaises(ValueError):
+            b.seal_command(key, 1, 1, b"")
+        with self.assertRaises(ValueError):
+            b.seal_command(key, 1, 1, bytes(227))
+        self.assertEqual(len(b.seal_command(key, 1, 1, bytes(226))), 255)
+        self.assertEqual(len(b.seal_command_ack(key, 1, 1, 1, 13)), b.COMMAND_ACK_LEN)
+
+    @unittest.skipUnless(HAVE_CRYPTOGRAPHY, "cryptography not installed")
+    def test_against_cryptography(self):
+        for v in self.vec["commands"]:
+            frame = bytes.fromhex(v["frame"])
+            pt = AESCCM(bytes.fromhex(v["cmd_key"]), tag_length=8).decrypt(
+                bytes.fromhex(v["nonce"]), frame[9:], frame[:9])
+            self.assertEqual(pt[12:].hex(), v["body"])
+
+
 if __name__ == "__main__":
     unittest.main()

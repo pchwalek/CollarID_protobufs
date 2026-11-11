@@ -104,7 +104,23 @@ typedef enum command_type {
  above: a radio downlink can never switch the encryption off.
  CMD_FACTORY_RESET also erases the key and keeps the counter. Fw gate:
  firmware main build TBD, set at merge. */
-    COMMAND_TYPE_CMD_BEACON_KEY_CLEAR = 22
+    COMMAND_TYPE_CMD_BEACON_KEY_CLEAR = 22,
+    /* Open a session: after its CMD-ACK the collar keeps listening for further
+ signed frames, at the spreading factor the handheld's INTENT asked for
+ when that is not below session.min_sf (else at its own), until
+ CMD_SESSION_CLOSE, session.idle_s without a frame, or session.max_s.
+ Then it returns to its own radio settings and schedule. */
+    COMMAND_TYPE_CMD_SESSION_OPEN = 23,
+    /* Close the session now (also ends it when sent outside one: no-op). */
+    COMMAND_TYPE_CMD_SESSION_CLOSE = 24,
+    /* Find mode: a beacon every find.interval_s for find.minutes, then back to
+ normal; the stored configuration is not touched. find.minutes 0 stops a
+ running find mode. Allowed on every carrier. */
+    COMMAND_TYPE_CMD_FIND_MODE = 25,
+    /* Lost mode off: clears lost_mode_enabled in the stored configuration and
+ restarts the collar into normal running (sensors back on). Allowed on
+ every carrier. */
+    COMMAND_TYPE_CMD_LOST_MODE_OFF = 26
 } command_type_t;
 
 /* ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
@@ -366,7 +382,52 @@ typedef struct config_geofence {
  settings (server-side packing, and the fw 360 self-report) is applied
  setting by setting by fw 360+; older nanopb keeps only the last setting it
  saw, so senders pack only for builds that understand it. Every setting in
- a fragment applies to the same schedule_index. */
+ a fragment applies to the same schedule_index.
+ CMD_SESSION_OPEN parameters. The collar clamps each value to its own
+ limits (max_s 5..120, idle_s 2..30) and refuses a min_sf outside 7..12. */
+typedef struct session_params {
+    uint32_t max_s; /* the session ends this many seconds after it opens */
+    uint32_t idle_s; /* ... or after this many seconds with no frame */
+    uint32_t min_sf; /* the lowest SF (7..12) the INTENT may ask for; 0 = keep the collar's own */
+} session_params_t;
+
+/* CMD_FIND_MODE parameters. The collar clamps interval_s to 4..600 and
+ minutes to 0..120 (0 stops a running find mode). */
+typedef struct find_mode {
+    uint32_t interval_s;
+    uint32_t minutes;
+} find_mode_t;
+
+/* The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
+ (pushable remotely) and as the input of PacketHeader.radio_crc. Mirrors
+ ble.proto LoRaConfig + the lost-mode fields of RadioConfigPacket with plain
+ numbers, because the server never loads ble.proto. A field left absent in a
+ fragment keeps the collar's value. */
+typedef struct radio_settings {
+    bool has_spreading_factor;
+    uint32_t spreading_factor; /* ble.proto RadioSpreadingFactor value: 0 = SF7 ... 5 = SF12 */
+    bool has_bandwidth;
+    uint32_t bandwidth; /* ble.proto RadioBandwidth value: 0 = 125, 1 = 250, 2 = 500 kHz */
+    bool has_coding_rate;
+    uint32_t coding_rate; /* ble.proto RadioCodingRate value: 0 = 4/5 ... 3 = 4/8 */
+    bool has_tx_power_dbm;
+    int32_t tx_power_dbm;
+    bool has_sync_word;
+    uint32_t sync_word;
+    bool has_frequency_mhz;
+    uint32_t frequency_mhz; /* as LoRaConfig.frequency (whole MHz) */
+    bool has_rx_listen;
+    bool rx_listen;
+    bool has_lost_mode_enabled;
+    bool lost_mode_enabled;
+    bool has_lost_activation_epoch;
+    uint32_t lost_activation_epoch;
+    bool has_lost_interval_min;
+    uint32_t lost_interval_min;
+    bool has_lost_tx_power_dbm;
+    int32_t lost_tx_power_dbm;
+} radio_settings_t;
+
 typedef struct config_fragment {
     uint32_t schedule_index; /* target schedule slot (0-4) */
     uint32_t fragment_index; /* 0-based index of this fragment in the transaction */
@@ -395,6 +456,12 @@ typedef struct config_fragment {
     config_mortality_t cfg_mortality; /* global, schedule_index ignored */
     bool has_cfg_geofence;
     config_geofence_t cfg_geofence; /* global, schedule_index ignored */
+    /* Direct-radio and lost-mode settings (global, schedule_index ignored).
+ Applied at COMMIT; when the transaction runs inside a handheld session,
+ the radio part waits for the session to end (changing the radio would
+ end it). The rails refuse a change that leaves no radio enabled. */
+    bool has_cfg_radio;
+    radio_settings_t cfg_radio;
 } config_fragment_t;
 
 /* ---- Main downlink envelope ---- */
@@ -445,6 +512,19 @@ typedef struct downlink_packet {
  firmware main build TBD, set at merge. */
     bool has_beacon_key;
     beacon_key_set_t beacon_key;
+    /* CMD_SESSION_OPEN parameters (signed direct-radio frames only). */
+    bool has_session;
+    session_params_t session;
+    /* CMD_FIND_MODE parameters. */
+    bool has_find;
+    find_mode_t find;
+    /* CMD_ADDON_ARM alternative to addon_arm_epoch: arm the drop-off for this
+ many seconds after the collar receives the command. Lets a handheld carry
+ a detach signed before a trip and use it at a moment chosen in the field,
+ with no signal (the signed frame's validity window bounds when). When
+ both are present addon_arm_epoch wins. */
+    bool has_addon_arm_delay_s;
+    uint32_t addon_arm_delay_s;
 } downlink_packet_t;
 
 
@@ -454,8 +534,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_BEACON_KEY_CLEAR
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_BEACON_KEY_CLEAR+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_LOST_MODE_OFF
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_LOST_MODE_OFF+1))
 
 #define _BEACON_KEY_SLOT_MIN BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON
 #define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND
@@ -465,6 +545,9 @@ extern "C" {
 
 
 #define beacon_key_set_t_slot_ENUMTYPE beacon_key_slot_t
+
+
+
 
 
 
@@ -495,8 +578,11 @@ extern "C" {
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
-#define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT}
+#define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
+#define FIND_MODE_INIT_DEFAULT                   {0, 0}
+#define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
@@ -511,8 +597,11 @@ extern "C" {
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
-#define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO}
+#define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
+#define FIND_MODE_INIT_ZERO                      {0, 0}
+#define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -581,6 +670,22 @@ extern "C" {
 #define CONFIG_GEOFENCE_VERTEX_INDEX_TAG         10
 #define CONFIG_GEOFENCE_VERTEX_TAG               11
 #define CONFIG_GEOFENCE_CONSUMED_TAG             12
+#define SESSION_PARAMS_MAX_S_TAG                 1
+#define SESSION_PARAMS_IDLE_S_TAG                2
+#define SESSION_PARAMS_MIN_SF_TAG                3
+#define FIND_MODE_INTERVAL_S_TAG                 1
+#define FIND_MODE_MINUTES_TAG                    2
+#define RADIO_SETTINGS_SPREADING_FACTOR_TAG      1
+#define RADIO_SETTINGS_BANDWIDTH_TAG             2
+#define RADIO_SETTINGS_CODING_RATE_TAG           3
+#define RADIO_SETTINGS_TX_POWER_DBM_TAG          4
+#define RADIO_SETTINGS_SYNC_WORD_TAG             5
+#define RADIO_SETTINGS_FREQUENCY_MHZ_TAG         6
+#define RADIO_SETTINGS_RX_LISTEN_TAG             7
+#define RADIO_SETTINGS_LOST_MODE_ENABLED_TAG     8
+#define RADIO_SETTINGS_LOST_ACTIVATION_EPOCH_TAG 9
+#define RADIO_SETTINGS_LOST_INTERVAL_MIN_TAG     10
+#define RADIO_SETTINGS_LOST_TX_POWER_DBM_TAG     11
 #define CONFIG_FRAGMENT_SCHEDULE_INDEX_TAG       1
 #define CONFIG_FRAGMENT_FRAGMENT_INDEX_TAG       2
 #define CONFIG_FRAGMENT_FRAGMENT_TOTAL_TAG       3
@@ -596,6 +701,7 @@ extern "C" {
 #define CONFIG_FRAGMENT_CFG_SYSTEM_TAG           13
 #define CONFIG_FRAGMENT_CFG_MORTALITY_TAG        14
 #define CONFIG_FRAGMENT_CFG_GEOFENCE_TAG         15
+#define CONFIG_FRAGMENT_CFG_RADIO_TAG            16
 #define DOWNLINK_PACKET_EPOCH_TAG                1
 #define DOWNLINK_PACKET_COMMAND_TAG              2
 #define DOWNLINK_PACKET_HIGH_FIX_PARAMS_TAG      3
@@ -607,6 +713,9 @@ extern "C" {
 #define DOWNLINK_PACKET_CFG_TXN_ID_TAG           9
 #define DOWNLINK_PACKET_REPORT_MASK_TAG          10
 #define DOWNLINK_PACKET_BEACON_KEY_TAG           11
+#define DOWNLINK_PACKET_SESSION_TAG              12
+#define DOWNLINK_PACKET_FIND_TAG                 13
+#define DOWNLINK_PACKET_ADDON_ARM_DELAY_S_TAG    14
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -733,6 +842,34 @@ X(a, STATIC,   OPTIONAL, BOOL,     consumed,         12)
 #define CONFIG_GEOFENCE_DEFAULT NULL
 #define config_geofence_t_vertex_MSGTYPE geo_point_t
 
+#define SESSION_PARAMS_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   max_s,             1) \
+X(a, STATIC,   SINGULAR, UINT32,   idle_s,            2) \
+X(a, STATIC,   SINGULAR, UINT32,   min_sf,            3)
+#define SESSION_PARAMS_CALLBACK NULL
+#define SESSION_PARAMS_DEFAULT NULL
+
+#define FIND_MODE_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   interval_s,        1) \
+X(a, STATIC,   SINGULAR, UINT32,   minutes,           2)
+#define FIND_MODE_CALLBACK NULL
+#define FIND_MODE_DEFAULT NULL
+
+#define RADIO_SETTINGS_FIELDLIST(X, a) \
+X(a, STATIC,   OPTIONAL, UINT32,   spreading_factor,   1) \
+X(a, STATIC,   OPTIONAL, UINT32,   bandwidth,         2) \
+X(a, STATIC,   OPTIONAL, UINT32,   coding_rate,       3) \
+X(a, STATIC,   OPTIONAL, INT32,    tx_power_dbm,      4) \
+X(a, STATIC,   OPTIONAL, UINT32,   sync_word,         5) \
+X(a, STATIC,   OPTIONAL, UINT32,   frequency_mhz,     6) \
+X(a, STATIC,   OPTIONAL, BOOL,     rx_listen,         7) \
+X(a, STATIC,   OPTIONAL, BOOL,     lost_mode_enabled,   8) \
+X(a, STATIC,   OPTIONAL, UINT32,   lost_activation_epoch,   9) \
+X(a, STATIC,   OPTIONAL, UINT32,   lost_interval_min,  10) \
+X(a, STATIC,   OPTIONAL, INT32,    lost_tx_power_dbm,  11)
+#define RADIO_SETTINGS_CALLBACK NULL
+#define RADIO_SETTINGS_DEFAULT NULL
+
 #define CONFIG_FRAGMENT_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   schedule_index,    1) \
 X(a, STATIC,   SINGULAR, UINT32,   fragment_index,    2) \
@@ -748,7 +885,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_particulate,  11) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_radio_timing,  12) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_system,       13) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_mortality,    14) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_geofence,     15)
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_geofence,     15) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_radio,        16)
 #define CONFIG_FRAGMENT_CALLBACK NULL
 #define CONFIG_FRAGMENT_DEFAULT NULL
 #define config_fragment_t_cfg_time_window_MSGTYPE config_time_window_t
@@ -763,6 +901,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_geofence,     15)
 #define config_fragment_t_cfg_system_MSGTYPE config_system_t
 #define config_fragment_t_cfg_mortality_MSGTYPE config_mortality_t
 #define config_fragment_t_cfg_geofence_MSGTYPE config_geofence_t
+#define config_fragment_t_cfg_radio_MSGTYPE radio_settings_t
 
 #define DOWNLINK_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
@@ -775,13 +914,18 @@ X(a, STATIC,   OPTIONAL, UINT32,   resend_from,       7) \
 X(a, STATIC,   OPTIONAL, UINT32,   resend_mask,       8) \
 X(a, STATIC,   OPTIONAL, UINT32,   cfg_txn_id,        9) \
 X(a, STATIC,   OPTIONAL, UINT32,   report_mask,      10) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       11)
+X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       11) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  session,          12) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  find,             13) \
+X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
 #define downlink_packet_t_geofence_MSGTYPE geofence_data_t
 #define downlink_packet_t_config_MSGTYPE config_fragment_t
 #define downlink_packet_t_beacon_key_MSGTYPE beacon_key_set_t
+#define downlink_packet_t_session_MSGTYPE session_params_t
+#define downlink_packet_t_find_MSGTYPE find_mode_t
 
 extern const pb_msgdesc_t geo_point_t_msg;
 extern const pb_msgdesc_t geofence_data_t_msg;
@@ -797,6 +941,9 @@ extern const pb_msgdesc_t config_radio_timing_t_msg;
 extern const pb_msgdesc_t config_mortality_t_msg;
 extern const pb_msgdesc_t config_system_t_msg;
 extern const pb_msgdesc_t config_geofence_t_msg;
+extern const pb_msgdesc_t session_params_t_msg;
+extern const pb_msgdesc_t find_mode_t_msg;
+extern const pb_msgdesc_t radio_settings_t_msg;
 extern const pb_msgdesc_t config_fragment_t_msg;
 extern const pb_msgdesc_t downlink_packet_t_msg;
 
@@ -815,13 +962,16 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_MORTALITY_FIELDS &config_mortality_t_msg
 #define CONFIG_SYSTEM_FIELDS &config_system_t_msg
 #define CONFIG_GEOFENCE_FIELDS &config_geofence_t_msg
+#define SESSION_PARAMS_FIELDS &session_params_t_msg
+#define FIND_MODE_FIELDS &find_mode_t_msg
+#define RADIO_SETTINGS_FIELDS &radio_settings_t_msg
 #define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
 #define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
 #define BEACON_KEY_SET_SIZE                      26
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     357
+#define CONFIG_FRAGMENT_SIZE                     428
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 14
@@ -831,10 +981,13 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       16
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     643
+#define DOWNLINK_PACKET_SIZE                     754
+#define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12
+#define RADIO_SETTINGS_SIZE                      68
+#define SESSION_PARAMS_SIZE                      18
 
 #ifdef __cplusplus
 } /* extern "C" */

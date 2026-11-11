@@ -9,7 +9,9 @@
   "v1": "[0]=0x4C [1..4]=uid_le32 [5..17]=body (18 B plaintext)",
   "kdf": "dev_key = AES-CMAC(master, label(12 ASCII) || uid_le32 || gen); labels CID-LORA-BCN (beacon), CID-LORA-CMD (command)",
   "kcv": "AES(key, 0^16)[0..2]",
-  "report": "[0]=0x52 [1..4]=uid_le32 [5..8]=ctr_le32 (the v2 counter sequence) [9..9+n-1]=CCM ciphertext of the payload (n=1..238) [9+n..9+n+7]=8-byte tag; AAD, nonce and dev_key as v2; frame n+17 = 18..255 B"
+  "report": "[0]=0x52 [1..4]=uid_le32 [5..8]=ctr_le32 (the v2 counter sequence) [9..9+n-1]=CCM ciphertext of the payload (n=1..238) [9+n..9+n+7]=8-byte tag; AAD, nonce and dev_key as v2; frame n+17 = 18..255 B",
+  "command": "[0]=0x44 [1..4]=uid_le32 [5..8]=cmd_counter_le32 (gen<<24|seq) then CCM ciphertext of echo u32le || valid_from u32le || valid_to u32le || DownlinkPacket (n=1..226) and an 8-byte tag; AAD=[0..8]; nonce=uid_le32||ctr_le32||0x01||0x00000000; key = the COMMAND key (CID-LORA-CMD); frame n+29 = 30..255 B",
+  "command_ack": "[0]=0x4B [1..4]=uid_le32 [5..8]=the command's counter, then CCM ciphertext of result u8 || command u8 || detail u32le || rssi i8 || snr_q4 i8 and an 8-byte tag; nonce dir 0x02; 25 B"
  },
  "aes128": [
   {
@@ -784,6 +786,108 @@
    "tag": "47cea8b1646d70d6",
    "frame": "520300577efeffffff4bfb8bb6a91d66aec725f747a1ba7f2147195d0f20488e90cb3b0526eaed1a5c9c5b32394faad2ae9836f6c7d204b1b499e6a3e57d15369384b2a8f68609fec5a8ff39dd0438d7d29c6a0d8f44adad34d9959a3999f5d0a02f0baa86f0cdc09bfbcb80a1b5c2bf6112587aaa9961777aa999ec6da2af26389b564841ec8d9e352689d2807b4d78c8ea921e495e6514e1a579e0de618ce40275587df90616b24475121b935753bb36c4751f38e80ea31572491a9eeb69330207c148574ae34fde48b1441695ad63d4b6d5d10e4b48c4c3a0199a478d03907a38bdb8d73124aa723a7dcbcbe2598c502b938b0e4a6647cea8b1646d70d6",
    "frame_len": 255
+  }
+ ],
+ "commands": [
+  {
+   "name": "C1 pre-signed detach, windowed",
+   "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+   "uid": 2119630865,
+   "uid_hex": "7e570011",
+   "gen": 1,
+   "seq": 1,
+   "ctr": 16777217,
+   "ctr_hex": "01000001",
+   "cmd_key": "1d4ada49eacaf7680d6f2b17cb3d7b5c",
+   "kcv": "7b7b11",
+   "nonce": "1100577e010000010100000000",
+   "aad": "441100577e01000001",
+   "echo": 0,
+   "valid_from": 1794000000,
+   "valid_to": 1795209600,
+   "body": "100d70d804",
+   "frame": "441100577e01000001920987c85ed7d120025e2f582649517a7158e61a64e9bb7d2d",
+   "frame_len": 34
+  },
+  {
+   "name": "C2 live session open, echo-bound",
+   "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+   "uid": 2119630866,
+   "uid_hex": "7e570012",
+   "gen": 2,
+   "seq": 42,
+   "ctr": 33554474,
+   "ctr_hex": "0200002a",
+   "cmd_key": "64f0f49180ae07903d608bdd5fe973aa",
+   "kcv": "d685a7",
+   "nonce": "1200577e2a0000020100000000",
+   "aad": "441200577e2a000002",
+   "echo": 173,
+   "valid_from": 0,
+   "valid_to": 0,
+   "body": "10176206083c10061807",
+   "frame": "441200577e2a000002746c54fa4089925852b4652702969e25b363507eaf3848f58b49a47339e6",
+   "frame_len": 39
+  },
+  {
+   "name": "C3 maximum 226 B body",
+   "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+   "uid": 2119630867,
+   "uid_hex": "7e570013",
+   "gen": 255,
+   "seq": 16777214,
+   "ctr": 4294967294,
+   "ctr_hex": "fffffffe",
+   "cmd_key": "f19320d6b9eb0f1674d72039152a0f54",
+   "kcv": "9b178a",
+   "nonce": "1300577efeffffff0100000000",
+   "aad": "441300577efeffffff",
+   "echo": 0,
+   "valid_from": 1,
+   "valid_to": 4294967295,
+   "body": "0d38638eb9e40f3a6590bbe6113c6792bde8133e6994bfea15406b96c1ec17426d98c3ee19446f9ac5f01b46719cc7f21d48739ec9f41f4a75a0cbf6214c77a2cdf8234e79a4cffa25507ba6d1fc27527da8d3fe29547faad5002b5681acd7022d5883aed9042f5a85b0db06315c87b2dd08335e89b4df0a35608bb6e10c37628db8e30e39648fbae5103b6691bce7123d6893bee9143f6a95c0eb16416c97c2ed18436e99c4ef1a45709bc6f11c47729dc8f31e49749fcaf5204b76a1ccf7224d78a3cef9244f7aa5d0fb26517ca7d2fd28537ea9d4ff2a5580abd6012c5782add8",
+   "frame": "441300577efeffffff2643f7ea61aaaf3cc490408055195297e16e41ebf12d4ead00b968133bd6b68fe44fb4001b3a8536447c2b2e190a832e8ecd99c58255c3e199f232d0121e3390c3a634dd85bd2a00ed20b0e7b3e205e8e8b0af7ca90562d3415d88544bda4d28c09f1b9253256481742e9e3a522cda3af28ca25ee1ee44e680f1e99cb9813e0487703a64a87a2006693257477e4d80077d478041637420ff9ca694e022b181ab6b9ec78b7af989b897ef61b2d739c998d622158eb8b8682178ad0548c14c96f2508a791424f07eaf806634038f63b8909b1e26dc239949d9bd57af0d1c8e561961250de877a77bccbc459ed8b112d5d8d666be8320b3",
+   "frame_len": 255
+  }
+ ],
+ "command_acks": [
+  {
+   "name": "K1 accepted the C1 detach",
+   "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+   "uid": 2119630865,
+   "uid_hex": "7e570011",
+   "gen": 1,
+   "seq": 1,
+   "ctr": 16777217,
+   "ctr_hex": "01000001",
+   "cmd_key": "1d4ada49eacaf7680d6f2b17cb3d7b5c",
+   "nonce": "1100577e010000010200000000",
+   "result": 1,
+   "command": 13,
+   "detail": 600,
+   "rssi": -42,
+   "snr_q4": 30,
+   "frame": "4b1100577e010000012d6625ed0eb60a0fe5041aada0b46fa2",
+   "frame_len": 25
+  },
+  {
+   "name": "K2 session opened at SF7",
+   "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+   "uid": 2119630866,
+   "uid_hex": "7e570012",
+   "gen": 2,
+   "seq": 42,
+   "ctr": 33554474,
+   "ctr_hex": "0200002a",
+   "cmd_key": "64f0f49180ae07903d608bdd5fe973aa",
+   "nonce": "1200577e2a0000020200000000",
+   "result": 9,
+   "command": 23,
+   "detail": 7,
+   "rssi": -97,
+   "snr_q4": -29,
+   "frame": "4b1200577e2a000002b24e13f8d37bd4271f05ee0ecfad61b3",
+   "frame_len": 25
   }
  ]
 }

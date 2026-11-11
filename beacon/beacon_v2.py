@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """CollarID lost-mode beacon: reference codec for the v1 (0x4C, plaintext) and
 v2 (0x4D, AES-128-CCM) frames, the sealed report (0x52, the v2 construction
-with a variable-length body), and the key derivation a receiver needs.
+with a variable-length body), the signed handheld command (0x44) and its
+acknowledgement (0x4B), and the key derivation a receiver needs.
 
 Standard library only, so it runs anywhere (a field laptop, a CI runner, a
 receiver's build script). It is a REFERENCE, written for clarity and for
@@ -251,8 +252,10 @@ AAD_LEN = 9
 NONCE_LEN = 13
 TAG_LEN = 8
 DIR_BEACON = 0x00          # collar-originated beacon (this file)
-DIR_COMMAND = 0x01         # reserved: finder -> collar command
-DIR_COMMAND_ACK = 0x02     # reserved: collar -> finder command acknowledgement
+DIR_COMMAND = 0x01         # handheld -> collar command (0x44, below)
+DIR_COMMAND_ACK = 0x02     # collar -> handheld command acknowledgement (0x4B, below)
+# old: DIR_COMMAND = 0x01         # reserved: finder -> collar command
+# old: DIR_COMMAND_ACK = 0x02     # reserved: collar -> finder command acknowledgement
 
 Beacon = namedtuple("Beacon", "version uid ctr gen seq lat_e7 lon_e7 fix_epoch batt_pct")
 
@@ -428,10 +431,149 @@ def open_report_with_master(master, frame):
     return open_report(kdf(master, "beacon", uid, ctr_gen(ctr)), frame)
 
 
+# ------------------------------------------- signed handheld command (0x44)
+#
+# DESIGN_finder_two_way.md sections 6 and 6A. A Handheld Receiver sends it in
+# the receive window a collar opens after its own direct-radio frame. The
+# server signs it under the device's COMMAND key (label CID-LORA-CMD, a
+# master that never leaves the server); the collar opens it, checks the
+# counter (strictly above the last accepted, persisted before acting) and the
+# freshness, and runs the DownlinkPacket inside it as if it came over LoRaWAN.
+#
+#   [0]          0x44                     magic ('D')
+#   [1..4]       uid32                    cleartext
+#   [5..8]       cmd_counter              cleartext; [31:24] provision
+#                                         generation, [23:0] sequence
+#   [9..20]      ciphertext of echo u32 || valid_from u32 || valid_to u32
+#   [21..21+n-1] ciphertext of the DownlinkPacket bytes (n = 1..226)
+#   last 8       tag
+#   AAD = bytes [0..8], nonce = uid || ctr || 0x01 || 0^4
+#
+# Freshness: echo != 0 binds it to the collar frame that opened the window
+# (that frame's echo, as the INTENT carries); else now must lie in
+# [valid_from, valid_to] (valid_to 0 = no upper bound; the server sets one).
+#
+# Acknowledgement (0x4B), sealed by the collar under the same command key with
+# the command's counter and dir 0x02 (the counter is accepted once, so this
+# nonce is used once; a repeated last frame gets the same ACK bytes again):
+#   [0] 0x4B  [1..4] uid  [5..8] the command's counter
+#   ciphertext of result u8 || command u8 || detail u32 || rssi i8 || snr_q4 i8
+#   8-byte tag                                                  25 bytes
+
+MAGIC_COMMAND = 0x44                 # 'D'
+MAGIC_COMMAND_ACK = 0x4B             # 'K'
+COMMAND_FIXED = 12                   # echo, valid_from, valid_to
+COMMAND_OVERHEAD = AAD_LEN + COMMAND_FIXED + TAG_LEN     # 29
+COMMAND_MAX_LEN = 255
+COMMAND_MIN_BODY = 1
+COMMAND_MAX_BODY = COMMAND_MAX_LEN - COMMAND_OVERHEAD    # 226
+COMMAND_ACK_BODY = 8
+COMMAND_ACK_LEN = AAD_LEN + COMMAND_ACK_BODY + TAG_LEN   # 25
+
+# Acknowledgement results (cmd_frame.h CMD_ACK_*).
+ACK_ACCEPTED = 1          # opened, fresh, dispatched
+ACK_NO_ADDON = 2          # detach command with no paired release unit
+ACK_BAD_ECHO = 3          # echo set and not the frame that opened the window
+ACK_EXPIRED = 4           # outside [valid_from, valid_to]
+ACK_UNKNOWN_CMD = 5
+ACK_QUEUE_FULL = 6
+ACK_REFUSED_CARRIER = 7   # not allowed over the direct radio (BLE-only commands)
+ACK_NO_CLOCK = 8          # windowed command and the collar has no valid clock
+ACK_SESSION_OPEN = 9      # CMD_SESSION_OPEN accepted; detail = session SF
+ACK_SESSION_CLOSED = 10   # CMD_SESSION_CLOSE accepted
+
+Command = namedtuple("Command", "uid ctr gen seq echo valid_from valid_to body")
+CommandAck = namedtuple("CommandAck", "uid ctr result command detail rssi snr_q4")
+
+
+def header_command(uid, ctr, magic=MAGIC_COMMAND):
+    """The 9 cleartext bytes of a command (or ACK) frame, also its AAD."""
+    if not 0 <= uid <= 0xFFFFFFFF or not 0 <= ctr <= 0xFFFFFFFF:
+        raise ValueError("uid and ctr are uint32")
+    return bytes([magic]) + uid.to_bytes(4, "little") + ctr.to_bytes(4, "little")
+
+
+def seal_command(cmd_key, uid, ctr, body, echo=0, valid_from=0, valid_to=0):
+    """Build a signed command frame (len(body) + 29 bytes) carrying the
+    DownlinkPacket bytes `body` (1..226), under the device's COMMAND key."""
+    body = bytes(body)
+    if not COMMAND_MIN_BODY <= len(body) <= COMMAND_MAX_BODY:
+        raise ValueError("command body must be %d..%d bytes" % (COMMAND_MIN_BODY, COMMAND_MAX_BODY))
+    for v, what in ((echo, "echo"), (valid_from, "valid_from"), (valid_to, "valid_to")):
+        if not 0 <= v <= 0xFFFFFFFF:
+            raise ValueError("%s is uint32" % what)
+    hdr = header_command(uid, ctr)
+    pt = (echo.to_bytes(4, "little") + valid_from.to_bytes(4, "little")
+          + valid_to.to_bytes(4, "little") + body)
+    ct, tag = ccm_seal(cmd_key, nonce(uid, ctr, DIR_COMMAND), hdr, pt, TAG_LEN)
+    frame = hdr + ct + tag
+    assert len(frame) == len(body) + COMMAND_OVERHEAD
+    return frame
+
+
+def peek_command(frame):
+    """(uid, ctr) from a command frame's cleartext header; no key needed."""
+    frame = bytes(frame)
+    if not COMMAND_OVERHEAD + COMMAND_MIN_BODY <= len(frame) <= COMMAND_MAX_LEN or frame[0] != MAGIC_COMMAND:
+        raise ValueError("not a command frame")
+    return int.from_bytes(frame[1:5], "little"), int.from_bytes(frame[5:9], "little")
+
+
+def open_command(cmd_key, frame):
+    """Open and verify a command frame. Raises AuthError on a bad tag."""
+    frame = bytes(frame)
+    uid, ctr = peek_command(frame)
+    pt = ccm_open(cmd_key, nonce(uid, ctr, DIR_COMMAND), frame[:AAD_LEN],
+                  frame[AAD_LEN:-TAG_LEN], frame[-TAG_LEN:], TAG_LEN)
+    echo = int.from_bytes(pt[0:4], "little")
+    vf = int.from_bytes(pt[4:8], "little")
+    vt = int.from_bytes(pt[8:12], "little")
+    return Command(uid, ctr, ctr_gen(ctr), ctr_seq(ctr), echo, vf, vt, pt[12:])
+
+
+def command_fresh(cmd, echo_expected, now):
+    """The collar's freshness rule: a live echo match, or a window."""
+    if cmd.echo != 0:
+        return cmd.echo == echo_expected
+    if now < cmd.valid_from:
+        return False
+    return cmd.valid_to == 0 or now <= cmd.valid_to
+
+
+def _i8(v, what):
+    if not -128 <= v <= 127:
+        raise ValueError("%s is int8" % what)
+    return v & 0xFF
+
+
+def seal_command_ack(cmd_key, uid, ctr, result, command, detail=0, rssi=0, snr_q4=0):
+    """The collar's 25-byte acknowledgement of the command with counter ctr."""
+    if not 0 <= result <= 255 or not 0 <= command <= 255 or not 0 <= detail <= 0xFFFFFFFF:
+        raise ValueError("result and command are uint8, detail uint32")
+    hdr = header_command(uid, ctr, MAGIC_COMMAND_ACK)
+    pt = (bytes([result, command]) + detail.to_bytes(4, "little")
+          + bytes([_i8(rssi, "rssi"), _i8(snr_q4, "snr_q4")]))
+    ct, tag = ccm_seal(cmd_key, nonce(uid, ctr, DIR_COMMAND_ACK), hdr, pt, TAG_LEN)
+    return hdr + ct + tag
+
+
+def open_command_ack(cmd_key, frame):
+    frame = bytes(frame)
+    if len(frame) != COMMAND_ACK_LEN or frame[0] != MAGIC_COMMAND_ACK:
+        raise ValueError("not a command acknowledgement")
+    uid = int.from_bytes(frame[1:5], "little")
+    ctr = int.from_bytes(frame[5:9], "little")
+    pt = ccm_open(cmd_key, nonce(uid, ctr, DIR_COMMAND_ACK), frame[:AAD_LEN],
+                  frame[AAD_LEN:-TAG_LEN], frame[-TAG_LEN:], TAG_LEN)
+    rssi = pt[6] - 256 if pt[6] > 127 else pt[6]
+    snr = pt[7] - 256 if pt[7] > 127 else pt[7]
+    return CommandAck(uid, ctr, pt[0], pt[1], int.from_bytes(pt[2:6], "little"), rssi, snr)
+
+
 def classify(frame):
-    """'v1', 'v2', 'report' or None, by magic byte and length only. A
-    plaintext report starts 0x0A (its protobuf header field), so it is None
-    here, never 'report'."""
+    """'v1', 'v2', 'report', 'command', 'command_ack' or None, by magic byte
+    and length only. A plaintext report starts 0x0A (its protobuf header
+    field), so it is None here, never 'report'."""
     frame = bytes(frame)
     if len(frame) == LEN_V1 and frame[0] == MAGIC_V1:
         return "v1"
@@ -439,6 +581,10 @@ def classify(frame):
         return "v2"
     if REPORT_MIN_LEN <= len(frame) <= REPORT_MAX_LEN and frame[0] == MAGIC_REPORT:
         return "report"
+    if COMMAND_OVERHEAD + COMMAND_MIN_BODY <= len(frame) <= COMMAND_MAX_LEN and frame[0] == MAGIC_COMMAND:
+        return "command"
+    if len(frame) == COMMAND_ACK_LEN and frame[0] == MAGIC_COMMAND_ACK:
+        return "command_ack"
     return None
 
 
