@@ -565,7 +565,7 @@ class CommandFrameTests(unittest.TestCase):
         self.assertFalse(b.command_fresh(c, 0, 99))
         self.assertFalse(b.command_fresh(c, 0, 201))
         open_ended = c._replace(valid_to=0)
-        self.assertTrue(b.command_fresh(open_ended, 0, 10 ** 9))
+        self.assertFalse(b.command_fresh(open_ended, 0, 150))   # a pre-signed command needs an expiry
         live = c._replace(echo=173)
         self.assertTrue(b.command_fresh(live, 173, 0))
         self.assertFalse(b.command_fresh(live, 174, 150))

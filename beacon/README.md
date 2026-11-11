@@ -215,9 +215,11 @@ beacon key family can never open one (the test pins it). The collar accepts a
 command only with a counter strictly above the last it accepted (persisted
 before it acts), and only while fresh: `echo` non-zero must equal the echo of
 the frame that opened the window (live signing); `echo` zero means the
-command is pre-signed and `now` must lie in `[valid_from, valid_to]`
-(`valid_to` 0 = no upper bound). Pre-signed commands are how a phone and a
-receiver work with no signal: they are signed before the trip.
+command is pre-signed: `valid_to` must be set and `now` must lie in
+`[valid_from, valid_to]`. A collar with no valid clock says nothing to a
+pre-signed command and does not use its counter up, so the handheld can try
+again (its INTENT can carry the time). Pre-signed commands are how a phone
+and a receiver work with no signal: they are signed before the trip.
 
 The collar answers with a 25-byte acknowledgement sealed under the same key,
 the command's counter and direction byte 0x02:
@@ -227,8 +229,9 @@ the command's counter and direction byte 0x02:
     8-byte tag
 
 `result`: 1 accepted, 2 no release unit, 3 bad echo, 4 expired, 5 unknown
-command, 6 queue full, 7 refused on this carrier, 8 no valid clock, 9 session
-open (detail = the SF), 10 session closed. `rssi`/`snr_q4` are how the collar
+command, 6 queue full, 7 refused on this carrier, 8 reserved (no clock: the
+collar answers nothing instead), 9 session open (detail = the SF), 10 session
+closed. `rssi`/`snr_q4` are how the collar
 heard the command. Vectors: `commands` and `command_acks` in `vectors.json`.
 
 ## Keys

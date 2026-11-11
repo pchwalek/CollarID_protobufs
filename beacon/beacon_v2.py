@@ -450,8 +450,10 @@ def open_report_with_master(master, frame):
 #   AAD = bytes [0..8], nonce = uid || ctr || 0x01 || 0^4
 #
 # Freshness: echo != 0 binds it to the collar frame that opened the window
-# (that frame's echo, as the INTENT carries); else now must lie in
-# [valid_from, valid_to] (valid_to 0 = no upper bound; the server sets one).
+# (that frame's echo, as the INTENT carries); else the command is pre-signed:
+# valid_to must be set and now must lie in [valid_from, valid_to]. A collar
+# with no valid clock answers a pre-signed command with nothing and does not
+# use its counter up (the handheld's INTENT can give it the time).
 #
 # Acknowledgement (0x4B), sealed by the collar under the same command key with
 # the command's counter and dir 0x02 (the counter is accepted once, so this
@@ -478,7 +480,7 @@ ACK_EXPIRED = 4           # outside [valid_from, valid_to]
 ACK_UNKNOWN_CMD = 5
 ACK_QUEUE_FULL = 6
 ACK_REFUSED_CARRIER = 7   # not allowed over the direct radio (BLE-only commands)
-ACK_NO_CLOCK = 8          # windowed command and the collar has no valid clock
+ACK_NO_CLOCK = 8          # reserved: a collar with no clock answers nothing instead
 ACK_SESSION_OPEN = 9      # CMD_SESSION_OPEN accepted; detail = session SF
 ACK_SESSION_CLOSED = 10   # CMD_SESSION_CLOSE accepted
 
@@ -532,12 +534,11 @@ def open_command(cmd_key, frame):
 
 
 def command_fresh(cmd, echo_expected, now):
-    """The collar's freshness rule: a live echo match, or a window."""
+    """The collar's freshness rule: a live echo match, or a closed window
+    (cmd_frame.h cmd_frame_fresh)."""
     if cmd.echo != 0:
         return cmd.echo == echo_expected
-    if now < cmd.valid_from:
-        return False
-    return cmd.valid_to == 0 or now <= cmd.valid_to
+    return cmd.valid_to != 0 and cmd.valid_from <= now <= cmd.valid_to
 
 
 def _i8(v, what):
