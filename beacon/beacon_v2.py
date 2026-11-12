@@ -483,6 +483,7 @@ ACK_REFUSED_CARRIER = 7   # not allowed over the direct radio (BLE-only commands
 ACK_NO_CLOCK = 8          # reserved: a collar with no clock answers nothing instead
 ACK_SESSION_OPEN = 9      # CMD_SESSION_OPEN accepted; detail = session SF
 ACK_SESSION_CLOSED = 10   # CMD_SESSION_CLOSE accepted
+ACK_CFG_NOT_USED = 11     # a settings piece the collar did not use; detail = the unfinished transaction in the way (0 = none)
 
 Command = namedtuple("Command", "uid ctr gen seq echo valid_from valid_to body")
 CommandAck = namedtuple("CommandAck", "uid ctr result command detail rssi snr_q4")

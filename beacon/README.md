@@ -231,7 +231,10 @@ the command's counter and direction byte 0x02:
 `result`: 1 accepted, 2 no release unit, 3 bad echo, 4 expired, 5 unknown
 command, 6 queue full, 7 refused on this carrier, 8 reserved (no clock: the
 collar answers nothing instead), 9 session open (detail = the SF), 10 session
-closed. `rssi`/`snr_q4` are how the collar
+closed, 11 settings piece not used (detail = the unfinished transaction in
+the way, 0 = none; a piece of a newer handheld push replaces an unfinished
+transaction that a signed frame opened, never one opened over LoRaWAN or
+Bluetooth). `rssi`/`snr_q4` are how the collar
 heard the command. Vectors: `commands` and `command_acks` in `vectors.json`.
 
 ## Keys
