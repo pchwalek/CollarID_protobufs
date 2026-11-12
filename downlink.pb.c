@@ -48,6 +48,15 @@ PB_BIND(CONFIG_SYSTEM, config_system_t, AUTO)
 PB_BIND(CONFIG_GEOFENCE, config_geofence_t, AUTO)
 
 
+PB_BIND(SESSION_PARAMS, session_params_t, AUTO)
+
+
+PB_BIND(FIND_MODE, find_mode_t, AUTO)
+
+
+PB_BIND(RADIO_SETTINGS, radio_settings_t, AUTO)
+
+
 PB_BIND(CONFIG_FRAGMENT, config_fragment_t, 2)
 
 

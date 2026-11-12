@@ -130,6 +130,31 @@ enum CommandType {
   // CMD_FACTORY_RESET also erases the key and keeps the counter. Fw gate:
   // firmware main build TBD, set at merge.
   CMD_BEACON_KEY_CLEAR    = 22;
+
+  // ---- Handheld commands (DESIGN_finder_two_way.md sections 6 and 6A) ----
+  // A Handheld Receiver carries a signed 0x44 frame (cmd_frame) holding a
+  // DownlinkPacket and sends it inside the receive window a collar opens
+  // after its own direct-radio frame. Every command above that is allowed
+  // remotely works the same way inside such a frame. The two session
+  // commands are accepted ONLY that way (direct radio, signed); the collar
+  // ignores them from LoRaWAN and the BLE tunnel.
+
+  // Open a session: after its CMD-ACK the collar keeps listening for further
+  // signed frames, at the spreading factor the handheld's INTENT asked for
+  // when that is not below session.min_sf (else at its own), until
+  // CMD_SESSION_CLOSE, session.idle_s without a frame, or session.max_s.
+  // Then it returns to its own radio settings and schedule.
+  CMD_SESSION_OPEN        = 23;
+  // Close the session now (also ends it when sent outside one: no-op).
+  CMD_SESSION_CLOSE       = 24;
+  // Find mode: a beacon every find.interval_s for find.minutes, then back to
+  // normal; the stored configuration is not touched. find.minutes 0 stops a
+  // running find mode. Allowed on every carrier.
+  CMD_FIND_MODE           = 25;
+  // Lost mode off: clears lost_mode_enabled in the stored configuration and
+  // restarts the collar into normal running (sensors back on). Allowed on
+  // every carrier.
+  CMD_LOST_MODE_OFF       = 26;
 }
 
 // ---- Geofence ----
@@ -339,6 +364,40 @@ message ConfigGeofence {
 // setting by setting by fw 360+; older nanopb keeps only the last setting it
 // saw, so senders pack only for builds that understand it. Every setting in
 // a fragment applies to the same schedule_index.
+// CMD_SESSION_OPEN parameters. The collar clamps each value to its own
+// limits (max_s 5..120, idle_s 2..30) and refuses a min_sf outside 7..12.
+message SessionParams {
+  uint32 max_s  = 1;  // the session ends this many seconds after it opens
+  uint32 idle_s = 2;  // ... or after this many seconds with no frame
+  uint32 min_sf = 3;  // the lowest SF (7..12) the INTENT may ask for; 0 = keep the collar's own
+}
+
+// CMD_FIND_MODE parameters. The collar clamps interval_s to 4..600 and
+// minutes to 0..120 (0 stops a running find mode).
+message FindMode {
+  uint32 interval_s = 1;
+  uint32 minutes    = 2;
+}
+
+// The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
+// (pushable remotely) and as the input of PacketHeader.radio_crc. Mirrors
+// ble.proto LoRaConfig + the lost-mode fields of RadioConfigPacket with plain
+// numbers, because the server never loads ble.proto. A field left absent in a
+// fragment keeps the collar's value.
+message RadioSettings {
+  optional uint32 spreading_factor      = 1;   // ble.proto RadioSpreadingFactor value: 0 = SF7 ... 5 = SF12
+  optional uint32 bandwidth             = 2;   // ble.proto RadioBandwidth value: 0 = 125, 1 = 250, 2 = 500 kHz
+  optional uint32 coding_rate           = 3;   // ble.proto RadioCodingRate value: 0 = 4/5 ... 3 = 4/8
+  optional int32  tx_power_dbm          = 4;
+  optional uint32 sync_word             = 5;
+  optional uint32 frequency_mhz         = 6;   // as LoRaConfig.frequency (whole MHz)
+  optional bool   rx_listen             = 7;
+  optional bool   lost_mode_enabled     = 8;
+  optional uint32 lost_activation_epoch = 9;
+  optional uint32 lost_interval_min     = 10;
+  optional int32  lost_tx_power_dbm     = 11;
+}
+
 message ConfigFragment {
   uint32 schedule_index = 1;  // target schedule slot (0-4)
   uint32 fragment_index = 2;  // 0-based index of this fragment in the transaction
@@ -356,6 +415,11 @@ message ConfigFragment {
   optional ConfigSystem        cfg_system        = 13;  // global, schedule_index ignored
   optional ConfigMortality     cfg_mortality     = 14;  // global, schedule_index ignored
   optional ConfigGeofence      cfg_geofence      = 15;  // global, schedule_index ignored
+  // Direct-radio and lost-mode settings (global, schedule_index ignored).
+  // Applied at COMMIT; when the transaction runs inside a handheld session,
+  // the radio part waits for the session to end (changing the radio would
+  // end it). The rails refuse a change that leaves no radio enabled.
+  optional RadioSettings       cfg_radio         = 16;
 }
 
 // ---- Main downlink envelope ----
@@ -404,4 +468,15 @@ message DownlinkPacket {
   // command, and always ignored over the radio (BLE tunnel only). Fw gate:
   // firmware main build TBD, set at merge.
   optional BeaconKeySet beacon_key = 11;
+
+  // CMD_SESSION_OPEN parameters (signed direct-radio frames only).
+  optional SessionParams session = 12;
+  // CMD_FIND_MODE parameters.
+  optional FindMode find = 13;
+  // CMD_ADDON_ARM alternative to addon_arm_epoch: arm the drop-off for this
+  // many seconds after the collar receives the command. Lets a handheld carry
+  // a detach signed before a trip and use it at a moment chosen in the field,
+  // with no signal (the signed frame's validity window bounds when). When
+  // both are present addon_arm_epoch wins.
+  optional uint32 addon_arm_delay_s = 14;
 }

@@ -33,6 +33,8 @@ beacon (a collar's plaintext radio report, for one: it is a protobuf
 | `0x4C` (`'L'`) | 18 B | v1, plaintext. What an unkeyed collar sends. Stays decodable forever. |
 | `0x4D` (`'M'`) | 30 B | v2, AES-128-CCM. What a keyed collar sends. |
 | `0x52` (`'R'`) | 18..255 B | Sealed report: a keyed collar's regular radio report, AES-128-CCM (below). |
+| `0x44` (`'D'`) | 30..255 B | Signed handheld command, to a collar (below). Not a beacon: a receiver relays it, never decodes it as one. |
+| `0x4B` (`'K'`) | 25 B | A collar's acknowledgement of a command (below). |
 
 All integers are little-endian.
 
@@ -190,6 +192,47 @@ report = AESCCM(dev_key, tag_length=8).decrypt(nonce, frame[9:], frame[0:9])
 A report costs `2 * ceil(n / 16) + 3` AES-128 block operations
 (CBC-MAC over B_0, the AAD block and the payload; CTR over the payload and the
 tag): 33 for the largest.
+
+### Signed handheld command (0x44) and its acknowledgement (0x4B)
+
+A Handheld Receiver carries a command the server signed and sends it in the
+receive window a collar opens after its own direct-radio frame
+(`DESIGN_finder_two_way.md` in the collar firmware repository, sections 6 and
+6A). The frame holds a `DownlinkPacket` (downlink.proto), so a command means
+exactly what it means over LoRaWAN.
+
+    [0]          0x44
+    [1..4]       uid32 (little-endian), cleartext
+    [5..8]       cmd_counter, cleartext: [31:24] provision generation, [23:0] sequence
+    [9..]        AES-128-CCM ciphertext of
+                   echo u32 || valid_from u32 || valid_to u32 || DownlinkPacket (1..226 B)
+    last 8       tag
+    AAD = bytes [0..8]; nonce = uid_le32 || ctr_le32 || 0x01 || 0x00000000
+
+The key is the device's COMMAND key, `AES-CMAC(command master, "CID-LORA-CMD"
+|| uid_le32 || gen)`; the command master never leaves the server, and the
+beacon key family can never open one (the test pins it). The collar accepts a
+command only with a counter strictly above the last it accepted (persisted
+before it acts), and only while fresh: `echo` non-zero must equal the echo of
+the frame that opened the window (live signing); `echo` zero means the
+command is pre-signed: `valid_to` must be set and `now` must lie in
+`[valid_from, valid_to]`. A collar with no valid clock says nothing to a
+pre-signed command and does not use its counter up, so the handheld can try
+again (its INTENT can carry the time). Pre-signed commands are how a phone
+and a receiver work with no signal: they are signed before the trip.
+
+The collar answers with a 25-byte acknowledgement sealed under the same key,
+the command's counter and direction byte 0x02:
+
+    [0] 0x4B  [1..4] uid  [5..8] the command's counter
+    ciphertext of result u8 || command u8 || detail u32 || rssi i8 || snr_q4 i8
+    8-byte tag
+
+`result`: 1 accepted, 2 no release unit, 3 bad echo, 4 expired, 5 unknown
+command, 6 queue full, 7 refused on this carrier, 8 reserved (no clock: the
+collar answers nothing instead), 9 session open (detail = the SF), 10 session
+closed. `rssi`/`snr_q4` are how the collar
+heard the command. Vectors: `commands` and `command_acks` in `vectors.json`.
 
 ## Keys
 

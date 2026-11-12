@@ -332,6 +332,41 @@ REPORT_CASES = [
      "0e4b48c4c3a0199a478d03907a38bdb8d73124aa723a7dcbcbe2598c502b938b0e4a6647cea8b1646d70d6"),
 ]
 
+# Signed handheld commands (0x44) and their acknowledgements (0x4B), added
+# 2026-11-11 as new sections (the version stays 1). Frozen as first
+# published, like the reports. (name, uid, gen, seq, echo, valid_from,
+# valid_to, DownlinkPacket hex, frozen frame hex), all under MASTER_COMMAND.
+# C1 a pre-signed detach "ARM 600 s after receipt" with a two-week window
+# (command=13, addon_arm_delay_s=600); C2 a live SESSION_OPEN bound to echo
+# 173 (command=23, session {max_s 60, idle_s 6, min_sf 7}); C3 the 226 B
+# maximum body as a counting pattern (synthetic, not a DownlinkPacket).
+UID_COMMAND_1 = 0x7E570011
+UID_COMMAND_2 = 0x7E570012
+UID_COMMAND_3 = 0x7E570013
+COMMAND_C3_BODY = bytes((0x0D + 0x2B * i) & 0xFF for i in range(226)).hex()
+COMMAND_CASES = [
+    ("C1 pre-signed detach, windowed", UID_COMMAND_1, 1, 1, 0, 1794000000, 1795209600,
+     "100d70d804",
+     "441100577e01000001920987c85ed7d120025e2f582649517a7158e61a64e9bb7d2d"),
+    ("C2 live session open, echo-bound", UID_COMMAND_2, 2, 42, 173, 0, 0,
+     "10176206083c10061807",
+     "441200577e2a000002746c54fa4089925852b4652702969e25b363507eaf3848f58b49a47339e6"),
+    ("C3 maximum 226 B body", UID_COMMAND_3, 255, 16777214, 0, 1, 4294967295,
+     COMMAND_C3_BODY,
+     "441300577efeffffff2643f7ea61aaaf3cc490408055195297e16e41ebf12d4ead00b968133bd6b68fe44fb4001b3a8536447c2b2e"
+     "190a832e8ecd99c58255c3e199f232d0121e3390c3a634dd85bd2a00ed20b0e7b3e205e8e8b0af7ca90562d3415d88544bda4d28c0"
+     "9f1b9253256481742e9e3a522cda3af28ca25ee1ee44e680f1e99cb9813e0487703a64a87a2006693257477e4d80077d4780416374"
+     "20ff9ca694e022b181ab6b9ec78b7af989b897ef61b2d739c998d622158eb8b8682178ad0548c14c96f2508a791424f07eaf806634"
+     "038f63b8909b1e26dc239949d9bd57af0d1c8e561961250de877a77bccbc459ed8b112d5d8d666be8320b3"),
+]
+# (name, uid, gen, seq, result, command, detail, rssi, snr_q4, frozen frame hex)
+COMMAND_ACK_CASES = [
+    ("K1 accepted the C1 detach", UID_COMMAND_1, 1, 1, 1, 13, 600, -42, 30,
+     "4b1100577e010000012d6625ed0eb60a0fe5041aada0b46fa2"),
+    ("K2 session opened at SF7", UID_COMMAND_2, 2, 42, 9, 23, 7, -97, -29,
+     "4b1200577e2a000002b24e13f8d37bd4271f05ee0ecfad61b3"),
+]
+
 
 def hx(bs):
     return bytes(bs).hex()
@@ -413,6 +448,37 @@ def build():
                             payload=payload, ct=hx(frame[b.AAD_LEN:b.AAD_LEN + n]),
                             tag=hx(frame[b.AAD_LEN + n:]), frame=hx(frame), frame_len=len(frame)))
 
+    commands = []
+    master_cmd = bytes.fromhex(MASTER_COMMAND)
+    for name, uid, gen, seq, echo, vf, vt, body, frozen in COMMAND_CASES:
+        ctr = b.ctr_make(gen, seq)
+        key = b.kdf(master_cmd, "command", uid, gen)
+        frame = b.seal_command(key, uid, ctr, bytes.fromhex(body), echo, vf, vt)
+        assert hx(frame) == frozen, name + ": the frozen frame changed"
+        got = b.open_command(key, frame)
+        assert (got.uid, got.ctr, got.echo, got.valid_from, got.valid_to, hx(got.body)) == \
+            (uid, ctr, echo, vf, vt, body), name
+        commands.append(dict(name=name, master=MASTER_COMMAND, uid=uid, uid_hex="%08x" % uid,
+                             gen=gen, seq=seq, ctr=ctr, ctr_hex="%08x" % ctr,
+                             cmd_key=hx(key), kcv=hx(b.kcv(key)),
+                             nonce=hx(b.nonce(uid, ctr, b.DIR_COMMAND)), aad=hx(frame[:b.AAD_LEN]),
+                             echo=echo, valid_from=vf, valid_to=vt, body=body,
+                             frame=hx(frame), frame_len=len(frame)))
+    command_acks = []
+    for name, uid, gen, seq, result, command, detail, rssi, snr, frozen in COMMAND_ACK_CASES:
+        ctr = b.ctr_make(gen, seq)
+        key = b.kdf(master_cmd, "command", uid, gen)
+        frame = b.seal_command_ack(key, uid, ctr, result, command, detail, rssi, snr)
+        assert hx(frame) == frozen, name + ": the frozen frame changed"
+        got = b.open_command_ack(key, frame)
+        assert (got.result, got.command, got.detail, got.rssi, got.snr_q4) == \
+            (result, command, detail, rssi, snr), name
+        command_acks.append(dict(name=name, master=MASTER_COMMAND, uid=uid, uid_hex="%08x" % uid,
+                                 gen=gen, seq=seq, ctr=ctr, ctr_hex="%08x" % ctr, cmd_key=hx(key),
+                                 nonce=hx(b.nonce(uid, ctr, b.DIR_COMMAND_ACK)),
+                                 result=result, command=command, detail=detail,
+                                 rssi=rssi, snr_q4=snr, frame=hx(frame), frame_len=len(frame)))
+
     return {
         "format": FORMAT,
         "version": VERSION,
@@ -431,6 +497,14 @@ def build():
             "report": "[0]=0x52 [1..4]=uid_le32 [5..8]=ctr_le32 (the v2 counter sequence) "
                       "[9..9+n-1]=CCM ciphertext of the payload (n=1..238) [9+n..9+n+7]=8-byte tag; "
                       "AAD, nonce and dev_key as v2; frame n+17 = 18..255 B",
+            "command": "[0]=0x44 [1..4]=uid_le32 [5..8]=cmd_counter_le32 (gen<<24|seq) "
+                       "then CCM ciphertext of echo u32le || valid_from u32le || valid_to u32le || "
+                       "DownlinkPacket (n=1..226) and an 8-byte tag; AAD=[0..8]; "
+                       "nonce=uid_le32||ctr_le32||0x01||0x00000000; key = the COMMAND key (CID-LORA-CMD); "
+                       "frame n+29 = 30..255 B",
+            "command_ack": "[0]=0x4B [1..4]=uid_le32 [5..8]=the command's counter, then CCM ciphertext of "
+                           "result u8 || command u8 || detail u32le || rssi i8 || snr_q4 i8 and an 8-byte tag; "
+                           "nonce dir 0x02; 25 B",
         },
         "aes128": aes,
         "cmac": cmac,
@@ -439,6 +513,8 @@ def build():
         "frames": frames,
         "v1": v1,
         "reports": reports,
+        "commands": commands,
+        "command_acks": command_acks,
     }
 
 

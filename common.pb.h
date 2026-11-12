@@ -122,6 +122,13 @@ typedef struct packet_header {
  boot (~2 B); absent on firmware before 2026-10-18 and on later uplinks. */
     bool has_board;
     uint32_t board;
+    /* CRC-32 (reflected 0xEDB88320, the sched_crc table) over the nanopb
+ encoding of a downlink.proto RadioSettings filled with ALL its fields
+ from the collar's live direct-radio and lost-mode settings. Proves which
+ radio settings a collar runs, as sched_crc does for the schedule
+ (sched_crc does not cover them). Absent = firmware that predates it. */
+    bool has_radio_crc;
+    uint32_t radio_crc;
 } packet_header_t;
 
 /* ---- GPS ----
@@ -181,11 +188,11 @@ extern "C" {
 
 
 /* Initializer values for message structs */
-#define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_DEFAULT                    {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_DEFAULT               {0, 0, false, 0}
 #define SD_CARD_STATE_INIT_DEFAULT               {0, 0, 0, false, _SD_CARD_FAMILY_MIN, false, "", false, 0}
-#define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_ZERO                       {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_ZERO                  {0, 0, false, 0}
 #define SD_CARD_STATE_INIT_ZERO                  {0, 0, 0, false, _SD_CARD_FAMILY_MIN, false, "", false, 0}
@@ -206,6 +213,7 @@ extern "C" {
 #define PACKET_HEADER_LINK_GATEWAYS_TAG          13
 #define PACKET_HEADER_LINK_MISSES_TAG            14
 #define PACKET_HEADER_BOARD_TAG                  15
+#define PACKET_HEADER_RADIO_CRC_TAG              16
 #define GPS_DATA_LATITUDE_TAG                    1
 #define GPS_DATA_LONGITUDE_TAG                   2
 #define GPS_DATA_ALTITUDE_TAG                    3
@@ -237,7 +245,8 @@ X(a, STATIC,   OPTIONAL, UINT32,   last_fatal,       11) \
 X(a, STATIC,   OPTIONAL, UINT32,   link_margin_db,   12) \
 X(a, STATIC,   OPTIONAL, UINT32,   link_gateways,    13) \
 X(a, STATIC,   OPTIONAL, UINT32,   link_misses,      14) \
-X(a, STATIC,   OPTIONAL, UINT32,   board,            15)
+X(a, STATIC,   OPTIONAL, UINT32,   board,            15) \
+X(a, STATIC,   OPTIONAL, UINT32,   radio_crc,        16)
 #define PACKET_HEADER_CALLBACK NULL
 #define PACKET_HEADER_DEFAULT NULL
 
@@ -281,7 +290,7 @@ extern const pb_msgdesc_t sd_card_state_t_msg;
 /* Maximum encoded size of messages (where known) */
 #define BATTERY_STATE_SIZE                       12
 #define GPS_DATA_SIZE                            25
-#define PACKET_HEADER_SIZE                       86
+#define PACKET_HEADER_SIZE                       93
 #define SD_CARD_STATE_SIZE                       35
 
 #ifdef __cplusplus
