@@ -547,10 +547,11 @@ message SystemStatePacket {
   // Size: both radios declare this characteristic at 140 B (SizeStatuschar)
   // and keep their old value when handed a longer one, so the whole BlePacket
   // must stay at or under 140 B. The collar fills battery, sdcard,
-  // firmware_version, hw_diag, this field, board and battery_protection,
-  // never gps_data or sensors: at most 123 B with every one of those at its
-  // largest (95 B before the card's identity in SDCardState, v1.24.0, 106 B
-  // before board and battery_protection; the firmware's test_radio_crypto
+  // firmware_version, hw_diag, this field, board, battery_protection and the
+  // two battery thresholds, never gps_data or sensors: at most 127 B with
+  // every one of those at its largest (95 B before the card's identity in
+  // SDCardState, v1.24.0, 106 B before board and battery_protection, 123 B
+  // before the battery thresholds; the firmware's test_radio_crypto
   // measures each).
   optional BeaconKeyReport beacon_key = 8;
   // The boards the collar is built from (firmware board_rev_rule.h). A client
@@ -562,6 +563,17 @@ message SystemStatePacket {
   // on every unit: a card's setting is kept between collars. 11 B at most
   // here, 6 B for board.
   optional BatteryProtectionReport battery_protection = 10;
+  // Low-battery hibernation thresholds as the collar runs them, whole
+  // percent (downlink.proto ConfigSystem.battery_hibernate_pct and
+  // .battery_resume_pct set them, over the Bluetooth config tunnel or a
+  // remote push; CONFIG.CSV keys of the same names). Present on every status
+  // packet from firmware that has the setting (fw gate: firmware main build
+  // TBD, set at merge), absent before: presence is how a client tells "not
+  // supported". The collar pushes this packet again after a tunnel commit
+  // that changed them. 4 B here (values under 128), 127 B for the worst
+  // status packet.
+  optional uint32 battery_hibernate_pct = 11;
+  optional uint32 battery_resume_pct    = 12;
 }
 
 // ================== BOARDS AND BATTERY PROTECTION ==================

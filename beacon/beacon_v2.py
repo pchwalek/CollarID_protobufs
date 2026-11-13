@@ -484,6 +484,12 @@ ACK_NO_CLOCK = 8          # reserved: a collar with no clock answers nothing ins
 ACK_SESSION_OPEN = 9      # CMD_SESSION_OPEN accepted; detail = session SF
 ACK_SESSION_CLOSED = 10   # CMD_SESSION_CLOSE accepted
 ACK_CFG_NOT_USED = 11     # a settings piece the collar did not use; detail = the unfinished transaction in the way (0 = none)
+ACK_BLE_REFUSED = 12      # CMD_BLE_WINDOW refused; detail = BLE_REFUSED_* (an opened window answers ACK_ACCEPTED, detail = minutes)
+BLE_REFUSED_NO_KEY = 1    # no window key, or an all-zero one
+BLE_REFUSED_RADIO = 2     # the radio cannot serve files (no bulk capability seen)
+BLE_REFUSED_NO_CARD = 3   # location-only: no card to read
+BLE_REFUSED_BATTERY = 4   # battery low or critical
+BLE_REFUSED_UPDATING = 5  # a firmware update is running
 
 Command = namedtuple("Command", "uid ctr gen seq echo valid_from valid_to body")
 CommandAck = namedtuple("CommandAck", "uid ctr result command detail rssi snr_q4")

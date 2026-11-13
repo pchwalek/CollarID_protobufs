@@ -230,3 +230,44 @@ def error_flag_keys(word):
     A set bit no allocation names comes back as 'bit<n>'."""
     names = {b["bit"]: b["key"] for b in SPEC["error_flags"]["bits"]}
     return [names.get(i, f"bit{i}") for i in range(32) if word >> i & 1]
+
+
+# ── Low-battery hibernation thresholds (2026-11-12) ───────────────────────
+BATT = SPEC["battery_thresholds"]
+
+
+def _strtol(text):
+    """What C strtol(text, &end, 10) reads: leading whitespace, an optional
+    sign, then digits. None when it reads nothing (end == text)."""
+    if text is None:
+        return None
+    m = re.match(r"\s*([+-]?\d+)", str(text))
+    return int(m.group(1)) if m else None
+
+
+def battery_thresholds_valid(hibernate, resume):
+    """The rails: a pair a push, the Bluetooth tunnel or a configurator may
+    set. Anything else is refused whole (SCHED_RAIL_BAD_BATTERY_THRESHOLDS)."""
+    try:
+        h, r = int(hibernate), int(resume)
+    except (TypeError, ValueError):
+        return False
+    if isinstance(hibernate, bool) or isinstance(resume, bool):
+        return False
+    return (BATT["hibernate_min"] <= h <= BATT["hibernate_max"]
+            and BATT["resume_min"] <= r <= BATT["resume_max"]
+            and r >= h + BATT["min_gap"])
+
+
+def battery_thresholds_from_csv(hibernate_text, resume_text):
+    """The pair a CONFIG.CSV gives (battery_hibernate_pct, battery_resume_pct
+    rows; None = the row is missing). A row that reads as no number is the
+    default; each value is held to its range; then resume is raised to
+    hibernate + min_gap when below it. Always a valid pair."""
+    h = _strtol(hibernate_text)
+    r = _strtol(resume_text)
+    h = BATT["hibernate_default"] if h is None else min(BATT["hibernate_max"], max(BATT["hibernate_min"], h))
+    r = BATT["resume_default"] if r is None else min(BATT["resume_max"], max(BATT["resume_min"], r))
+    if r < h + BATT["min_gap"]:
+        r = h + BATT["min_gap"]
+    return [h, r]

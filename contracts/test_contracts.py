@@ -98,5 +98,41 @@ class Reference(unittest.TestCase):
         self.assertEqual(num("CB_GATT_CAPS_FAMILY_NRF54L15"), R.SPEC["caps"]["families"]["nrf54l15"])
 
 
+class BatteryThresholds(unittest.TestCase):
+    """Low-battery hibernation (2026-11-12): the defaults are what every collar
+    ran before the setting, the CSV reading always lands on a valid pair, and
+    the bounds leave room for the gap."""
+
+    def test_the_defaults_are_the_old_constants_and_valid(self):
+        B = R.SPEC["battery_thresholds"]
+        self.assertEqual((B["hibernate_default"], B["resume_default"]), (10, 20))
+        self.assertTrue(R.battery_thresholds_valid(B["hibernate_default"], B["resume_default"]))
+        self.assertEqual(R.battery_thresholds_from_csv(None, None), [10, 20])
+
+    def test_every_hibernate_level_has_a_valid_resume(self):
+        B = R.SPEC["battery_thresholds"]
+        self.assertGreaterEqual(B["resume_max"], B["hibernate_max"] + B["min_gap"])
+        self.assertLessEqual(B["resume_min"], B["hibernate_min"] + B["min_gap"])
+
+    def test_the_csv_reading_is_always_valid(self):
+        texts = [None, "", "x", "-100", "0", "1", "4", "5", "9", "10", "39", "40", "41", "59", "60", "61", "99999"]
+        for h in texts:
+            for r in texts:
+                pair = R.battery_thresholds_from_csv(h, r)
+                self.assertTrue(R.battery_thresholds_valid(*pair), (h, r, pair))
+
+    def test_a_valid_pair_reads_back_unchanged(self):
+        B = R.SPEC["battery_thresholds"]
+        for h in range(B["hibernate_min"], B["hibernate_max"] + 1):
+            for r in range(B["resume_min"], B["resume_max"] + 1):
+                if R.battery_thresholds_valid(h, r):
+                    self.assertEqual(R.battery_thresholds_from_csv(str(h), str(r)), [h, r])
+
+    def test_the_csv_keys_follow_battery_protection(self):
+        g = R.SPEC["config_csv"]["keys"]["global"]
+        i = g.index("battery_protection_min_temp_c")
+        self.assertEqual(g[i + 1:i + 3], ["battery_hibernate_pct", "battery_resume_pct"])
+
+
 if __name__ == "__main__":
     unittest.main()

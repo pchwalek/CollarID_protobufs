@@ -3,7 +3,7 @@
 #define COLLARID_CONTRACTS_H
 
 #define CID_CONTRACTS_VERSION 1u
-#define CID_CONTRACTS_SHA256 "20e45c8969d4790eeb4a5329f287bf1edb01fd25dfe0e0517206a524e3c8b71e"
+#define CID_CONTRACTS_SHA256 "6152b2a8ce21ba1899d443206dd4abd06dae8d31d30532dd12f8348888e48409"
 
 /* Bluetooth service and characteristics */
 #define CID_GATT_SERVICE "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7"
@@ -92,6 +92,8 @@
     X("wb_addon_capable") \
     X("battery_protection") \
     X("battery_protection_min_temp_c") \
+    X("battery_hibernate_pct") \
+    X("battery_resume_pct") \
     X("lorawan_activation_type") \
     X("lorawan_region") \
     X("lorawan_tx_only_on_new_gps_fix") \
@@ -119,7 +121,7 @@
     X("lorawan_f_nwk_s_int_key") \
     X("lorawan_s_nwk_s_int_key") \
 
-#define CID_CONFIG_CSV_GLOBAL_COUNT 40u
+#define CID_CONFIG_CSV_GLOBAL_COUNT 42u
 #define CID_CONFIG_CSV_SCHEDULE_KEYS(X) \
     X("start_hour") \
     X("end_hour") \
@@ -177,5 +179,14 @@
 #define CID_CONFIG_CSV_FIRMWARE_ONLY_KEYS(X) \
     X("lorawan_identity_uid") \
 
+
+/* Low-battery hibernation thresholds, whole percent */
+#define CID_BATT_HIBERNATE_DEFAULT 10u
+#define CID_BATT_RESUME_DEFAULT 20u
+#define CID_BATT_HIBERNATE_MIN 5u
+#define CID_BATT_HIBERNATE_MAX 40u
+#define CID_BATT_RESUME_MIN 10u
+#define CID_BATT_RESUME_MAX 60u
+#define CID_BATT_MIN_GAP 5u
 
 #endif /* COLLARID_CONTRACTS_H */

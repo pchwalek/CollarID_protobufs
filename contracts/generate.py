@@ -93,6 +93,11 @@ def c_header(spec):
             L.append(f"#define CID_CONFIG_CSV_{_ident(section)}_KEYS(X) \\")
             L += [f'    X("{k}") \\' for k in cfg[section]]
             L.append("")
+    bt = spec.get("battery_thresholds")
+    if isinstance(bt, dict):
+        L += ["", "/* Low-battery hibernation thresholds, whole percent */"]
+        for k, v in bt.items():
+            L.append(f"#define CID_BATT_{_ident(k)} {v}u")
     L += ["", "#endif /* COLLARID_CONTRACTS_H */", ""]
     return "\n".join(L)
 

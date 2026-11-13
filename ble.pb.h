@@ -612,10 +612,11 @@ typedef struct system_state_packet {
  Size: both radios declare this characteristic at 140 B (SizeStatuschar)
  and keep their old value when handed a longer one, so the whole BlePacket
  must stay at or under 140 B. The collar fills battery, sdcard,
- firmware_version, hw_diag, this field, board and battery_protection,
- never gps_data or sensors: at most 123 B with every one of those at its
- largest (95 B before the card's identity in SDCardState, v1.24.0, 106 B
- before board and battery_protection; the firmware's test_radio_crypto
+ firmware_version, hw_diag, this field, board, battery_protection and the
+ two battery thresholds, never gps_data or sensors: at most 127 B with
+ every one of those at its largest (95 B before the card's identity in
+ SDCardState, v1.24.0, 106 B before board and battery_protection, 123 B
+ before the battery thresholds; the firmware's test_radio_crypto
  measures each). */
     bool has_beacon_key;
     beacon_key_report_t beacon_key;
@@ -630,6 +631,19 @@ typedef struct system_state_packet {
  here, 6 B for board. */
     bool has_battery_protection;
     battery_protection_report_t battery_protection;
+    /* Low-battery hibernation thresholds as the collar runs them, whole
+ percent (downlink.proto ConfigSystem.battery_hibernate_pct and
+ .battery_resume_pct set them, over the Bluetooth config tunnel or a
+ remote push; CONFIG.CSV keys of the same names). Present on every status
+ packet from firmware that has the setting (fw gate: firmware main build
+ TBD, set at merge), absent before: presence is how a client tells "not
+ supported". The collar pushes this packet again after a tunnel commit
+ that changed them. 4 B here (values under 128), 127 B for the worst
+ status packet. */
+    bool has_battery_hibernate_pct;
+    uint32_t battery_hibernate_pct;
+    bool has_battery_resume_pct;
+    uint32_t battery_resume_pct;
 } system_state_packet_t;
 
 typedef struct peripheral_packet {
@@ -803,7 +817,7 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, BOARD_IDENTITY_INIT_DEFAULT, false, BATTERY_PROTECTION_REPORT_INIT_DEFAULT}
+#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, BOARD_IDENTITY_INIT_DEFAULT, false, BATTERY_PROTECTION_REPORT_INIT_DEFAULT, false, 0, false, 0}
 #define BOARD_IDENTITY_INIT_DEFAULT              {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
 #define BATTERY_PROTECTION_REPORT_INIT_DEFAULT   {0, 0, 0, false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
@@ -828,7 +842,7 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, BOARD_IDENTITY_INIT_ZERO, false, BATTERY_PROTECTION_REPORT_INIT_ZERO}
+#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, BOARD_IDENTITY_INIT_ZERO, false, BATTERY_PROTECTION_REPORT_INIT_ZERO, false, 0, false, 0}
 #define BOARD_IDENTITY_INIT_ZERO                 {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
 #define BATTERY_PROTECTION_REPORT_INIT_ZERO      {0, 0, 0, false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
@@ -978,6 +992,8 @@ extern "C" {
 #define SYSTEM_STATE_PACKET_BEACON_KEY_TAG       8
 #define SYSTEM_STATE_PACKET_BOARD_TAG            9
 #define SYSTEM_STATE_PACKET_BATTERY_PROTECTION_TAG 10
+#define SYSTEM_STATE_PACKET_BATTERY_HIBERNATE_PCT_TAG 11
+#define SYSTEM_STATE_PACKET_BATTERY_RESUME_PCT_TAG 12
 #define PERIPHERAL_PACKET_MAC_ADDRESS_TAG        1
 #define PERIPHERAL_PACKET_TYPE_TAG               2
 #define PERIPHERAL_INFO_DEVICE_UIDS_TAG          1
@@ -1219,7 +1235,9 @@ X(a, STATIC,   SINGULAR, STRING,   firmware_version,   6) \
 X(a, STATIC,   OPTIONAL, UINT32,   hw_diag,           7) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,        8) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  board,             9) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  battery_protection,  10)
+X(a, STATIC,   OPTIONAL, MESSAGE,  battery_protection,  10) \
+X(a, STATIC,   OPTIONAL, UINT32,   battery_hibernate_pct,  11) \
+X(a, STATIC,   OPTIONAL, UINT32,   battery_resume_pct,  12)
 #define SYSTEM_STATE_PACKET_CALLBACK NULL
 #define SYSTEM_STATE_PACKET_DEFAULT NULL
 #define system_state_packet_t_battery_MSGTYPE battery_state_t
@@ -1348,7 +1366,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_PACKET_SIZE              1387
 #define SCHEDULE_CONFIG_SIZE                     180
 #define SIMPLE_SENSOR_READING_SIZE               51
-#define SYSTEM_STATE_PACKET_SIZE                 203
+#define SYSTEM_STATE_PACKET_SIZE                 215
 #define TIME_WINDOW_SIZE                         30
 
 #ifdef __cplusplus

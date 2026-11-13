@@ -233,8 +233,16 @@ command, 6 queue full, 7 refused on this carrier, 8 reserved (no clock: the
 collar answers nothing instead), 9 session open (detail = the SF), 10 session
 closed, 11 settings piece not used (detail = the unfinished transaction in
 the way, 0 = none; a piece of a newer handheld push replaces an unfinished
-transaction that a signed frame opened, never one opened over LoRaWAN or
-Bluetooth). `rssi`/`snr_q4` are how the collar
+transaction that a signed frame opened; one opened over LoRaWAN or Bluetooth
+is not replaced until it is past its 10 min limit, after which a piece of any
+newer transaction drops it and the collar reports EXPIRED for it), 12
+Bluetooth file window refused (`CMD_BLE_WINDOW`; detail = why: 1 no window
+key, 2 the radio cannot serve files, 3 no card, 4 battery low, 5 a firmware
+update is running; an opened window answers 1 accepted with detail = the
+minutes granted; `../bulk/README.md`).
+For `CMD_RESEND`, the detail of result 1 is the number of frames that follow:
+the asked-for ones the collar's ring holds, at most 4.
+`rssi`/`snr_q4` are how the collar
 heard the command. Vectors: `commands` and `command_acks` in `vectors.json`.
 
 ## Keys
