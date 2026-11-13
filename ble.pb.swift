@@ -1830,10 +1830,11 @@ struct SystemStatePacket: @unchecked Sendable {
   /// Size: both radios declare this characteristic at 140 B (SizeStatuschar)
   /// and keep their old value when handed a longer one, so the whole BlePacket
   /// must stay at or under 140 B. The collar fills battery, sdcard,
-  /// firmware_version, hw_diag, this field, board and battery_protection,
-  /// never gps_data or sensors: at most 123 B with every one of those at its
-  /// largest (95 B before the card's identity in SDCardState, v1.24.0, 106 B
-  /// before board and battery_protection; the firmware's test_radio_crypto
+  /// firmware_version, hw_diag, this field, board, battery_protection and the
+  /// two battery thresholds, never gps_data or sensors: at most 127 B with
+  /// every one of those at its largest (95 B before the card's identity in
+  /// SDCardState, v1.24.0, 106 B before board and battery_protection, 123 B
+  /// before the battery thresholds; the firmware's test_radio_crypto
   /// measures each).
   var beaconKey: BeaconKeyReport {
     get {return _storage._beaconKey ?? BeaconKeyReport()}
@@ -1868,6 +1869,33 @@ struct SystemStatePacket: @unchecked Sendable {
   var hasBatteryProtection: Bool {return _storage._batteryProtection != nil}
   /// Clears the value of `batteryProtection`. Subsequent reads from it will return its default value.
   mutating func clearBatteryProtection() {_uniqueStorage()._batteryProtection = nil}
+
+  /// Low-battery hibernation thresholds as the collar runs them, whole
+  /// percent (downlink.proto ConfigSystem.battery_hibernate_pct and
+  /// .battery_resume_pct set them, over the Bluetooth config tunnel or a
+  /// remote push; CONFIG.CSV keys of the same names). Present on every status
+  /// packet from firmware that has the setting (fw gate: firmware main build
+  /// TBD, set at merge), absent before: presence is how a client tells "not
+  /// supported". The collar pushes this packet again after a tunnel commit
+  /// that changed them. 4 B here (values under 128), 127 B for the worst
+  /// status packet.
+  var batteryHibernatePct: UInt32 {
+    get {return _storage._batteryHibernatePct ?? 0}
+    set {_uniqueStorage()._batteryHibernatePct = newValue}
+  }
+  /// Returns true if `batteryHibernatePct` has been explicitly set.
+  var hasBatteryHibernatePct: Bool {return _storage._batteryHibernatePct != nil}
+  /// Clears the value of `batteryHibernatePct`. Subsequent reads from it will return its default value.
+  mutating func clearBatteryHibernatePct() {_uniqueStorage()._batteryHibernatePct = nil}
+
+  var batteryResumePct: UInt32 {
+    get {return _storage._batteryResumePct ?? 0}
+    set {_uniqueStorage()._batteryResumePct = newValue}
+  }
+  /// Returns true if `batteryResumePct` has been explicitly set.
+  var hasBatteryResumePct: Bool {return _storage._batteryResumePct != nil}
+  /// Clears the value of `batteryResumePct`. Subsequent reads from it will return its default value.
+  mutating func clearBatteryResumePct() {_uniqueStorage()._batteryResumePct = nil}
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -3687,6 +3715,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     8: .standard(proto: "beacon_key"),
     9: .same(proto: "board"),
     10: .standard(proto: "battery_protection"),
+    11: .standard(proto: "battery_hibernate_pct"),
+    12: .standard(proto: "battery_resume_pct"),
   ]
 
   fileprivate class _StorageClass {
@@ -3700,6 +3730,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     var _beaconKey: BeaconKeyReport? = nil
     var _board: BoardIdentity? = nil
     var _batteryProtection: BatteryProtectionReport? = nil
+    var _batteryHibernatePct: UInt32? = nil
+    var _batteryResumePct: UInt32? = nil
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -3724,6 +3756,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       _beaconKey = source._beaconKey
       _board = source._board
       _batteryProtection = source._batteryProtection
+      _batteryHibernatePct = source._batteryHibernatePct
+      _batteryResumePct = source._batteryResumePct
     }
   }
 
@@ -3752,6 +3786,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         case 8: try { try decoder.decodeSingularMessageField(value: &_storage._beaconKey) }()
         case 9: try { try decoder.decodeSingularMessageField(value: &_storage._board) }()
         case 10: try { try decoder.decodeSingularMessageField(value: &_storage._batteryProtection) }()
+        case 11: try { try decoder.decodeSingularUInt32Field(value: &_storage._batteryHibernatePct) }()
+        case 12: try { try decoder.decodeSingularUInt32Field(value: &_storage._batteryResumePct) }()
         default: break
         }
       }
@@ -3794,6 +3830,12 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       try { if let v = _storage._batteryProtection {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
       } }()
+      try { if let v = _storage._batteryHibernatePct {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 11)
+      } }()
+      try { if let v = _storage._batteryResumePct {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 12)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3813,6 +3855,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         if _storage._beaconKey != rhs_storage._beaconKey {return false}
         if _storage._board != rhs_storage._board {return false}
         if _storage._batteryProtection != rhs_storage._batteryProtection {return false}
+        if _storage._batteryHibernatePct != rhs_storage._batteryHibernatePct {return false}
+        if _storage._batteryResumePct != rhs_storage._batteryResumePct {return false}
         return true
       }
       if !storagesAreEqual {return false}

@@ -147,6 +147,20 @@ def make():
              1 << 15, (1 << 14) | (1 << 15), 0x7FFF, 0xFFFF, 1 << 16, (1 << 15) | (1 << 16), 0x1FFFF, 1 << 17, 1 << 31]
     v["error_flags"] = [{"word": w, "keys": R.error_flag_keys(w)} for w in words]
 
+    # Low-battery hibernation thresholds. "valid": the rails' rule on a pair of
+    # whole numbers. "from_csv": the pair a CONFIG.CSV's two rows give (null =
+    # the row is missing), read as strtol reads it.
+    B = S["battery_thresholds"]
+    pairs = [(B["hibernate_default"], B["resume_default"]), (5, 10), (40, 45), (40, 60), (4, 10), (41, 60),
+             (5, 9), (35, 61), (30, 34), (30, 35), (20, 20), (25, 20), (0, 0), (15, 50), (100, 100)]
+    v["battery_thresholds_valid"] = [{"hibernate": h, "resume": r, "valid": R.battery_thresholds_valid(h, r)}
+                                     for h, r in pairs]
+    texts = [(None, None), ("10", "20"), ("15", "30"), (" 25", "40 "), ("3", "8"), ("99", "99"), ("-5", "-1"),
+             ("40", "20"), ("12", None), (None, "12"), ("30", None), ("abc", "xyz"), ("", ""), ("7.9", "15.5"),
+             ("+8", "+18"), ("20%", "35%"), ("99999999999999999999", "1")]
+    v["battery_thresholds_from_csv"] = [{"hibernate": h, "resume": r, "want": R.battery_thresholds_from_csv(h, r)}
+                                        for h, r in texts]
+
     # CONFIG.CSV
     cfg = S.get("config_csv")
     if isinstance(cfg, dict) and "vectors" in cfg:

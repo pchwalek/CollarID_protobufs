@@ -120,7 +120,21 @@ typedef enum command_type {
     /* Lost mode off: clears lost_mode_enabled in the stored configuration and
  restarts the collar into normal running (sensors back on). Allowed on
  every carrier. */
-    COMMAND_TYPE_CMD_LOST_MODE_OFF = 26
+    COMMAND_TYPE_CMD_LOST_MODE_OFF = 26,
+    /* Bluetooth on for a while, for files (collarID_thread
+ docs/DESIGN_ble_bulk_transfer.md; DESIGN_finder_two_way.md 6A.6, A8).
+ The collar powers its Bluetooth radio, advertises, and serves its card's
+ files read-only on the bulk characteristic (...6fdc) for
+ ble_window.minutes (0 = 10, clamped 1..30), longer while a phone keeps
+ asking (at most 60 min from the open). Only a phone that proves it holds
+ ble_window.key (challenge-response, bulk/README.md) may list or read.
+ While the window is open the radio refuses every settings write, update
+ and add-on forward: settings travel over the signed radio or the magnet
+ session. Allowed over the direct radio (signed) and LoRaWAN; ignored
+ over the BLE tunnel. Refused (handheld ACK result 12, detail = reason)
+ without a key, on a radio that cannot serve files, without a card, or on
+ a low battery. Firmware that predates it answers 5 (unknown command). */
+    COMMAND_TYPE_CMD_BLE_WINDOW = 27
 } command_type_t;
 
 /* ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
@@ -337,6 +351,25 @@ typedef struct config_system {
  live count at BEGIN so a stale array entry can never be resurrected. */
     bool has_schedules_count;
     uint32_t schedules_count;
+    /* Low-battery hibernation, whole percent of the battery (2026-11-12; fw
+ gate: firmware main build TBD, set at merge). The collar hibernates (stops
+ recording and sleeps, checking the battery every 8 hours) when its battery
+ reads at or below battery_hibernate_pct, and after such a sleep it runs
+ again only once the battery reads above battery_resume_pct. Defaults 10
+ and 20, what every collar ran before the setting; CONFIG.CSV keys of the
+ same names. Absent = leave the collar's value alone; staged and applied
+ at COMMIT like the slot count. The rails refuse the transaction (rule 14,
+ SCHED_RAIL_BAD_BATTERY_THRESHOLDS) unless the pair the commit would leave
+ (an absent field keeps the collar's value) has 5 <= hibernate <= 40,
+ 10 <= resume <= 60 and resume >= hibernate + 5
+ (contracts/collarid_contracts.json battery_thresholds). Reported in the
+ system fragment of every config report, and on Bluetooth in ble.proto
+ SystemStatePacket fields 11 and 12. Firmware that predates the fields
+ skips them and leaves its thresholds as they were. */
+    bool has_battery_hibernate_pct;
+    uint32_t battery_hibernate_pct;
+    bool has_battery_resume_pct;
+    uint32_t battery_resume_pct;
 } config_system_t;
 
 /* Geofence definition, delivered through the config transaction one
@@ -397,6 +430,17 @@ typedef struct find_mode {
     uint32_t interval_s;
     uint32_t minutes;
 } find_mode_t;
+
+/* CMD_BLE_WINDOW parameters. The collar clamps minutes (0 = 10, 1..30).
+ key is the window key, exactly 16 bytes, chosen at random by the server
+ for this one command and handed to the phone that will connect (with the
+ signed frame, over TLS). It travels encrypted inside the 0x44 frame (or
+ LoRaWAN's AppSKey). The collar keeps it in RAM for the window only. An
+ absent or all-zero key refuses the window. */
+typedef struct ble_window {
+    uint32_t minutes;
+    pb_byte_t key[16];
+} ble_window_t;
 
 /* The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
  (pushable remotely) and as the input of PacketHeader.radio_crc. Mirrors
@@ -525,6 +569,10 @@ typedef struct downlink_packet {
  both are present addon_arm_epoch wins. */
     bool has_addon_arm_delay_s;
     uint32_t addon_arm_delay_s;
+    /* CMD_BLE_WINDOW parameters (24 B with the command: fits the 33 B RX2
+ floor and a signed frame). */
+    bool has_ble_window;
+    ble_window_t ble_window;
 } downlink_packet_t;
 
 
@@ -534,8 +582,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_LOST_MODE_OFF
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_LOST_MODE_OFF+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_BLE_WINDOW
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_BLE_WINDOW+1))
 
 #define _BEACON_KEY_SLOT_MIN BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON
 #define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND
@@ -545,6 +593,7 @@ extern "C" {
 
 
 #define beacon_key_set_t_slot_ENUMTYPE beacon_key_slot_t
+
 
 
 
@@ -576,13 +625,14 @@ extern "C" {
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
-#define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
 #define FIND_MODE_INIT_DEFAULT                   {0, 0}
+#define BLE_WINDOW_INIT_DEFAULT                  {0, {0}}
 #define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
@@ -595,13 +645,14 @@ extern "C" {
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
-#define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
 #define FIND_MODE_INIT_ZERO                      {0, 0}
+#define BLE_WINDOW_INIT_ZERO                     {0, {0}}
 #define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -658,6 +709,8 @@ extern "C" {
 #define CONFIG_SYSTEM_ENABLE_RESET_ON_ERROR_TAG  2
 #define CONFIG_SYSTEM_SPECIAL_MODE_TAG           3
 #define CONFIG_SYSTEM_SCHEDULES_COUNT_TAG        4
+#define CONFIG_SYSTEM_BATTERY_HIBERNATE_PCT_TAG  5
+#define CONFIG_SYSTEM_BATTERY_RESUME_PCT_TAG     6
 #define CONFIG_GEOFENCE_FENCE_ID_TAG             1
 #define CONFIG_GEOFENCE_ACTION_TAG               2
 #define CONFIG_GEOFENCE_ZONE_SLOT_TAG            3
@@ -675,6 +728,8 @@ extern "C" {
 #define SESSION_PARAMS_MIN_SF_TAG                3
 #define FIND_MODE_INTERVAL_S_TAG                 1
 #define FIND_MODE_MINUTES_TAG                    2
+#define BLE_WINDOW_MINUTES_TAG                   1
+#define BLE_WINDOW_KEY_TAG                       2
 #define RADIO_SETTINGS_SPREADING_FACTOR_TAG      1
 #define RADIO_SETTINGS_BANDWIDTH_TAG             2
 #define RADIO_SETTINGS_CODING_RATE_TAG           3
@@ -716,6 +771,7 @@ extern "C" {
 #define DOWNLINK_PACKET_SESSION_TAG              12
 #define DOWNLINK_PACKET_FIND_TAG                 13
 #define DOWNLINK_PACKET_ADDON_ARM_DELAY_S_TAG    14
+#define DOWNLINK_PACKET_BLE_WINDOW_TAG           15
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -821,7 +877,9 @@ X(a, STATIC,   OPTIONAL, UINT32,   transmit_interval_min,   3)
 X(a, STATIC,   OPTIONAL, BOOL,     verbose_logging,   1) \
 X(a, STATIC,   OPTIONAL, BOOL,     enable_reset_on_error,   2) \
 X(a, STATIC,   OPTIONAL, UINT32,   special_mode,      3) \
-X(a, STATIC,   OPTIONAL, UINT32,   schedules_count,   4)
+X(a, STATIC,   OPTIONAL, UINT32,   schedules_count,   4) \
+X(a, STATIC,   OPTIONAL, UINT32,   battery_hibernate_pct,   5) \
+X(a, STATIC,   OPTIONAL, UINT32,   battery_resume_pct,   6)
 #define CONFIG_SYSTEM_CALLBACK NULL
 #define CONFIG_SYSTEM_DEFAULT NULL
 
@@ -854,6 +912,12 @@ X(a, STATIC,   SINGULAR, UINT32,   interval_s,        1) \
 X(a, STATIC,   SINGULAR, UINT32,   minutes,           2)
 #define FIND_MODE_CALLBACK NULL
 #define FIND_MODE_DEFAULT NULL
+
+#define BLE_WINDOW_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   minutes,           1) \
+X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               2)
+#define BLE_WINDOW_CALLBACK NULL
+#define BLE_WINDOW_DEFAULT NULL
 
 #define RADIO_SETTINGS_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, UINT32,   spreading_factor,   1) \
@@ -917,7 +981,8 @@ X(a, STATIC,   OPTIONAL, UINT32,   report_mask,      10) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       11) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  session,          12) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  find,             13) \
-X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14)
+X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  ble_window,       15)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
@@ -926,6 +991,7 @@ X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14)
 #define downlink_packet_t_beacon_key_MSGTYPE beacon_key_set_t
 #define downlink_packet_t_session_MSGTYPE session_params_t
 #define downlink_packet_t_find_MSGTYPE find_mode_t
+#define downlink_packet_t_ble_window_MSGTYPE ble_window_t
 
 extern const pb_msgdesc_t geo_point_t_msg;
 extern const pb_msgdesc_t geofence_data_t_msg;
@@ -943,6 +1009,7 @@ extern const pb_msgdesc_t config_system_t_msg;
 extern const pb_msgdesc_t config_geofence_t_msg;
 extern const pb_msgdesc_t session_params_t_msg;
 extern const pb_msgdesc_t find_mode_t_msg;
+extern const pb_msgdesc_t ble_window_t_msg;
 extern const pb_msgdesc_t radio_settings_t_msg;
 extern const pb_msgdesc_t config_fragment_t_msg;
 extern const pb_msgdesc_t downlink_packet_t_msg;
@@ -964,14 +1031,16 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_GEOFENCE_FIELDS &config_geofence_t_msg
 #define SESSION_PARAMS_FIELDS &session_params_t_msg
 #define FIND_MODE_FIELDS &find_mode_t_msg
+#define BLE_WINDOW_FIELDS &ble_window_t_msg
 #define RADIO_SETTINGS_FIELDS &radio_settings_t_msg
 #define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
 #define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
 #define BEACON_KEY_SET_SIZE                      26
+#define BLE_WINDOW_SIZE                          24
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     428
+#define CONFIG_FRAGMENT_SIZE                     440
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 14
@@ -979,9 +1048,9 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_MORTALITY_SIZE                    14
 #define CONFIG_RADIO_TIMING_SIZE                 27
 #define CONFIG_SAMPLING_SIZE                     8
-#define CONFIG_SYSTEM_SIZE                       16
+#define CONFIG_SYSTEM_SIZE                       28
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     754
+#define DOWNLINK_PACKET_SIZE                     792
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22

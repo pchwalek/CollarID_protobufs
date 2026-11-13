@@ -1,6 +1,6 @@
 {
  "version": 1,
- "contracts_sha256": "20e45c8969d4790eeb4a5329f287bf1edb01fd25dfe0e0517206a524e3c8b71e",
+ "contracts_sha256": "6152b2a8ce21ba1899d443206dd4abd06dae8d31d30532dd12f8348888e48409",
  "about": "Made by contracts/make_vectors.py from contracts/reference.py. Do not edit by hand.",
  "special_mode": [
   {
@@ -604,6 +604,221 @@
    "word": 2147483648,
    "keys": [
     "bit31"
+   ]
+  }
+ ],
+ "battery_thresholds_valid": [
+  {
+   "hibernate": 10,
+   "resume": 20,
+   "valid": true
+  },
+  {
+   "hibernate": 5,
+   "resume": 10,
+   "valid": true
+  },
+  {
+   "hibernate": 40,
+   "resume": 45,
+   "valid": true
+  },
+  {
+   "hibernate": 40,
+   "resume": 60,
+   "valid": true
+  },
+  {
+   "hibernate": 4,
+   "resume": 10,
+   "valid": false
+  },
+  {
+   "hibernate": 41,
+   "resume": 60,
+   "valid": false
+  },
+  {
+   "hibernate": 5,
+   "resume": 9,
+   "valid": false
+  },
+  {
+   "hibernate": 35,
+   "resume": 61,
+   "valid": false
+  },
+  {
+   "hibernate": 30,
+   "resume": 34,
+   "valid": false
+  },
+  {
+   "hibernate": 30,
+   "resume": 35,
+   "valid": true
+  },
+  {
+   "hibernate": 20,
+   "resume": 20,
+   "valid": false
+  },
+  {
+   "hibernate": 25,
+   "resume": 20,
+   "valid": false
+  },
+  {
+   "hibernate": 0,
+   "resume": 0,
+   "valid": false
+  },
+  {
+   "hibernate": 15,
+   "resume": 50,
+   "valid": true
+  },
+  {
+   "hibernate": 100,
+   "resume": 100,
+   "valid": false
+  }
+ ],
+ "battery_thresholds_from_csv": [
+  {
+   "hibernate": null,
+   "resume": null,
+   "want": [
+    10,
+    20
+   ]
+  },
+  {
+   "hibernate": "10",
+   "resume": "20",
+   "want": [
+    10,
+    20
+   ]
+  },
+  {
+   "hibernate": "15",
+   "resume": "30",
+   "want": [
+    15,
+    30
+   ]
+  },
+  {
+   "hibernate": " 25",
+   "resume": "40 ",
+   "want": [
+    25,
+    40
+   ]
+  },
+  {
+   "hibernate": "3",
+   "resume": "8",
+   "want": [
+    5,
+    10
+   ]
+  },
+  {
+   "hibernate": "99",
+   "resume": "99",
+   "want": [
+    40,
+    60
+   ]
+  },
+  {
+   "hibernate": "-5",
+   "resume": "-1",
+   "want": [
+    5,
+    10
+   ]
+  },
+  {
+   "hibernate": "40",
+   "resume": "20",
+   "want": [
+    40,
+    45
+   ]
+  },
+  {
+   "hibernate": "12",
+   "resume": null,
+   "want": [
+    12,
+    20
+   ]
+  },
+  {
+   "hibernate": null,
+   "resume": "12",
+   "want": [
+    10,
+    15
+   ]
+  },
+  {
+   "hibernate": "30",
+   "resume": null,
+   "want": [
+    30,
+    35
+   ]
+  },
+  {
+   "hibernate": "abc",
+   "resume": "xyz",
+   "want": [
+    10,
+    20
+   ]
+  },
+  {
+   "hibernate": "",
+   "resume": "",
+   "want": [
+    10,
+    20
+   ]
+  },
+  {
+   "hibernate": "7.9",
+   "resume": "15.5",
+   "want": [
+    7,
+    15
+   ]
+  },
+  {
+   "hibernate": "+8",
+   "resume": "+18",
+   "want": [
+    8,
+    18
+   ]
+  },
+  {
+   "hibernate": "20%",
+   "resume": "35%",
+   "want": [
+    20,
+    35
+   ]
+  },
+  {
+   "hibernate": "99999999999999999999",
+   "resume": "1",
+   "want": [
+    40,
+    45
    ]
   }
  ]

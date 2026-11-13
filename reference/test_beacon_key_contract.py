@@ -745,7 +745,8 @@ class StatusReadContract(unittest.TestCase):
         self.assertEqual({f: n for f, (_, n) in st.items() if f != "beacon_key"},
                          {"engage_state": 1, "battery": 2, "sdcard": 3, "gps_data": 4,
                           "sensors": 5, "firmware_version": 6, "hw_diag": 7,
-                          "board": 9, "battery_protection": 10})
+                          "board": 9, "battery_protection": 10,
+                          "battery_hibernate_pct": 11, "battery_resume_pct": 12})
 
     def test_same_report_as_the_echo(self):
         # One message for both places, so a client reads them with one decoder.
@@ -758,7 +759,7 @@ class StatusReadContract(unittest.TestCase):
         for phrase in ("firmware main build TBD", "neither decodes nor re-encodes",
                        "a READ restarts nothing", "tx_counter always 0",
                        "Present and empty", "140 B", "never gps_data or sensors",
-                       "at most 123 B", "Never a key byte"):
+                       "at most 127 B", "Never a key byte"):
             self.assertIn(phrase, c, phrase)
         self.assertRegex(read("ble.options"),
                          r"SystemStatePacket\.beacon_key, tx_counter never sent there")
@@ -775,10 +776,12 @@ class StatusReadGenerated(unittest.TestCase):
         fl = c_fieldlist("ble.pb.h", "SYSTEM_STATE_PACKET_FIELDLIST")
         self.assertRegex(fl, r"OPTIONAL, MESSAGE,\s+beacon_key,\s+8\)")
         self.assertIn("#define system_state_packet_t_beacon_key_MSGTYPE beacon_key_report_t", h)
-        # nanopb's bound, with the card identity, board (2 + BOARD_IDENTITY_SIZE 4) and
-        # battery_protection (2 + BATTERY_PROTECTION_REPORT_SIZE 16); what the collar
-        # sends is at most 123 B (the comment above the field). The firmware vendors the same.
-        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+203\b")
+        # nanopb's bound, with the card identity, board (2 + BOARD_IDENTITY_SIZE 4),
+        # battery_protection (2 + BATTERY_PROTECTION_REPORT_SIZE 16) and the two battery
+        # thresholds (6 each as uint32); what the collar sends is at most 127 B (the
+        # comment above the field). The firmware vendors the same.
+        # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+203\b")
+        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+215\b")
 
     def test_swift(self):
         s = read("ble.pb.swift")

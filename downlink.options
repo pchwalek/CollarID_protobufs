@@ -8,3 +8,8 @@ GeofenceData.vertices  max_count:8
 # 16 bytes, like the LoRaWAN keys in ble.options. A frame carrying any other
 # length fails to decode, so a malformed key never reaches the store.
 BeaconKeySet.key       max_size:16 fixed_length:true
+
+# Bluetooth file window key (CMD_BLE_WINDOW): exactly 16 bytes, like the
+# beacon key. Any other length fails to decode, so the window never opens on
+# a short key.
+BleWindow.key          max_size:16 fixed_length:true

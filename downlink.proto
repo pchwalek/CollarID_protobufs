@@ -155,6 +155,21 @@ enum CommandType {
   // restarts the collar into normal running (sensors back on). Allowed on
   // every carrier.
   CMD_LOST_MODE_OFF       = 26;
+
+  // Bluetooth on for a while, for files (collarID_thread
+  // docs/DESIGN_ble_bulk_transfer.md; DESIGN_finder_two_way.md 6A.6, A8).
+  // The collar powers its Bluetooth radio, advertises, and serves its card's
+  // files read-only on the bulk characteristic (...6fdc) for
+  // ble_window.minutes (0 = 10, clamped 1..30), longer while a phone keeps
+  // asking (at most 60 min from the open). Only a phone that proves it holds
+  // ble_window.key (challenge-response, bulk/README.md) may list or read.
+  // While the window is open the radio refuses every settings write, update
+  // and add-on forward: settings travel over the signed radio or the magnet
+  // session. Allowed over the direct radio (signed) and LoRaWAN; ignored
+  // over the BLE tunnel. Refused (handheld ACK result 12, detail = reason)
+  // without a key, on a radio that cannot serve files, without a card, or on
+  // a low battery. Firmware that predates it answers 5 (unknown command).
+  CMD_BLE_WINDOW          = 27;
 }
 
 // ---- Geofence ----
@@ -329,6 +344,23 @@ message ConfigSystem {
   // new slot (at minimum its time window); staging zeroes slots beyond the
   // live count at BEGIN so a stale array entry can never be resurrected.
   optional uint32 schedules_count       = 4;
+  // Low-battery hibernation, whole percent of the battery (2026-11-12; fw
+  // gate: firmware main build TBD, set at merge). The collar hibernates (stops
+  // recording and sleeps, checking the battery every 8 hours) when its battery
+  // reads at or below battery_hibernate_pct, and after such a sleep it runs
+  // again only once the battery reads above battery_resume_pct. Defaults 10
+  // and 20, what every collar ran before the setting; CONFIG.CSV keys of the
+  // same names. Absent = leave the collar's value alone; staged and applied
+  // at COMMIT like the slot count. The rails refuse the transaction (rule 14,
+  // SCHED_RAIL_BAD_BATTERY_THRESHOLDS) unless the pair the commit would leave
+  // (an absent field keeps the collar's value) has 5 <= hibernate <= 40,
+  // 10 <= resume <= 60 and resume >= hibernate + 5
+  // (contracts/collarid_contracts.json battery_thresholds). Reported in the
+  // system fragment of every config report, and on Bluetooth in ble.proto
+  // SystemStatePacket fields 11 and 12. Firmware that predates the fields
+  // skips them and leaves its thresholds as they were.
+  optional uint32 battery_hibernate_pct = 5;
+  optional uint32 battery_resume_pct    = 6;
 }
 
 // Geofence definition, delivered through the config transaction one
@@ -377,6 +409,17 @@ message SessionParams {
 message FindMode {
   uint32 interval_s = 1;
   uint32 minutes    = 2;
+}
+
+// CMD_BLE_WINDOW parameters. The collar clamps minutes (0 = 10, 1..30).
+// key is the window key, exactly 16 bytes, chosen at random by the server
+// for this one command and handed to the phone that will connect (with the
+// signed frame, over TLS). It travels encrypted inside the 0x44 frame (or
+// LoRaWAN's AppSKey). The collar keeps it in RAM for the window only. An
+// absent or all-zero key refuses the window.
+message BleWindow {
+  uint32 minutes = 1;
+  bytes  key     = 2;
 }
 
 // The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
@@ -479,4 +522,7 @@ message DownlinkPacket {
   // with no signal (the signed frame's validity window bounds when). When
   // both are present addon_arm_epoch wins.
   optional uint32 addon_arm_delay_s = 14;
+  // CMD_BLE_WINDOW parameters (24 B with the command: fits the 33 B RX2
+  // floor and a signed frame).
+  optional BleWindow ble_window = 15;
 }

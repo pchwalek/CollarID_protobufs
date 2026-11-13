@@ -15,6 +15,9 @@ firmware, the station, the server, the website and the app all run.
 * `ble.proto`: BLE service and characteristic definitions.
 * `common.proto`: Shared types (BatteryState, GPSData, PacketHeader, etc.).
 * `message.proto`: High-level message wrappers for data transmission.
+* `bulk/`: the Bluetooth file transfer protocol (the collar's card, read over
+  its bulk characteristic): normative `README.md`, reference codec
+  `bulk_v1.py`, frozen `vectors.json` (`cd bulk && python3 -m unittest`).
 
 ---
 

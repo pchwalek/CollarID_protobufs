@@ -54,6 +54,9 @@ PB_BIND(SESSION_PARAMS, session_params_t, AUTO)
 PB_BIND(FIND_MODE, find_mode_t, AUTO)
 
 
+PB_BIND(BLE_WINDOW, ble_window_t, AUTO)
+
+
 PB_BIND(RADIO_SETTINGS, radio_settings_t, AUTO)
 
 

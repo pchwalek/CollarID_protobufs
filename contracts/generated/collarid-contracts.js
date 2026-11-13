@@ -177,6 +177,8 @@
         "wb_addon_capable",
         "battery_protection",
         "battery_protection_min_temp_c",
+        "battery_hibernate_pct",
+        "battery_resume_pct",
         "lorawan_activation_type",
         "lorawan_region",
         "lorawan_tx_only_on_new_gps_fix",
@@ -261,8 +263,17 @@
     "firmware_only": [
       "lorawan_identity_uid"
     ]
+  },
+  "battery_thresholds": {
+    "hibernate_default": 10,
+    "resume_default": 20,
+    "hibernate_min": 5,
+    "hibernate_max": 40,
+    "resume_min": 10,
+    "resume_max": 60,
+    "min_gap": 5
   }
 };
-  C.CONTRACTS_SHA256 = '20e45c8969d4790eeb4a5329f287bf1edb01fd25dfe0e0517206a524e3c8b71e';
+  C.CONTRACTS_SHA256 = '6152b2a8ce21ba1899d443206dd4abd06dae8d31d30532dd12f8348888e48409';
   return Object.freeze(C);
 });
