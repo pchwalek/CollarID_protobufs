@@ -138,40 +138,52 @@ enum Activity: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 /// ---- Header ----
 /// A unified header. ms_from_start is from ble.proto, request_ack from message.proto.
-struct PacketHeader: Sendable {
+struct PacketHeader: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var systemUid: UInt32 = 0
+  var systemUid: UInt32 {
+    get {return _storage._systemUid}
+    set {_uniqueStorage()._systemUid = newValue}
+  }
 
-  var msFromStart: UInt32 = 0
+  var msFromStart: UInt32 {
+    get {return _storage._msFromStart}
+    set {_uniqueStorage()._msFromStart = newValue}
+  }
 
-  var epoch: UInt32 = 0
+  var epoch: UInt32 {
+    get {return _storage._epoch}
+    set {_uniqueStorage()._epoch = newValue}
+  }
 
-  var packetIndex: UInt32 = 0
+  var packetIndex: UInt32 {
+    get {return _storage._packetIndex}
+    set {_uniqueStorage()._packetIndex = newValue}
+  }
 
   var requestAck: Bool {
-    get {return _requestAck ?? false}
-    set {_requestAck = newValue}
+    get {return _storage._requestAck ?? false}
+    set {_uniqueStorage()._requestAck = newValue}
   }
   /// Returns true if `requestAck` has been explicitly set.
-  var hasRequestAck: Bool {return self._requestAck != nil}
+  var hasRequestAck: Bool {return _storage._requestAck != nil}
   /// Clears the value of `requestAck`. Subsequent reads from it will return its default value.
-  mutating func clearRequestAck() {self._requestAck = nil}
+  mutating func clearRequestAck() {_uniqueStorage()._requestAck = nil}
 
   /// Firmware build number = `git rev-parse --count HEAD` of collarID_thread,
   /// injected at compile time (CMake, next to FIRMWARE_GIT_HASH). Ordered, so
   /// the server gates capabilities with simple >= checks; absent on legacy
   /// firmware (server treats missing as "capabilities unknown"). ~3 B on air.
   var fwBuild: UInt32 {
-    get {return _fwBuild ?? 0}
-    set {_fwBuild = newValue}
+    get {return _storage._fwBuild ?? 0}
+    set {_uniqueStorage()._fwBuild = newValue}
   }
   /// Returns true if `fwBuild` has been explicitly set.
-  var hasFwBuild: Bool {return self._fwBuild != nil}
+  var hasFwBuild: Bool {return _storage._fwBuild != nil}
   /// Clears the value of `fwBuild`. Subsequent reads from it will return its default value.
-  mutating func clearFwBuild() {self._fwBuild = nil}
+  mutating func clearFwBuild() {_uniqueStorage()._fwBuild = nil}
 
   /// CRC-32 over the device's nanopb-encoded schedule config — an OPAQUE
   /// change detector, computed only on-device (never recomputed server-side;
@@ -181,13 +193,13 @@ struct PacketHeader: Sendable {
   /// config content is stale until the next ConfigPacket uplink. ~3 B on
   /// air, same pattern as fw_build. Absent on legacy firmware.
   var schedCrc: UInt32 {
-    get {return _schedCrc ?? 0}
-    set {_schedCrc = newValue}
+    get {return _storage._schedCrc ?? 0}
+    set {_uniqueStorage()._schedCrc = newValue}
   }
   /// Returns true if `schedCrc` has been explicitly set.
-  var hasSchedCrc: Bool {return self._schedCrc != nil}
+  var hasSchedCrc: Bool {return _storage._schedCrc != nil}
   /// Clears the value of `schedCrc`. Subsequent reads from it will return its default value.
-  mutating func clearSchedCrc() {self._schedCrc = nil}
+  mutating func clearSchedCrc() {_uniqueStorage()._schedCrc = nil}
 
   /// Geofence membership bitmask: bit (fence_id-1) set while the collar's
   /// confirmed-inside state holds for that fence (DESIGN_geofence_actions.md).
@@ -196,13 +208,13 @@ struct PacketHeader: Sendable {
   /// errorFlags). Server derives entry/exit events from bit transitions,
   /// with the uplink's own GPS fix as the audit trail. ~2 B on air.
   var activeFences: UInt32 {
-    get {return _activeFences ?? 0}
-    set {_activeFences = newValue}
+    get {return _storage._activeFences ?? 0}
+    set {_uniqueStorage()._activeFences = newValue}
   }
   /// Returns true if `activeFences` has been explicitly set.
-  var hasActiveFences: Bool {return self._activeFences != nil}
+  var hasActiveFences: Bool {return _storage._activeFences != nil}
   /// Clears the value of `activeFences`. Subsequent reads from it will return its default value.
-  mutating func clearActiveFences() {self._activeFences = nil}
+  mutating func clearActiveFences() {_uniqueStorage()._activeFences = nil}
 
   /// Faults on the wire (DESIGN_survivability.md S1). The server could not see a
   /// reboot at all: packet_index is re-seeded from the card and carries on.
@@ -213,13 +225,13 @@ struct PacketHeader: Sendable {
   /// is a reboot too, not an error. Several changes in a short time are a
   /// reboot loop.
   var bootCount: UInt32 {
-    get {return _bootCount ?? 0}
-    set {_bootCount = newValue}
+    get {return _storage._bootCount ?? 0}
+    set {_uniqueStorage()._bootCount = newValue}
   }
   /// Returns true if `bootCount` has been explicitly set.
-  var hasBootCount: Bool {return self._bootCount != nil}
+  var hasBootCount: Bool {return _storage._bootCount != nil}
   /// Clears the value of `bootCount`. Subsequent reads from it will return its default value.
-  mutating func clearBootCount() {self._bootCount = nil}
+  mutating func clearBootCount() {_uniqueStorage()._bootCount = nil}
 
   /// reset_cause + last_fatal: sent only on the first uplinks after a boot
   /// (airtime is battery), so their absence means "nothing new", never "no
@@ -227,26 +239,26 @@ struct PacketHeader: Sendable {
   /// on, 2 pin/magnet, 3 software, 4 independent watchdog, 5 window watchdog,
   /// 6 low-battery wake, 7 scheduled wake, 8 brownout, 9 post-DFU.
   var resetCause: UInt32 {
-    get {return _resetCause ?? 0}
-    set {_resetCause = newValue}
+    get {return _storage._resetCause ?? 0}
+    set {_uniqueStorage()._resetCause = newValue}
   }
   /// Returns true if `resetCause` has been explicitly set.
-  var hasResetCause: Bool {return self._resetCause != nil}
+  var hasResetCause: Bool {return _storage._resetCause != nil}
   /// Clears the value of `resetCause`. Subsequent reads from it will return its default value.
-  mutating func clearResetCause() {self._resetCause = nil}
+  mutating func clearResetCause() {_uniqueStorage()._resetCause = nil}
 
   /// What the previous session died of, when it died of something. Meaning by
   /// reset_cause: software (3) = the Error_Handler call site's source line;
   /// watchdog (4) = the 4-character tag of the thread that fed it last, little
   /// endian; a CPU fault = the CFSR register. 0 or absent = a clean reset.
   var lastFatal: UInt32 {
-    get {return _lastFatal ?? 0}
-    set {_lastFatal = newValue}
+    get {return _storage._lastFatal ?? 0}
+    set {_uniqueStorage()._lastFatal = newValue}
   }
   /// Returns true if `lastFatal` has been explicitly set.
-  var hasLastFatal: Bool {return self._lastFatal != nil}
+  var hasLastFatal: Bool {return _storage._lastFatal != nil}
   /// Clears the value of `lastFatal`. Subsequent reads from it will return its default value.
-  mutating func clearLastFatal() {self._lastFatal = nil}
+  mutating func clearLastFatal() {_uniqueStorage()._lastFatal = nil}
 
   /// LoRaWAN link check, report only (firmware Core/Inc/lw_link_check.h). About
   /// once an hour the collar asks the network whether it was heard. The answer
@@ -256,31 +268,31 @@ struct PacketHeader: Sendable {
   /// uplink that asked; link_misses is how many questions in a row went
   /// unanswered before this answer (0 on a healthy link).
   var linkMarginDb: UInt32 {
-    get {return _linkMarginDb ?? 0}
-    set {_linkMarginDb = newValue}
+    get {return _storage._linkMarginDb ?? 0}
+    set {_uniqueStorage()._linkMarginDb = newValue}
   }
   /// Returns true if `linkMarginDb` has been explicitly set.
-  var hasLinkMarginDb: Bool {return self._linkMarginDb != nil}
+  var hasLinkMarginDb: Bool {return _storage._linkMarginDb != nil}
   /// Clears the value of `linkMarginDb`. Subsequent reads from it will return its default value.
-  mutating func clearLinkMarginDb() {self._linkMarginDb = nil}
+  mutating func clearLinkMarginDb() {_uniqueStorage()._linkMarginDb = nil}
 
   var linkGateways: UInt32 {
-    get {return _linkGateways ?? 0}
-    set {_linkGateways = newValue}
+    get {return _storage._linkGateways ?? 0}
+    set {_uniqueStorage()._linkGateways = newValue}
   }
   /// Returns true if `linkGateways` has been explicitly set.
-  var hasLinkGateways: Bool {return self._linkGateways != nil}
+  var hasLinkGateways: Bool {return _storage._linkGateways != nil}
   /// Clears the value of `linkGateways`. Subsequent reads from it will return its default value.
-  mutating func clearLinkGateways() {self._linkGateways = nil}
+  mutating func clearLinkGateways() {_uniqueStorage()._linkGateways = nil}
 
   var linkMisses: UInt32 {
-    get {return _linkMisses ?? 0}
-    set {_linkMisses = newValue}
+    get {return _storage._linkMisses ?? 0}
+    set {_uniqueStorage()._linkMisses = newValue}
   }
   /// Returns true if `linkMisses` has been explicitly set.
-  var hasLinkMisses: Bool {return self._linkMisses != nil}
+  var hasLinkMisses: Bool {return _storage._linkMisses != nil}
   /// Clears the value of `linkMisses`. Subsequent reads from it will return its default value.
-  mutating func clearLinkMisses() {self._linkMisses = nil}
+  mutating func clearLinkMisses() {_uniqueStorage()._linkMisses = nil}
 
   /// The boards the collar is built from (firmware board_rev_rule.h, detected
   /// at boot): (top board << 4) | cpuboard. cpuboard 0 = original (PCBWay,
@@ -289,44 +301,56 @@ struct PacketHeader: Sendable {
   /// on (ErrorFlags bit 15). Sent with reset_cause, on the first uplinks after a
   /// boot (~2 B); absent on firmware before 2026-10-18 and on later uplinks.
   var board: UInt32 {
-    get {return _board ?? 0}
-    set {_board = newValue}
+    get {return _storage._board ?? 0}
+    set {_uniqueStorage()._board = newValue}
   }
   /// Returns true if `board` has been explicitly set.
-  var hasBoard: Bool {return self._board != nil}
+  var hasBoard: Bool {return _storage._board != nil}
   /// Clears the value of `board`. Subsequent reads from it will return its default value.
-  mutating func clearBoard() {self._board = nil}
+  mutating func clearBoard() {_uniqueStorage()._board = nil}
 
   /// CRC-32 (reflected 0xEDB88320, the sched_crc table) over the nanopb
   /// encoding of a downlink.proto RadioSettings filled with ALL its fields
   /// from the collar's live direct-radio and lost-mode settings. Proves which
   /// radio settings a collar runs, as sched_crc does for the schedule
   /// (sched_crc does not cover them). Absent = firmware that predates it.
+  /// ALL its fields are fields 1 to 11, always encoded, zeros included. The
+  /// two LoRa wake settings are encoded only when set: direct_region when it
+  /// is not 0 (AUTO), wake_long_range when true. So a collar that never set
+  /// a region or long range reports the radio_crc it reported before those
+  /// fields existed, and one rule computes it for every firmware build.
   var radioCrc: UInt32 {
-    get {return _radioCrc ?? 0}
-    set {_radioCrc = newValue}
+    get {return _storage._radioCrc ?? 0}
+    set {_uniqueStorage()._radioCrc = newValue}
   }
   /// Returns true if `radioCrc` has been explicitly set.
-  var hasRadioCrc: Bool {return self._radioCrc != nil}
+  var hasRadioCrc: Bool {return _storage._radioCrc != nil}
   /// Clears the value of `radioCrc`. Subsequent reads from it will return its default value.
-  mutating func clearRadioCrc() {self._radioCrc = nil}
+  mutating func clearRadioCrc() {_uniqueStorage()._radioCrc = nil}
+
+  /// LoRa wake (ble.proto ScheduleConfig.lora_wake_interval_s; collarID_thread
+  /// docs/CONTRACT_lora_wake.md sections 4 and 6). A listening collar keeps a
+  /// budget per clock hour for what false wakes cost it; in an hour that goes
+  /// over, it listens at two, at most four, times its interval until the hour
+  /// ends. This is how many such slowed hours there have been since the last
+  /// report that carried the field: each slowed hour counts once. Sent only
+  /// when not zero, then cleared, so its absence means "none since the last
+  /// count", never "not listening". 3 B on air when sent. The server adds
+  /// them up per collar. Absent on firmware that predates listening.
+  var wakeSlowHours: UInt32 {
+    get {return _storage._wakeSlowHours ?? 0}
+    set {_uniqueStorage()._wakeSlowHours = newValue}
+  }
+  /// Returns true if `wakeSlowHours` has been explicitly set.
+  var hasWakeSlowHours: Bool {return _storage._wakeSlowHours != nil}
+  /// Clears the value of `wakeSlowHours`. Subsequent reads from it will return its default value.
+  mutating func clearWakeSlowHours() {_uniqueStorage()._wakeSlowHours = nil}
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
-  fileprivate var _requestAck: Bool? = nil
-  fileprivate var _fwBuild: UInt32? = nil
-  fileprivate var _schedCrc: UInt32? = nil
-  fileprivate var _activeFences: UInt32? = nil
-  fileprivate var _bootCount: UInt32? = nil
-  fileprivate var _resetCause: UInt32? = nil
-  fileprivate var _lastFatal: UInt32? = nil
-  fileprivate var _linkMarginDb: UInt32? = nil
-  fileprivate var _linkGateways: UInt32? = nil
-  fileprivate var _linkMisses: UInt32? = nil
-  fileprivate var _board: UInt32? = nil
-  fileprivate var _radioCrc: UInt32? = nil
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 /// ---- GPS ----
@@ -475,108 +499,186 @@ extension PacketHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     14: .standard(proto: "link_misses"),
     15: .same(proto: "board"),
     16: .standard(proto: "radio_crc"),
+    17: .standard(proto: "wake_slow_hours"),
   ]
 
+  fileprivate class _StorageClass {
+    var _systemUid: UInt32 = 0
+    var _msFromStart: UInt32 = 0
+    var _epoch: UInt32 = 0
+    var _packetIndex: UInt32 = 0
+    var _requestAck: Bool? = nil
+    var _fwBuild: UInt32? = nil
+    var _schedCrc: UInt32? = nil
+    var _activeFences: UInt32? = nil
+    var _bootCount: UInt32? = nil
+    var _resetCause: UInt32? = nil
+    var _lastFatal: UInt32? = nil
+    var _linkMarginDb: UInt32? = nil
+    var _linkGateways: UInt32? = nil
+    var _linkMisses: UInt32? = nil
+    var _board: UInt32? = nil
+    var _radioCrc: UInt32? = nil
+    var _wakeSlowHours: UInt32? = nil
+
+    #if swift(>=5.10)
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+    #else
+      static let defaultInstance = _StorageClass()
+    #endif
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _systemUid = source._systemUid
+      _msFromStart = source._msFromStart
+      _epoch = source._epoch
+      _packetIndex = source._packetIndex
+      _requestAck = source._requestAck
+      _fwBuild = source._fwBuild
+      _schedCrc = source._schedCrc
+      _activeFences = source._activeFences
+      _bootCount = source._bootCount
+      _resetCause = source._resetCause
+      _lastFatal = source._lastFatal
+      _linkMarginDb = source._linkMarginDb
+      _linkGateways = source._linkGateways
+      _linkMisses = source._linkMisses
+      _board = source._board
+      _radioCrc = source._radioCrc
+      _wakeSlowHours = source._wakeSlowHours
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.systemUid) }()
-      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.msFromStart) }()
-      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.epoch) }()
-      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.packetIndex) }()
-      case 5: try { try decoder.decodeSingularBoolField(value: &self._requestAck) }()
-      case 6: try { try decoder.decodeSingularUInt32Field(value: &self._fwBuild) }()
-      case 7: try { try decoder.decodeSingularUInt32Field(value: &self._schedCrc) }()
-      case 8: try { try decoder.decodeSingularUInt32Field(value: &self._activeFences) }()
-      case 9: try { try decoder.decodeSingularUInt32Field(value: &self._bootCount) }()
-      case 10: try { try decoder.decodeSingularUInt32Field(value: &self._resetCause) }()
-      case 11: try { try decoder.decodeSingularUInt32Field(value: &self._lastFatal) }()
-      case 12: try { try decoder.decodeSingularUInt32Field(value: &self._linkMarginDb) }()
-      case 13: try { try decoder.decodeSingularUInt32Field(value: &self._linkGateways) }()
-      case 14: try { try decoder.decodeSingularUInt32Field(value: &self._linkMisses) }()
-      case 15: try { try decoder.decodeSingularUInt32Field(value: &self._board) }()
-      case 16: try { try decoder.decodeSingularUInt32Field(value: &self._radioCrc) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularUInt32Field(value: &_storage._systemUid) }()
+        case 2: try { try decoder.decodeSingularUInt32Field(value: &_storage._msFromStart) }()
+        case 3: try { try decoder.decodeSingularUInt32Field(value: &_storage._epoch) }()
+        case 4: try { try decoder.decodeSingularUInt32Field(value: &_storage._packetIndex) }()
+        case 5: try { try decoder.decodeSingularBoolField(value: &_storage._requestAck) }()
+        case 6: try { try decoder.decodeSingularUInt32Field(value: &_storage._fwBuild) }()
+        case 7: try { try decoder.decodeSingularUInt32Field(value: &_storage._schedCrc) }()
+        case 8: try { try decoder.decodeSingularUInt32Field(value: &_storage._activeFences) }()
+        case 9: try { try decoder.decodeSingularUInt32Field(value: &_storage._bootCount) }()
+        case 10: try { try decoder.decodeSingularUInt32Field(value: &_storage._resetCause) }()
+        case 11: try { try decoder.decodeSingularUInt32Field(value: &_storage._lastFatal) }()
+        case 12: try { try decoder.decodeSingularUInt32Field(value: &_storage._linkMarginDb) }()
+        case 13: try { try decoder.decodeSingularUInt32Field(value: &_storage._linkGateways) }()
+        case 14: try { try decoder.decodeSingularUInt32Field(value: &_storage._linkMisses) }()
+        case 15: try { try decoder.decodeSingularUInt32Field(value: &_storage._board) }()
+        case 16: try { try decoder.decodeSingularUInt32Field(value: &_storage._radioCrc) }()
+        case 17: try { try decoder.decodeSingularUInt32Field(value: &_storage._wakeSlowHours) }()
+        default: break
+        }
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    if self.systemUid != 0 {
-      try visitor.visitSingularUInt32Field(value: self.systemUid, fieldNumber: 1)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if _storage._systemUid != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._systemUid, fieldNumber: 1)
+      }
+      if _storage._msFromStart != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._msFromStart, fieldNumber: 2)
+      }
+      if _storage._epoch != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._epoch, fieldNumber: 3)
+      }
+      if _storage._packetIndex != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._packetIndex, fieldNumber: 4)
+      }
+      try { if let v = _storage._requestAck {
+        try visitor.visitSingularBoolField(value: v, fieldNumber: 5)
+      } }()
+      try { if let v = _storage._fwBuild {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 6)
+      } }()
+      try { if let v = _storage._schedCrc {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 7)
+      } }()
+      try { if let v = _storage._activeFences {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 8)
+      } }()
+      try { if let v = _storage._bootCount {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 9)
+      } }()
+      try { if let v = _storage._resetCause {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 10)
+      } }()
+      try { if let v = _storage._lastFatal {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 11)
+      } }()
+      try { if let v = _storage._linkMarginDb {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 12)
+      } }()
+      try { if let v = _storage._linkGateways {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 13)
+      } }()
+      try { if let v = _storage._linkMisses {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 14)
+      } }()
+      try { if let v = _storage._board {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 15)
+      } }()
+      try { if let v = _storage._radioCrc {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 16)
+      } }()
+      try { if let v = _storage._wakeSlowHours {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 17)
+      } }()
     }
-    if self.msFromStart != 0 {
-      try visitor.visitSingularUInt32Field(value: self.msFromStart, fieldNumber: 2)
-    }
-    if self.epoch != 0 {
-      try visitor.visitSingularUInt32Field(value: self.epoch, fieldNumber: 3)
-    }
-    if self.packetIndex != 0 {
-      try visitor.visitSingularUInt32Field(value: self.packetIndex, fieldNumber: 4)
-    }
-    try { if let v = self._requestAck {
-      try visitor.visitSingularBoolField(value: v, fieldNumber: 5)
-    } }()
-    try { if let v = self._fwBuild {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 6)
-    } }()
-    try { if let v = self._schedCrc {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 7)
-    } }()
-    try { if let v = self._activeFences {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 8)
-    } }()
-    try { if let v = self._bootCount {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 9)
-    } }()
-    try { if let v = self._resetCause {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 10)
-    } }()
-    try { if let v = self._lastFatal {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 11)
-    } }()
-    try { if let v = self._linkMarginDb {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 12)
-    } }()
-    try { if let v = self._linkGateways {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 13)
-    } }()
-    try { if let v = self._linkMisses {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 14)
-    } }()
-    try { if let v = self._board {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 15)
-    } }()
-    try { if let v = self._radioCrc {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 16)
-    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: PacketHeader, rhs: PacketHeader) -> Bool {
-    if lhs.systemUid != rhs.systemUid {return false}
-    if lhs.msFromStart != rhs.msFromStart {return false}
-    if lhs.epoch != rhs.epoch {return false}
-    if lhs.packetIndex != rhs.packetIndex {return false}
-    if lhs._requestAck != rhs._requestAck {return false}
-    if lhs._fwBuild != rhs._fwBuild {return false}
-    if lhs._schedCrc != rhs._schedCrc {return false}
-    if lhs._activeFences != rhs._activeFences {return false}
-    if lhs._bootCount != rhs._bootCount {return false}
-    if lhs._resetCause != rhs._resetCause {return false}
-    if lhs._lastFatal != rhs._lastFatal {return false}
-    if lhs._linkMarginDb != rhs._linkMarginDb {return false}
-    if lhs._linkGateways != rhs._linkGateways {return false}
-    if lhs._linkMisses != rhs._linkMisses {return false}
-    if lhs._board != rhs._board {return false}
-    if lhs._radioCrc != rhs._radioCrc {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._systemUid != rhs_storage._systemUid {return false}
+        if _storage._msFromStart != rhs_storage._msFromStart {return false}
+        if _storage._epoch != rhs_storage._epoch {return false}
+        if _storage._packetIndex != rhs_storage._packetIndex {return false}
+        if _storage._requestAck != rhs_storage._requestAck {return false}
+        if _storage._fwBuild != rhs_storage._fwBuild {return false}
+        if _storage._schedCrc != rhs_storage._schedCrc {return false}
+        if _storage._activeFences != rhs_storage._activeFences {return false}
+        if _storage._bootCount != rhs_storage._bootCount {return false}
+        if _storage._resetCause != rhs_storage._resetCause {return false}
+        if _storage._lastFatal != rhs_storage._lastFatal {return false}
+        if _storage._linkMarginDb != rhs_storage._linkMarginDb {return false}
+        if _storage._linkGateways != rhs_storage._linkGateways {return false}
+        if _storage._linkMisses != rhs_storage._linkMisses {return false}
+        if _storage._board != rhs_storage._board {return false}
+        if _storage._radioCrc != rhs_storage._radioCrc {return false}
+        if _storage._wakeSlowHours != rhs_storage._wakeSlowHours {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -11,7 +11,11 @@
   "kcv": "AES(key, 0^16)[0..2]",
   "report": "[0]=0x52 [1..4]=uid_le32 [5..8]=ctr_le32 (the v2 counter sequence) [9..9+n-1]=CCM ciphertext of the payload (n=1..238) [9+n..9+n+7]=8-byte tag; AAD, nonce and dev_key as v2; frame n+17 = 18..255 B",
   "command": "[0]=0x44 [1..4]=uid_le32 [5..8]=cmd_counter_le32 (gen<<24|seq) then CCM ciphertext of echo u32le || valid_from u32le || valid_to u32le || DownlinkPacket (n=1..226) and an 8-byte tag; AAD=[0..8]; nonce=uid_le32||ctr_le32||0x01||0x00000000; key = the COMMAND key (CID-LORA-CMD); frame n+29 = 30..255 B",
-  "command_ack": "[0]=0x4B [1..4]=uid_le32 [5..8]=the command's counter, then CCM ciphertext of result u8 || command u8 || detail u32le || rssi i8 || snr_q4 i8 and an 8-byte tag; nonce dir 0x02; 25 B"
+  "command_ack": "[0]=0x4B [1..4]=uid_le32 [5..8]=the command's counter, then CCM ciphertext of result u8 || command u8 || detail u32le || rssi i8 || snr_q4 i8 and an 8-byte tag; nonce dir 0x02; 25 B",
+  "wake": "[0]=0x57 [1]=flags (bit 0 MORE, bit 1 LONG, bit 2 ROLL, bits 3..7 = 0) [2..3]=time left u16le in 10 ms units, from the end of this frame to the end of the train's last frame [4]=k, the number of tags (1..4; 0 with ROLL and only then) [5..]=k x u16le tags; tag = fmix32(uid ^ 0x57414B45) & 0xFFFF; 5 + 2k = 5..13 B, cleartext",
+  "wake_timing": "Ts = 2^SF / BW; toa(n, p) = (p + 4.25 + 8 + max(ceil((8n - 4SF + 44) / (4(SF - 2DE))) x 5, 0)) x Ts with DE = 1 when Ts > 16 ms (coding rate 4/5, explicit header, CRC on); frame = toa(13, 12); tail = toa(13, 8) - 8 Ts; W = tail + 16 Ts + 7 ms; cap = 1.5 x frame + 20 ms; intent_wait = 2 x toa(14, 8) + 150 ms; cmd_window = toa(255, 8) + 300 ms; train >= 1.03 x interval + W + frame; roll_wait = 2 x toa(29, 8) + 150 ms; a roll-call slot >= toa(30, 8) + 5 ms, by default ceil(toa(30, 8)) + 10 ms. *_us are exact microseconds, *_ms the same to 0.1 ms",
+  "wake_key": "wake_key = AES-CMAC(the owner's command master, 'CID-LORA-WAK' || group_le32 || gen)",
+  "roll_call": "[0]=0x43 [1..4]=group_le32 [5..8]=ctr_le32 (gen<<24|seq) [9..20]=CCM ciphertext of valid_from u32le || valid_to u32le || slots u8 || slot_ms u16le || flags u8 [21..28]=8-byte tag; AAD=[0..8]; nonce=group_le32||ctr_le32||0x03||0x00000000; key = the group's wake key; 29 B. A collar answers with one v2 beacon starting 300 ms + (fmix32(uid ^ 0x57414B45 ^ ctr) % slots) x slot_ms after the roll call's end, sealed after the roll call is accepted; the receiver listens 300 ms + slots x slot_ms + 200 ms after sending the roll call"
  },
  "aes128": [
   {
@@ -889,5 +893,2449 @@
    "frame": "4b1200577e2a000002b24e13f8d37bd4271f05ee0ecfad61b3",
    "frame_len": 25
   }
- ]
+ ],
+ "wake_tags": [
+  {
+   "name": "nominal",
+   "uid": 2119680222,
+   "uid_hex": "7e57c0de",
+   "mixed_hex": "29b4b6b2",
+   "tag": 46770,
+   "tag_hex": "b6b2"
+  },
+  {
+   "name": "uid 0",
+   "uid": 0,
+   "uid_hex": "00000000",
+   "mixed_hex": "1c6d0fc7",
+   "tag": 4039,
+   "tag_hex": "0fc7"
+  },
+  {
+   "name": "uid 0xFFFFFFFF",
+   "uid": 4294967295,
+   "uid_hex": "ffffffff",
+   "mixed_hex": "086c573e",
+   "tag": 22334,
+   "tag_hex": "573e"
+  },
+  {
+   "name": "uid msb set",
+   "uid": 2147483648,
+   "uid_hex": "80000000",
+   "mixed_hex": "98db7bf5",
+   "tag": 31733,
+   "tag_hex": "7bf5"
+  },
+  {
+   "name": "second collar",
+   "uid": 195948557,
+   "uid_hex": "0badf00d",
+   "mixed_hex": "f160e591",
+   "tag": 58769,
+   "tag_hex": "e591"
+  },
+  {
+   "name": "uid equal to the salt 'WAKE': tag 0",
+   "uid": 1463896901,
+   "uid_hex": "57414b45",
+   "mixed_hex": "00000000",
+   "tag": 0,
+   "tag_hex": "0000"
+  },
+  {
+   "name": "train collar 1",
+   "uid": 2119630881,
+   "uid_hex": "7e570021",
+   "mixed_hex": "0a0d67fb",
+   "tag": 26619,
+   "tag_hex": "67fb"
+  },
+  {
+   "name": "train collar 2",
+   "uid": 2119630882,
+   "uid_hex": "7e570022",
+   "mixed_hex": "c9bc9869",
+   "tag": 39017,
+   "tag_hex": "9869"
+  },
+  {
+   "name": "train collar 3",
+   "uid": 2119630883,
+   "uid_hex": "7e570023",
+   "mixed_hex": "989f20c3",
+   "tag": 8387,
+   "tag_hex": "20c3"
+  },
+  {
+   "name": "train collar 4",
+   "uid": 2119630884,
+   "uid_hex": "7e570024",
+   "mixed_hex": "9046d257",
+   "tag": 53847,
+   "tag_hex": "d257"
+  },
+  {
+   "name": "train collar 5",
+   "uid": 2119630885,
+   "uid_hex": "7e570025",
+   "mixed_hex": "8b34cd14",
+   "tag": 52500,
+   "tag_hex": "cd14"
+  },
+  {
+   "name": "train collar 6",
+   "uid": 2119630886,
+   "uid_hex": "7e570026",
+   "mixed_hex": "a644c140",
+   "tag": 49472,
+   "tag_hex": "c140"
+  },
+  {
+   "name": "train collar 7",
+   "uid": 2119630887,
+   "uid_hex": "7e570027",
+   "mixed_hex": "6f81809c",
+   "tag": 32924,
+   "tag_hex": "809c"
+  },
+  {
+   "name": "train collar 8",
+   "uid": 2119630888,
+   "uid_hex": "7e570028",
+   "mixed_hex": "9d3db41d",
+   "tag": 46109,
+   "tag_hex": "b41d"
+  },
+  {
+   "name": "another collar with train collar 1's tag (1 in 65,536)",
+   "uid": 2119886041,
+   "uid_hex": "7e5ae4d9",
+   "mixed_hex": "37fc67fb",
+   "tag": 26619,
+   "tag_hex": "67fb"
+  }
+ ],
+ "wake_frames": [
+  {
+   "name": "one collar",
+   "ok": true,
+   "uids": [
+    2119630881
+   ],
+   "tags": [
+    26619
+   ],
+   "flags": 0,
+   "more": false,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 3012,
+   "time_left_ms": 30120,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "not_called"
+    }
+   ],
+   "frame": "5700c40b01fb67",
+   "frame_len": 7
+  },
+  {
+   "name": "four collars, the most one frame names",
+   "ok": true,
+   "uids": [
+    2119630881,
+    2119630882,
+    2119630883,
+    2119630884
+   ],
+   "tags": [
+    26619,
+    39017,
+    8387,
+    53847
+   ],
+   "flags": 0,
+   "more": false,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 1500,
+   "time_left_ms": 15000,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "not_called"
+    }
+   ],
+   "frame": "5700dc0504fb676998c32057d2",
+   "frame_len": 13
+  },
+  {
+   "name": "eight collars, list A: the first four, MORE",
+   "ok": true,
+   "uids": [
+    2119630881,
+    2119630882,
+    2119630883,
+    2119630884
+   ],
+   "tags": [
+    26619,
+    39017,
+    8387,
+    53847
+   ],
+   "flags": 1,
+   "more": true,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 1005,
+   "time_left_ms": 10050,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "more"
+    }
+   ],
+   "frame": "5701ed0304fb676998c32057d2",
+   "frame_len": 13
+  },
+  {
+   "name": "eight collars, list B: the other four, MORE",
+   "ok": true,
+   "uids": [
+    2119630885,
+    2119630886,
+    2119630887,
+    2119630888
+   ],
+   "tags": [
+    52500,
+    49472,
+    32924,
+    46109
+   ],
+   "flags": 1,
+   "more": true,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 1000,
+   "time_left_ms": 10000,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "more"
+    }
+   ],
+   "frame": "5701e8030414cd40c19c801db4",
+   "frame_len": 13
+  },
+  {
+   "name": "five collars, list B: the fifth alone, MORE",
+   "ok": true,
+   "uids": [
+    2119630885
+   ],
+   "tags": [
+    52500
+   ],
+   "flags": 1,
+   "more": true,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 59,
+   "time_left_ms": 590,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "more"
+    }
+   ],
+   "frame": "57013b000114cd",
+   "frame_len": 7
+  },
+  {
+   "name": "the last frame of a train: time left 0",
+   "ok": true,
+   "uids": [
+    2119630881,
+    2119630882
+   ],
+   "tags": [
+    26619,
+    39017
+   ],
+   "flags": 0,
+   "more": false,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 0,
+   "time_left_ms": 0,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "not_called"
+    }
+   ],
+   "frame": "5700000002fb676998",
+   "frame_len": 9
+  },
+  {
+   "name": "long range, two collars",
+   "ok": true,
+   "uids": [
+    2119630887,
+    2119630888
+   ],
+   "tags": [
+    32924,
+    46109
+   ],
+   "flags": 2,
+   "more": false,
+   "long_range": true,
+   "roll": false,
+   "time_left_10ms": 6248,
+   "time_left_ms": 62480,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "not_called"
+    }
+   ],
+   "frame": "57026818029c801db4",
+   "frame_len": 9
+  },
+  {
+   "name": "eight collars at long range, list A (MORE and LONG)",
+   "ok": true,
+   "uids": [
+    2119630881,
+    2119630882,
+    2119630883,
+    2119630884
+   ],
+   "tags": [
+    26619,
+    39017,
+    8387,
+    53847
+   ],
+   "flags": 3,
+   "more": true,
+   "long_range": true,
+   "roll": false,
+   "time_left_10ms": 96,
+   "time_left_ms": 960,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "more"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "more"
+    }
+   ],
+   "frame": "5703600004fb676998c32057d2",
+   "frame_len": 13
+  },
+  {
+   "name": "a roll-call train: ROLL, no tags",
+   "ok": true,
+   "uids": [],
+   "tags": [],
+   "flags": 4,
+   "more": false,
+   "long_range": false,
+   "roll": true,
+   "time_left_10ms": 3101,
+   "time_left_ms": 31010,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "roll"
+    }
+   ],
+   "frame": "57041d0c00",
+   "frame_len": 5
+  },
+  {
+   "name": "the last frame of a roll-call train at long range",
+   "ok": true,
+   "uids": [],
+   "tags": [],
+   "flags": 6,
+   "more": false,
+   "long_range": true,
+   "roll": true,
+   "time_left_10ms": 0,
+   "time_left_ms": 0,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "roll"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "roll"
+    }
+   ],
+   "frame": "5706000000",
+   "frame_len": 5
+  },
+  {
+   "name": "time left at its largest, 655.35 s",
+   "ok": true,
+   "uids": [
+    2119630888
+   ],
+   "tags": [
+    46109
+   ],
+   "flags": 0,
+   "more": false,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 65535,
+   "time_left_ms": 655350,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "called"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "not_called"
+    }
+   ],
+   "frame": "5700ffff011db4",
+   "frame_len": 7
+  },
+  {
+   "name": "a collar whose tag is 0",
+   "ok": true,
+   "uids": [
+    1463896901
+   ],
+   "tags": [
+    0
+   ],
+   "flags": 0,
+   "more": false,
+   "long_range": false,
+   "roll": false,
+   "time_left_10ms": 250,
+   "time_left_ms": 2500,
+   "verdicts": [
+    {
+     "uid": 2119630881,
+     "tag": 26619,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630885,
+     "tag": 52500,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119630888,
+     "tag": 46109,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119886041,
+     "tag": 26619,
+     "verdict": "not_called"
+    },
+    {
+     "uid": 2119680222,
+     "tag": 46770,
+     "verdict": "not_called"
+    }
+   ],
+   "frame": "5700fa00010000",
+   "frame_len": 7
+  },
+  {
+   "name": "nothing",
+   "ok": false,
+   "refusal": "length",
+   "frame": "",
+   "frame_len": 0
+  },
+  {
+   "name": "four bytes: no room for the tag count",
+   "ok": false,
+   "refusal": "length",
+   "frame": "5700c40b",
+   "frame_len": 4
+  },
+  {
+   "name": "fourteen bytes: four tags and one byte over",
+   "ok": false,
+   "refusal": "length",
+   "frame": "5700dc0504fb676998c32057d200",
+   "frame_len": 14
+  },
+  {
+   "name": "magic 0x56",
+   "ok": false,
+   "refusal": "magic",
+   "frame": "5600c40b01fb67",
+   "frame_len": 7
+  },
+  {
+   "name": "a command's magic, 0x44",
+   "ok": false,
+   "refusal": "magic",
+   "frame": "4400c40b01fb67",
+   "frame_len": 7
+  },
+  {
+   "name": "reserved flag bit 3 set",
+   "ok": false,
+   "refusal": "reserved_flags",
+   "frame": "5708c40b01fb67",
+   "frame_len": 7
+  },
+  {
+   "name": "reserved flag bit 7 set beside MORE",
+   "ok": false,
+   "refusal": "reserved_flags",
+   "frame": "5781c40b01fb67",
+   "frame_len": 7
+  },
+  {
+   "name": "five tags declared",
+   "ok": false,
+   "refusal": "tag_count",
+   "frame": "5700dc0505fb676998c32057d2",
+   "frame_len": 13
+  },
+  {
+   "name": "two tags declared, one sent",
+   "ok": false,
+   "refusal": "tag_bytes",
+   "frame": "5700c40b02fb67",
+   "frame_len": 7
+  },
+  {
+   "name": "one tag declared, two sent",
+   "ok": false,
+   "refusal": "tag_bytes",
+   "frame": "5700c40b01fb676998",
+   "frame_len": 9
+  },
+  {
+   "name": "no tags and no ROLL",
+   "ok": false,
+   "refusal": "no_tags",
+   "frame": "5700c40b00",
+   "frame_len": 5
+  },
+  {
+   "name": "ROLL with a tag",
+   "ok": false,
+   "refusal": "roll_with_tags",
+   "frame": "5704c40b01fb67",
+   "frame_len": 7
+  },
+  {
+   "name": "ROLL with MORE",
+   "ok": false,
+   "refusal": "roll_with_more",
+   "frame": "5705c40b00",
+   "frame_len": 5
+  }
+ ],
+ "wake_timing": {
+  "constants": {
+   "sync_word": 87,
+   "preamble_wake": 12,
+   "preamble_other": 8,
+   "frame_bytes": 13,
+   "max_tags": 4,
+   "max_collars_per_train": 8,
+   "salt": 1463896901,
+   "time_unit_ms": 10,
+   "gap_max_ms": 5,
+   "rx_lead_ms": 10,
+   "first_send_ms": 30,
+   "interval_choices_s": [
+    10,
+    30,
+    60
+   ],
+   "interval_min_s": 5,
+   "interval_max_s": 120,
+   "slow_factor_max": 4,
+   "call_sniff_s": 1,
+   "call_sniff_long_s": 2,
+   "called_wait_s": 60,
+   "call_idle_s": 300,
+   "call_max_s": 900,
+   "roll_slots_default": 32,
+   "roll_slots_max": 64,
+   "roll_reply_base_ms": 300,
+   "roll_listen_extra_ms": 200,
+   "roll_min_gap_s": 60
+  },
+  "regions": [
+   {
+    "region": 1,
+    "name": "US915",
+    "frequency_hz": 919000000,
+    "bw_khz": 500,
+    "sf": 9,
+    "sf_long": 12,
+    "max_dbm": 22
+   },
+   {
+    "region": 2,
+    "name": "EU868",
+    "frequency_hz": 869525000,
+    "bw_khz": 125,
+    "sf": 7,
+    "sf_long": 10,
+    "max_dbm": 22
+   },
+   {
+    "region": 3,
+    "name": "AU915",
+    "frequency_hz": 919000000,
+    "bw_khz": 500,
+    "sf": 9,
+    "sf_long": 12,
+    "max_dbm": 22
+   }
+  ],
+  "region_resolve": [
+   {
+    "name": "set to US915",
+    "setting": 1,
+    "lorawan_region": null,
+    "frequency_mhz": 0,
+    "region": 1
+   },
+   {
+    "name": "set to EU868, whatever LoRaWAN and the frequency say",
+    "setting": 2,
+    "lorawan_region": 0,
+    "frequency_mhz": 915,
+    "region": 2
+   },
+   {
+    "name": "set to AU915",
+    "setting": 3,
+    "lorawan_region": null,
+    "frequency_mhz": 915,
+    "region": 3
+   },
+   {
+    "name": "AUTO, LoRaWAN US915: LoRaWAN decides, not the frequency",
+    "setting": 0,
+    "lorawan_region": 0,
+    "frequency_mhz": 868,
+    "region": 1
+   },
+   {
+    "name": "AUTO, LoRaWAN AU915 (LoRaWAN's number 1 is direct region 3)",
+    "setting": 0,
+    "lorawan_region": 1,
+    "frequency_mhz": 915,
+    "region": 3
+   },
+   {
+    "name": "AUTO, LoRaWAN EU868 (LoRaWAN's number 2 is direct region 2)",
+    "setting": 0,
+    "lorawan_region": 2,
+    "frequency_mhz": 915,
+    "region": 2
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 915 MHz",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 915,
+    "region": 1
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 868 MHz",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 868,
+    "region": 2
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 862 MHz: below the EU band",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 862,
+    "region": 0
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 863 MHz: the EU band's first",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 863,
+    "region": 2
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 870 MHz: the EU band's last",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 870,
+    "region": 2
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 871 MHz",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 871,
+    "region": 0
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 901 MHz",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 901,
+    "region": 0
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 902 MHz: the US band's first",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 902,
+    "region": 1
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 928 MHz: the US band's last",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 928,
+    "region": 1
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 929 MHz",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 929,
+    "region": 0
+   },
+   {
+    "name": "AUTO, no LoRaWAN, 433 MHz",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 433,
+    "region": 0
+   },
+   {
+    "name": "AUTO, no LoRaWAN, frequency 0",
+    "setting": 0,
+    "lorawan_region": null,
+    "frequency_mhz": 0,
+    "region": 0
+   },
+   {
+    "name": "a setting above 3 is no region",
+    "setting": 4,
+    "lorawan_region": 0,
+    "frequency_mhz": 915,
+    "region": 0
+   }
+  ],
+  "settings": [
+   {
+    "name": "US915 / AU915 standard: SF9 at 500 kHz",
+    "regions": [
+     1,
+     3
+    ],
+    "long_range": false,
+    "sf": 9,
+    "bw_khz": 500,
+    "call_sniff_s": 1,
+    "ts_us": 1024,
+    "ts_ms": 1.024,
+    "frame_us": 45312,
+    "frame_ms": 45.3,
+    "tail_us": 33024,
+    "tail_ms": 33.0,
+    "w_us": 56408,
+    "w_ms": 56.4,
+    "cap_us": 87968,
+    "cap_ms": 88.0,
+    "cap_whole_ms": 88,
+    "intent_wait_us": 232432,
+    "intent_wait_ms": 232.4,
+    "cmd_window_us": 612576,
+    "cmd_window_ms": 612.6,
+    "roll_wait_us": 263152,
+    "roll_wait_ms": 263.2,
+    "roll_slot_min_us": 61576,
+    "roll_slot_min_ms": 61.6,
+    "roll_slot_min_whole_ms": 62,
+    "roll_slot_default_ms": 67,
+    "toa": [
+     {
+      "bytes": 13,
+      "preamble": 12,
+      "us": 45312,
+      "ms": 45.3
+     },
+     {
+      "bytes": 13,
+      "preamble": 8,
+      "us": 41216,
+      "ms": 41.2
+     },
+     {
+      "bytes": 14,
+      "preamble": 8,
+      "us": 41216,
+      "ms": 41.2
+     },
+     {
+      "bytes": 29,
+      "preamble": 8,
+      "us": 56576,
+      "ms": 56.6
+     },
+     {
+      "bytes": 30,
+      "preamble": 8,
+      "us": 56576,
+      "ms": 56.6
+     },
+     {
+      "bytes": 255,
+      "preamble": 8,
+      "us": 312576,
+      "ms": 312.6
+     }
+    ],
+    "trains": [
+     {
+      "interval_s": 1,
+      "train_us": 1131720,
+      "train_ms": 1131.7,
+      "frames_gap_0": 25,
+      "frames_gap_5ms": 23
+     },
+     {
+      "interval_s": 2,
+      "train_us": 2161720,
+      "train_ms": 2161.7,
+      "frames_gap_0": 48,
+      "frames_gap_5ms": 44
+     },
+     {
+      "interval_s": 5,
+      "train_us": 5251720,
+      "train_ms": 5251.7,
+      "frames_gap_0": 116,
+      "frames_gap_5ms": 105
+     },
+     {
+      "interval_s": 10,
+      "train_us": 10401720,
+      "train_ms": 10401.7,
+      "frames_gap_0": 230,
+      "frames_gap_5ms": 207
+     },
+     {
+      "interval_s": 30,
+      "train_us": 31001720,
+      "train_ms": 31001.7,
+      "frames_gap_0": 685,
+      "frames_gap_5ms": 617
+     },
+     {
+      "interval_s": 60,
+      "train_us": 61901720,
+      "train_ms": 61901.7,
+      "frames_gap_0": 1367,
+      "frames_gap_5ms": 1231
+     },
+     {
+      "interval_s": 120,
+      "train_us": 123701720,
+      "train_ms": 123701.7,
+      "frames_gap_0": 2730,
+      "frames_gap_5ms": 2459
+     }
+    ]
+   },
+   {
+    "name": "EU868 standard: SF7 at 125 kHz",
+    "regions": [
+     2
+    ],
+    "long_range": false,
+    "sf": 7,
+    "bw_khz": 125,
+    "call_sniff_s": 1,
+    "ts_us": 1024,
+    "ts_ms": 1.024,
+    "frame_us": 50432,
+    "frame_ms": 50.4,
+    "tail_us": 38144,
+    "tail_ms": 38.1,
+    "w_us": 61528,
+    "w_ms": 61.5,
+    "cap_us": 95648,
+    "cap_ms": 95.6,
+    "cap_whole_ms": 96,
+    "intent_wait_us": 242672,
+    "intent_wait_ms": 242.7,
+    "cmd_window_us": 699616,
+    "cmd_window_ms": 699.6,
+    "roll_wait_us": 283632,
+    "roll_wait_ms": 283.6,
+    "roll_slot_min_us": 76936,
+    "roll_slot_min_ms": 76.9,
+    "roll_slot_min_whole_ms": 77,
+    "roll_slot_default_ms": 82,
+    "toa": [
+     {
+      "bytes": 13,
+      "preamble": 12,
+      "us": 50432,
+      "ms": 50.4
+     },
+     {
+      "bytes": 13,
+      "preamble": 8,
+      "us": 46336,
+      "ms": 46.3
+     },
+     {
+      "bytes": 14,
+      "preamble": 8,
+      "us": 46336,
+      "ms": 46.3
+     },
+     {
+      "bytes": 29,
+      "preamble": 8,
+      "us": 66816,
+      "ms": 66.8
+     },
+     {
+      "bytes": 30,
+      "preamble": 8,
+      "us": 71936,
+      "ms": 71.9
+     },
+     {
+      "bytes": 255,
+      "preamble": 8,
+      "us": 399616,
+      "ms": 399.6
+     }
+    ],
+    "trains": [
+     {
+      "interval_s": 1,
+      "train_us": 1141960,
+      "train_ms": 1142.0,
+      "frames_gap_0": 23,
+      "frames_gap_5ms": 21
+     },
+     {
+      "interval_s": 2,
+      "train_us": 2171960,
+      "train_ms": 2172.0,
+      "frames_gap_0": 44,
+      "frames_gap_5ms": 40
+     },
+     {
+      "interval_s": 5,
+      "train_us": 5261960,
+      "train_ms": 5262.0,
+      "frames_gap_0": 105,
+      "frames_gap_5ms": 96
+     },
+     {
+      "interval_s": 10,
+      "train_us": 10411960,
+      "train_ms": 10412.0,
+      "frames_gap_0": 207,
+      "frames_gap_5ms": 188
+     },
+     {
+      "interval_s": 30,
+      "train_us": 31011960,
+      "train_ms": 31012.0,
+      "frames_gap_0": 615,
+      "frames_gap_5ms": 560
+     },
+     {
+      "interval_s": 60,
+      "train_us": 61911960,
+      "train_ms": 61912.0,
+      "frames_gap_0": 1228,
+      "frames_gap_5ms": 1117
+     },
+     {
+      "interval_s": 120,
+      "train_us": 123711960,
+      "train_ms": 123712.0,
+      "frames_gap_0": 2454,
+      "frames_gap_5ms": 2232
+     }
+    ]
+   },
+   {
+    "name": "US915 / AU915 long range: SF12 at 500 kHz",
+    "regions": [
+     1,
+     3
+    ],
+    "long_range": true,
+    "sf": 12,
+    "bw_khz": 500,
+    "call_sniff_s": 2,
+    "ts_us": 8192,
+    "ts_ms": 8.192,
+    "frame_us": 321536,
+    "frame_ms": 321.5,
+    "tail_us": 223232,
+    "tail_ms": 223.2,
+    "w_us": 361304,
+    "w_ms": 361.3,
+    "cap_us": 502304,
+    "cap_ms": 502.3,
+    "cap_whole_ms": 502,
+    "intent_wait_us": 727536,
+    "intent_wait_ms": 727.5,
+    "cmd_window_us": 2227168,
+    "cmd_window_ms": 2227.2,
+    "roll_wait_us": 891376,
+    "roll_wait_ms": 891.4,
+    "roll_slot_min_us": 375688,
+    "roll_slot_min_ms": 375.7,
+    "roll_slot_min_whole_ms": 376,
+    "roll_slot_default_ms": 381,
+    "toa": [
+     {
+      "bytes": 13,
+      "preamble": 12,
+      "us": 321536,
+      "ms": 321.5
+     },
+     {
+      "bytes": 13,
+      "preamble": 8,
+      "us": 288768,
+      "ms": 288.8
+     },
+     {
+      "bytes": 14,
+      "preamble": 8,
+      "us": 288768,
+      "ms": 288.8
+     },
+     {
+      "bytes": 29,
+      "preamble": 8,
+      "us": 370688,
+      "ms": 370.7
+     },
+     {
+      "bytes": 30,
+      "preamble": 8,
+      "us": 370688,
+      "ms": 370.7
+     },
+     {
+      "bytes": 255,
+      "preamble": 8,
+      "us": 1927168,
+      "ms": 1927.2
+     }
+    ],
+    "trains": [
+     {
+      "interval_s": 1,
+      "train_us": 1712840,
+      "train_ms": 1712.8,
+      "frames_gap_0": 6,
+      "frames_gap_5ms": 6
+     },
+     {
+      "interval_s": 2,
+      "train_us": 2742840,
+      "train_ms": 2742.8,
+      "frames_gap_0": 9,
+      "frames_gap_5ms": 9
+     },
+     {
+      "interval_s": 5,
+      "train_us": 5832840,
+      "train_ms": 5832.8,
+      "frames_gap_0": 19,
+      "frames_gap_5ms": 18
+     },
+     {
+      "interval_s": 10,
+      "train_us": 10982840,
+      "train_ms": 10982.8,
+      "frames_gap_0": 35,
+      "frames_gap_5ms": 34
+     },
+     {
+      "interval_s": 30,
+      "train_us": 31582840,
+      "train_ms": 31582.8,
+      "frames_gap_0": 99,
+      "frames_gap_5ms": 97
+     },
+     {
+      "interval_s": 60,
+      "train_us": 62482840,
+      "train_ms": 62482.8,
+      "frames_gap_0": 195,
+      "frames_gap_5ms": 192
+     },
+     {
+      "interval_s": 120,
+      "train_us": 124282840,
+      "train_ms": 124282.8,
+      "frames_gap_0": 387,
+      "frames_gap_5ms": 381
+     }
+    ]
+   },
+   {
+    "name": "EU868 long range: SF10 at 125 kHz",
+    "regions": [
+     2
+    ],
+    "long_range": true,
+    "sf": 10,
+    "bw_khz": 125,
+    "call_sniff_s": 2,
+    "ts_us": 8192,
+    "ts_ms": 8.192,
+    "frame_us": 321536,
+    "frame_ms": 321.5,
+    "tail_us": 223232,
+    "tail_ms": 223.2,
+    "w_us": 361304,
+    "w_ms": 361.3,
+    "cap_us": 502304,
+    "cap_ms": 502.3,
+    "cap_whole_ms": 502,
+    "intent_wait_us": 727536,
+    "intent_wait_ms": 727.5,
+    "cmd_window_us": 2595808,
+    "cmd_window_ms": 2595.8,
+    "roll_wait_us": 973296,
+    "roll_wait_ms": 973.3,
+    "roll_slot_min_us": 457608,
+    "roll_slot_min_ms": 457.6,
+    "roll_slot_min_whole_ms": 458,
+    "roll_slot_default_ms": 463,
+    "toa": [
+     {
+      "bytes": 13,
+      "preamble": 12,
+      "us": 321536,
+      "ms": 321.5
+     },
+     {
+      "bytes": 13,
+      "preamble": 8,
+      "us": 288768,
+      "ms": 288.8
+     },
+     {
+      "bytes": 14,
+      "preamble": 8,
+      "us": 288768,
+      "ms": 288.8
+     },
+     {
+      "bytes": 29,
+      "preamble": 8,
+      "us": 411648,
+      "ms": 411.6
+     },
+     {
+      "bytes": 30,
+      "preamble": 8,
+      "us": 452608,
+      "ms": 452.6
+     },
+     {
+      "bytes": 255,
+      "preamble": 8,
+      "us": 2295808,
+      "ms": 2295.8
+     }
+    ],
+    "trains": [
+     {
+      "interval_s": 1,
+      "train_us": 1712840,
+      "train_ms": 1712.8,
+      "frames_gap_0": 6,
+      "frames_gap_5ms": 6
+     },
+     {
+      "interval_s": 2,
+      "train_us": 2742840,
+      "train_ms": 2742.8,
+      "frames_gap_0": 9,
+      "frames_gap_5ms": 9
+     },
+     {
+      "interval_s": 5,
+      "train_us": 5832840,
+      "train_ms": 5832.8,
+      "frames_gap_0": 19,
+      "frames_gap_5ms": 18
+     },
+     {
+      "interval_s": 10,
+      "train_us": 10982840,
+      "train_ms": 10982.8,
+      "frames_gap_0": 35,
+      "frames_gap_5ms": 34
+     },
+     {
+      "interval_s": 30,
+      "train_us": 31582840,
+      "train_ms": 31582.8,
+      "frames_gap_0": 99,
+      "frames_gap_5ms": 97
+     },
+     {
+      "interval_s": 60,
+      "train_us": 62482840,
+      "train_ms": 62482.8,
+      "frames_gap_0": 195,
+      "frames_gap_5ms": 192
+     },
+     {
+      "interval_s": 120,
+      "train_us": 124282840,
+      "train_ms": 124282.8,
+      "frames_gap_0": 387,
+      "frames_gap_5ms": 381
+     }
+    ]
+   }
+  ],
+  "interval_clamp": [
+   {
+    "interval_s": 0,
+    "runs_s": 0
+   },
+   {
+    "interval_s": 1,
+    "runs_s": 5
+   },
+   {
+    "interval_s": 4,
+    "runs_s": 5
+   },
+   {
+    "interval_s": 5,
+    "runs_s": 5
+   },
+   {
+    "interval_s": 6,
+    "runs_s": 6
+   },
+   {
+    "interval_s": 10,
+    "runs_s": 10
+   },
+   {
+    "interval_s": 30,
+    "runs_s": 30
+   },
+   {
+    "interval_s": 60,
+    "runs_s": 60
+   },
+   {
+    "interval_s": 119,
+    "runs_s": 119
+   },
+   {
+    "interval_s": 120,
+    "runs_s": 120
+   },
+   {
+    "interval_s": 121,
+    "runs_s": 120
+   },
+   {
+    "interval_s": 3600,
+    "runs_s": 120
+   },
+   {
+    "interval_s": 4294967295,
+    "runs_s": 120
+   }
+  ],
+  "time_left": [
+   {
+    "us": 0,
+    "time_left_10ms": 0
+   },
+   {
+    "us": 4999,
+    "time_left_10ms": 0
+   },
+   {
+    "us": 5000,
+    "time_left_10ms": 1
+   },
+   {
+    "us": 10000,
+    "time_left_10ms": 1
+   },
+   {
+    "us": 14999,
+    "time_left_10ms": 1
+   },
+   {
+    "us": 15000,
+    "time_left_10ms": 2
+   },
+   {
+    "us": 45312,
+    "time_left_10ms": 5
+   },
+   {
+    "us": 30120000,
+    "time_left_10ms": 3012
+   },
+   {
+    "us": 655350000,
+    "time_left_10ms": 65535
+   },
+   {
+    "us": 700000000,
+    "time_left_10ms": 65535
+   }
+  ]
+ },
+ "roll_calls": {
+  "keys": [
+   {
+    "name": "wake key, group 42, gen 1",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "purpose": "wake",
+    "label": "CID-LORA-WAK",
+    "group": 42,
+    "group_hex": "0000002a",
+    "gen": 1,
+    "input": "4349442d4c4f52412d57414b2a00000001",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "kcv": "05540b"
+   },
+   {
+    "name": "the same group re-keyed: gen 2",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "purpose": "wake",
+    "label": "CID-LORA-WAK",
+    "group": 42,
+    "group_hex": "0000002a",
+    "gen": 2,
+    "input": "4349442d4c4f52412d57414b2a00000002",
+    "wake_key": "93c7d275757f9f8b70785db8c37cb920",
+    "kcv": "b26849"
+   },
+   {
+    "name": "gen 255, the last under a master",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "purpose": "wake",
+    "label": "CID-LORA-WAK",
+    "group": 42,
+    "group_hex": "0000002a",
+    "gen": 255,
+    "input": "4349442d4c4f52412d57414b2a000000ff",
+    "wake_key": "a74e8d982aff0f0ec9160eaec30caf25",
+    "kcv": "327aa1"
+   },
+   {
+    "name": "another group",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "purpose": "wake",
+    "label": "CID-LORA-WAK",
+    "group": 43,
+    "group_hex": "0000002b",
+    "gen": 1,
+    "input": "4349442d4c4f52412d57414b2b00000001",
+    "wake_key": "a0d524b7c46399aaed286febc1509d61",
+    "kcv": "e2f622"
+   },
+   {
+    "name": "group 1",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "purpose": "wake",
+    "label": "CID-LORA-WAK",
+    "group": 1,
+    "group_hex": "00000001",
+    "gen": 1,
+    "input": "4349442d4c4f52412d57414b0100000001",
+    "wake_key": "738e525a70b62322126a48e32ecba37d",
+    "kcv": "531b62"
+   },
+   {
+    "name": "group 0xFFFFFFFF",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "purpose": "wake",
+    "label": "CID-LORA-WAK",
+    "group": 4294967295,
+    "group_hex": "ffffffff",
+    "gen": 255,
+    "input": "4349442d4c4f52412d57414bffffffffff",
+    "wake_key": "006fc2f3db3aedfd8ae716fd147c5d23",
+    "kcv": "4e0008"
+   }
+  ],
+  "frames": [
+   {
+    "name": "RC1 US915 / AU915 standard: 32 slots of 67 ms",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "group": 42,
+    "group_hex": "0000002a",
+    "gen": 1,
+    "seq": 1,
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "kcv": "05540b",
+    "nonce": "2a000000010000010300000000",
+    "aad": "432a00000001000001",
+    "valid_from": 1794000000,
+    "valid_to": 1795209600,
+    "slots": 32,
+    "slot_ms": 67,
+    "flags": 0,
+    "body": "8044ee6a80b9006b20430000",
+    "ct": "1bccfc937bd3c7a0abec677f",
+    "tag": "a77420b02bb5c075",
+    "listen_ms": 2644,
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "frame_len": 29
+   },
+   {
+    "name": "RC2 EU868 standard: 32 slots of 82 ms",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "group": 42,
+    "group_hex": "0000002a",
+    "gen": 1,
+    "seq": 2,
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "kcv": "05540b",
+    "nonce": "2a000000020000010300000000",
+    "aad": "432a00000002000001",
+    "valid_from": 1794000000,
+    "valid_to": 1795209600,
+    "slots": 32,
+    "slot_ms": 82,
+    "flags": 0,
+    "body": "8044ee6a80b9006b20520000",
+    "ct": "86253ca5b92856c41a5badcd",
+    "tag": "6b94a72781981406",
+    "listen_ms": 3124,
+    "frame": "432a0000000200000186253ca5b92856c41a5badcd6b94a72781981406",
+    "frame_len": 29
+   },
+   {
+    "name": "RC3 EU868 long range: 64 slots of 463 ms, the group's gen 2",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "group": 42,
+    "group_hex": "0000002a",
+    "gen": 2,
+    "seq": 256,
+    "ctr": 33554688,
+    "ctr_hex": "02000100",
+    "wake_key": "93c7d275757f9f8b70785db8c37cb920",
+    "kcv": "b26849",
+    "nonce": "2a000000000100020300000000",
+    "aad": "432a00000000010002",
+    "valid_from": 1794000000,
+    "valid_to": 1795209600,
+    "slots": 64,
+    "slot_ms": 463,
+    "flags": 0,
+    "body": "8044ee6a80b9006b40cf0100",
+    "ct": "a773bfc26432e50ff79bf104",
+    "tag": "687ba79becd964ff",
+    "listen_ms": 30132,
+    "frame": "432a00000000010002a773bfc26432e50ff79bf104687ba79becd964ff",
+    "frame_len": 29
+   },
+   {
+    "name": "RC4 the first counter of a generation, group 1, one slot",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "group": 1,
+    "group_hex": "00000001",
+    "gen": 1,
+    "seq": 0,
+    "ctr": 16777216,
+    "ctr_hex": "01000000",
+    "wake_key": "738e525a70b62322126a48e32ecba37d",
+    "kcv": "531b62",
+    "nonce": "01000000000000010300000000",
+    "aad": "430100000000000001",
+    "valid_from": 1794000000,
+    "valid_to": 1795209600,
+    "slots": 1,
+    "slot_ms": 67,
+    "flags": 0,
+    "body": "8044ee6a80b9006b01430000",
+    "ct": "9516be8fff120763c2b72968",
+    "tag": "a4d0d1a52330bb32",
+    "listen_ms": 567,
+    "frame": "4301000000000000019516be8fff120763c2b72968a4d0d1a52330bb32",
+    "frame_len": 29
+   },
+   {
+    "name": "RC5 every field at its largest",
+    "master": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf",
+    "group": 4294967295,
+    "group_hex": "ffffffff",
+    "gen": 255,
+    "seq": 16777215,
+    "ctr": 4294967295,
+    "ctr_hex": "ffffffff",
+    "wake_key": "006fc2f3db3aedfd8ae716fd147c5d23",
+    "kcv": "4e0008",
+    "nonce": "ffffffffffffffff0300000000",
+    "aad": "43ffffffffffffffff",
+    "valid_from": 4294967295,
+    "valid_to": 4294967295,
+    "slots": 255,
+    "slot_ms": 65535,
+    "flags": 255,
+    "body": "ffffffffffffffffffffffff",
+    "ct": "0c5996b5c4cab10c0769270e",
+    "tag": "f015f86849edb915",
+    "listen_ms": 16711925,
+    "frame": "43ffffffffffffffff0c5996b5c4cab10c0769270ef015f86849edb915",
+    "frame_len": 29
+   }
+  ],
+  "slots": [
+   {
+    "uid": 2119630881,
+    "uid_hex": "7e570021",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630882,
+    "uid_hex": "7e570022",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630883,
+    "uid_hex": "7e570023",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630884,
+    "uid_hex": "7e570024",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119680222,
+    "uid_hex": "7e57c0de",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630881,
+    "uid_hex": "7e570021",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 4,
+    "reply_delay_ms": 568
+   },
+   {
+    "uid": 2119630882,
+    "uid_hex": "7e570022",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 26,
+    "reply_delay_ms": 2042
+   },
+   {
+    "uid": 2119630883,
+    "uid_hex": "7e570023",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 29,
+    "reply_delay_ms": 2243
+   },
+   {
+    "uid": 2119630884,
+    "uid_hex": "7e570024",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 21,
+    "reply_delay_ms": 1707
+   },
+   {
+    "uid": 2119680222,
+    "uid_hex": "7e57c0de",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630881,
+    "uid_hex": "7e570021",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 4,
+    "reply_delay_ms": 568
+   },
+   {
+    "uid": 2119630882,
+    "uid_hex": "7e570022",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 26,
+    "reply_delay_ms": 2042
+   },
+   {
+    "uid": 2119630883,
+    "uid_hex": "7e570023",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 29,
+    "reply_delay_ms": 2243
+   },
+   {
+    "uid": 2119630884,
+    "uid_hex": "7e570024",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 21,
+    "reply_delay_ms": 1707
+   },
+   {
+    "uid": 2119680222,
+    "uid_hex": "7e57c0de",
+    "ctr": 16777217,
+    "ctr_hex": "01000001",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 32,
+    "reply_delay_ms": 2444
+   },
+   {
+    "uid": 2119630881,
+    "uid_hex": "7e570021",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630882,
+    "uid_hex": "7e570022",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630883,
+    "uid_hex": "7e570023",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630884,
+    "uid_hex": "7e570024",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119680222,
+    "uid_hex": "7e57c0de",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 1,
+    "slot_ms": 67,
+    "slot": 0,
+    "reply_delay_ms": 300
+   },
+   {
+    "uid": 2119630881,
+    "uid_hex": "7e570021",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 26,
+    "reply_delay_ms": 2042
+   },
+   {
+    "uid": 2119630882,
+    "uid_hex": "7e570022",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 4,
+    "reply_delay_ms": 568
+   },
+   {
+    "uid": 2119630883,
+    "uid_hex": "7e570023",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 10,
+    "reply_delay_ms": 970
+   },
+   {
+    "uid": 2119630884,
+    "uid_hex": "7e570024",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 20,
+    "reply_delay_ms": 1640
+   },
+   {
+    "uid": 2119680222,
+    "uid_hex": "7e57c0de",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 32,
+    "slot_ms": 67,
+    "slot": 29,
+    "reply_delay_ms": 2243
+   },
+   {
+    "uid": 2119630881,
+    "uid_hex": "7e570021",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 26,
+    "reply_delay_ms": 2042
+   },
+   {
+    "uid": 2119630882,
+    "uid_hex": "7e570022",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 4,
+    "reply_delay_ms": 568
+   },
+   {
+    "uid": 2119630883,
+    "uid_hex": "7e570023",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 42,
+    "reply_delay_ms": 3114
+   },
+   {
+    "uid": 2119630884,
+    "uid_hex": "7e570024",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 20,
+    "reply_delay_ms": 1640
+   },
+   {
+    "uid": 2119680222,
+    "uid_hex": "7e57c0de",
+    "ctr": 16777218,
+    "ctr_hex": "01000002",
+    "slots": 64,
+    "slot_ms": 67,
+    "slot": 29,
+    "reply_delay_ms": 2243
+   }
+  ],
+  "checks": [
+   {
+    "name": "accepted: RC1, the first roll call this collar hears",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": true,
+    "reason": null,
+    "ctr": 16777217,
+    "slots": 32,
+    "slot_ms": 67
+   },
+   {
+    "name": "accepted: RC2 at the EU setting, a minute after answering RC1",
+    "frame": "432a0000000200000186253ca5b92856c41a5badcd6b94a72781981406",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777217,
+    "now": 1794600000,
+    "sf": 7,
+    "bw_khz": 125,
+    "since_answer_s": 60,
+    "accept": true,
+    "reason": null,
+    "ctr": 16777218,
+    "slots": 32,
+    "slot_ms": 82
+   },
+   {
+    "name": "accepted: RC3 at EU long range under the gen 2 key, after RC2",
+    "frame": "432a00000000010002a773bfc26432e50ff79bf104687ba79becd964ff",
+    "wake_key": "93c7d275757f9f8b70785db8c37cb920",
+    "group": 42,
+    "gen": 2,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 10,
+    "bw_khz": 125,
+    "since_answer_s": null,
+    "accept": true,
+    "reason": null,
+    "ctr": 33554688,
+    "slots": 64,
+    "slot_ms": 463
+   },
+   {
+    "name": "accepted at the window's first second",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794000000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": true,
+    "reason": null,
+    "ctr": 16777217,
+    "slots": 32,
+    "slot_ms": 67
+   },
+   {
+    "name": "accepted at the window's last second",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1795209600,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": true,
+    "reason": null,
+    "ctr": 16777217,
+    "slots": 32,
+    "slot_ms": 67
+   },
+   {
+    "name": "accepted: a 62 ms slot is the shortest at SF9 / 500 kHz",
+    "frame": "432a00000007000001d4185dd1dbb600cce2aa62f9b9cf3a5aa633aa48",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": true,
+    "reason": null,
+    "ctr": 16777223,
+    "slots": 32,
+    "slot_ms": 62
+   },
+   {
+    "name": "accepted: 64 slots, the most",
+    "frame": "432a0000000800000171ad2bc01f1f51237c6021c4a63d8c33ea685481",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": true,
+    "reason": null,
+    "ctr": 16777224,
+    "slots": 64,
+    "slot_ms": 67
+   },
+   {
+    "name": "refused: 28 bytes",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c0",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "frame"
+   },
+   {
+    "name": "refused: a command's magic",
+    "frame": "442a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "frame"
+   },
+   {
+    "name": "refused: the collar holds no wake key",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": null,
+    "group": 0,
+    "gen": 0,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "no_key"
+   },
+   {
+    "name": "refused: wrong group (the collar holds group 43's key)",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "a0d524b7c46399aaed286febc1509d61",
+    "group": 43,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "group"
+   },
+   {
+    "name": "refused: wrong generation (the collar holds the group's gen 2 key)",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93c7d275757f9f8b70785db8c37cb920",
+    "group": 42,
+    "gen": 2,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "gen"
+   },
+   {
+    "name": "refused: stale counter, the one last accepted",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777217,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "counter"
+   },
+   {
+    "name": "refused: stale counter, below the last accepted",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "counter"
+   },
+   {
+    "name": "refused: bad tag, one bit of the tag changed",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c074",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "tag"
+   },
+   {
+    "name": "refused: bad tag, one bit of the body changed",
+    "frame": "432a000000010000011accfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "tag"
+   },
+   {
+    "name": "refused: bad tag, the right group and gen under another master",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "ebbd95ee48907b1a04d08272775d5dbb",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "tag"
+   },
+   {
+    "name": "refused: a flag is set",
+    "frame": "432a000000090000010c6af117ac9c784c4ddb2d25d328211c765808b8",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "flags"
+   },
+   {
+    "name": "refused: the collar has no valid clock",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": null,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "clock"
+   },
+   {
+    "name": "refused: one second before the window",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1793999999,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "window"
+   },
+   {
+    "name": "refused: one second after the window",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1795209601,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "window"
+   },
+   {
+    "name": "refused: no slots",
+    "frame": "432a0000000a000001f970d59f7b5e82ca3e7e8bb45d0bc0dc36f27b1c",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "slots"
+   },
+   {
+    "name": "refused: 65 slots",
+    "frame": "432a0000000b00000162efda66c3ff8ec03b2fe4f7ff4bb6248d36ad52",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "slots"
+   },
+   {
+    "name": "refused: a 61 ms slot is too short at SF9 / 500 kHz",
+    "frame": "432a0000000c000001d32bbe7c5158cf29b0858b3fb025831adeeccd57",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777218,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "slot_ms"
+   },
+   {
+    "name": "refused: RC1's 67 ms slot is too short at the EU setting",
+    "frame": "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 0,
+    "now": 1794600000,
+    "sf": 7,
+    "bw_khz": 125,
+    "since_answer_s": null,
+    "accept": false,
+    "reason": "slot_ms"
+   },
+   {
+    "name": "refused: it answered a roll call 59 s ago",
+    "frame": "432a0000000200000186253ca5b92856c41a5badcd6b94a72781981406",
+    "wake_key": "93fdb709c9a4e87a14a0d2028c10c97a",
+    "group": 42,
+    "gen": 1,
+    "last_ctr": 16777217,
+    "now": 1794600000,
+    "sf": 9,
+    "bw_khz": 500,
+    "since_answer_s": 59,
+    "accept": false,
+    "reason": "recent"
+   }
+  ]
+ }
 }

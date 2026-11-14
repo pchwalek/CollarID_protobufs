@@ -190,6 +190,8 @@
         "lora_sync_word",
         "lora_frequency",
         "lora_rx_listen",
+        "lora_region",
+        "lora_wake_long_range",
         "lost_mode_enabled",
         "lost_mode_activation_epoch",
         "lost_mode_transmit_interval_min",
@@ -246,7 +248,8 @@
         "lorawan_enabled",
         "lorawan_send_interval_min",
         "lora_enabled",
-        "lora_send_interval_min"
+        "lora_send_interval_min",
+        "lora_wake_interval_s"
       ]
     },
     "conditional": [
@@ -274,6 +277,6 @@
     "min_gap": 5
   }
 };
-  C.CONTRACTS_SHA256 = '6152b2a8ce21ba1899d443206dd4abd06dae8d31d30532dd12f8348888e48409';
+  C.CONTRACTS_SHA256 = '9fb669a76a222c515abe96aea52b6c36dbcc656a96698bd66f7dd0cf10bb9d44';
   return Object.freeze(C);
 });

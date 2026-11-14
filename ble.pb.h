@@ -44,6 +44,35 @@ typedef enum radio_coding_rate {
     RADIO_CODING_RATE_CR_4_8 = 3
 } radio_coding_rate_t;
 
+/* The direct radio's region (LoRaConfig.region; "LoRa wake", collarID_thread
+ docs/CONTRACT_lora_wake.md section 1, beacon/README.md "Wake frame"). It
+ selects the WAKE CHANNEL: the one frequency, bandwidth and spreading
+ factor on which a listening collar and a Handheld Receiver meet, from a
+ table held in the firmware of both. Nobody types a wake frequency, so
+ there is no illegal one to save. It does not move the direct radio's own
+ frequency (LoRaConfig.frequency), on which reports and beacons still go.
+
+   region   wake channel   bandwidth   SF (long range)   power cap
+   US915    919.000 MHz    500 kHz     9  (12)           22 dBm
+   EU868    869.525 MHz    125 kHz     7  (10)           22 dBm
+   AU915    919.000 MHz    500 kHz     9  (12)           22 dBm
+
+ Every frame on the wake channel uses coding rate 4/5, an explicit header,
+ CRC on and sync word 0x57, at the direct radio's transmit power held to
+ the cap. The numbers below are NOT those of the LoRaWAN region
+ (RadioRegion above: US915 0, AU915 1, EU868 2); only EU868 has the same
+ one, so one is never cast to the other. */
+typedef enum direct_region {
+    /* The LoRaWAN region when LoRaWAN is configured; otherwise from the
+ direct radio's frequency: 863 to 870 MHz is EU868, 902 to 928 MHz is
+ US915 (never AU915: the frequency cannot tell the two apart). Anything
+ else is no region, and a collar with no region does not listen. */
+    DIRECT_REGION_DIRECT_REGION_AUTO = 0,
+    DIRECT_REGION_DIRECT_REGION_US915 = 1, /* US and Canada */
+    DIRECT_REGION_DIRECT_REGION_EU868 = 2, /* EU */
+    DIRECT_REGION_DIRECT_REGION_AU915 = 3 /* Australia */
+} direct_region_t;
+
 /* Microphone acquisition format.
 
  These are enums, not raw Hz/bit counts, because the ADF can only produce
@@ -142,7 +171,8 @@ typedef enum mag_cal_reason {
 /* ---- Lost-mode beacon key report (CfgEchoPacket.beacon_key) ----
  What the collar puts on air in lost mode (beacon/README.md). Reports the
  beacon slot; a command key (BeaconKeySlot, downlink.proto) will get its
- own field when that firmware lands. */
+ own field when that firmware lands. The wake key (slot 2) is reported in
+ wake_group, wake_gen and wake_kcv. */
 typedef enum beacon_key_state {
     BEACON_KEY_STATE_BEACON_KEY_STATE_NONE = 0, /* no key held: the plaintext 0x4C frame, byte for byte what an unkeyed collar always sent */
     BEACON_KEY_STATE_BEACON_KEY_STATE_KEYED = 1, /* key held and usable: the AES-128-CCM 0x4D frame */
@@ -264,6 +294,22 @@ typedef struct lo_ra_config {
  window (~250 ms per TX). proto3 default false = OFF, so every existing
  config, CSV, and fielded collar keeps today's TX-then-sleep behavior. */
     bool rx_listen;
+    /* LoRa wake (fw gate: firmware main build TBD, set at merge). The direct
+ radio's region, which picks the wake channel a listening collar and a
+ Handheld Receiver meet on (DirectRegion above). 0 = AUTO, which is what
+ every existing config decodes to; proto3 does not encode it, so those
+ configs are byte-identical. CONFIG.CSV key lora_region (0..3). A value
+ above 3 is no region: the collar does not listen. */
+    direct_region_t region;
+    /* The long-range wake setting: the wake channel runs at SF12 (US915,
+ AU915) or SF10 (EU868) instead of SF9 or SF7. A wake frame is then
+ 322 ms on air instead of 45 ms (US915, AU915) or 50 ms (EU868), and
+ every listen window grows with it (361 ms instead of about 60 ms), so
+ configurators pair it with a 60 s listening interval. The collar and
+ the Handheld Receiver must be set alike: a wake frame says which
+ setting it was sent at (flag LONG) for the record only. proto3 default
+ false = the standard setting. CONFIG.CSV key lora_wake_long_range (0/1). */
+    bool wake_long_range;
 } lo_ra_config_t;
 
 typedef struct lost_mode_config {
@@ -366,6 +412,30 @@ typedef struct schedule_config {
     uint32_t lora_send_interval_min;
     bool has_magnetometer;
     magnetometer_config_t magnetometer;
+    /* Listening for a Handheld Receiver ("LoRa wake", collarID_thread
+ docs/CONTRACT_lora_wake.md, beacon/README.md "Wake frame"; fw gate:
+ firmware main build TBD, set at merge). Non-zero: while this slot is in
+ force the collar opens its LoRa receiver for one short listen window
+ every lora_wake_interval_s seconds, on the wake channel of its region
+ (LoRaConfig.region), so that a Handheld Receiver's train of wake frames
+ can call it and then command it. Configurators offer 10, 30 and 60; the
+ firmware holds any other non-zero value to 5..120. For one clock hour
+ at a time the collar may listen at two or four times the interval when
+ false wakes have used up its budget (PacketHeader.wake_slow_hours counts
+ those hours); it never stops listening for that reason.
+ 0 = not listening: every collar's behaviour before the field, and the
+ default everywhere. proto3 does not encode a zero scalar, so a schedule
+ that leaves every slot at 0 is byte-identical on the wire to one written
+ before the field existed, and SchedSync_Crc, which hashes that encoding,
+ is unchanged for it.
+ Listening needs the direct radio configured (RadioConfigPacket
+ .loRa_config) and a region; it does not need lora_enabled, which is the
+ slot's own reports. The collar refuses a schedule (rule 15,
+ SCHED_RAIL_WAKE_NO_REGION) that sets a non-zero interval in any slot
+ while no direct radio is configured or its region resolves to none.
+ Firmware that predates the field skips it and never listens, so clients
+ gate the control on the reported build. CONFIG.CSV key of the same name. */
+    uint32_t lora_wake_interval_s;
 } schedule_config_t;
 
 typedef struct mag_cal_report {
@@ -389,6 +459,7 @@ typedef struct mag_cal_report {
 } mag_cal_report_t;
 
 typedef PB_BYTES_ARRAY_T(3) beacon_key_report_kcv_t;
+typedef PB_BYTES_ARRAY_T(3) beacon_key_report_wake_kcv_t;
 typedef struct beacon_key_report {
     beacon_key_state_t state;
     /* The collar's current provision generation: the top byte of its transmit
@@ -406,6 +477,25 @@ typedef struct beacon_key_report {
  check sees it survive resets, and so an exhausted sequence (0xFFFFFF)
  explains a FALLBACK. */
     uint32_t tx_counter;
+    /* The wake key: BEACON_KEY_SLOT_WAKE (downlink.proto), the key that
+ authenticates a roll call (beacon/README.md "Roll call"; fw gate:
+ firmware main build TBD, set at merge). All three are 0 or empty while
+ no wake key is held, and on firmware that predates the slot.
+   wake_group  the group (the owner's account) whose key the collar
+               holds, never 0 while one is held. On the echo only: like
+               tx_counter it is never sent on the status packet
+               (SystemStatePacket.beacon_key), which has no room for it.
+   wake_gen    that key's generation, 1..255: the GROUP's generation,
+               which a roll call carries in the top byte of its counter.
+               It is not the collar's own generation (gen above), is not
+               held against it and does not move it.
+   wake_kcv    that key's check value, AES-128(key, sixteen zero
+               bytes)[0..2], 3 bytes; never a key byte.
+ The outcome of a wake set or clear is in result, as for the other
+ slots. At most 14 B on the echo, 8 B on the status packet. */
+    uint32_t wake_group;
+    uint32_t wake_gen;
+    beacon_key_report_wake_kcv_t wake_kcv;
 } beacon_key_report_t;
 
 typedef PB_BYTES_ARRAY_T(88) cfg_echo_packet_fence_report_t;
@@ -456,7 +546,8 @@ typedef struct cfg_echo_packet {
  is how a client tells "no key" (present, state NONE) from "not
  supported" (absent). Pushed after a key command and answered to
  ble_query = 1, which is how a client reads it back: the pre-flight check
- compares gen and kcv with the server's record. At most 20 B on the wire.
+ compares gen and kcv with the server's record. At most 34 B on the wire
+ (20 B without a wake key).
  Carries the generation and the 3-byte key check value, never the key. */
     bool has_beacon_key;
     beacon_key_report_t beacon_key;
@@ -529,7 +620,11 @@ typedef struct schedule_config_packet {
  collar refuses a schedule write whose writer_version is below the
  revision of any feature RESIDENT in its current config, re-pushes the
  resident schedule, and logs it. 0 = legacy writer (never saw this field).
-   1 = knows TimeWindow.day_mask / start_day / end_day */
+   1 = knows TimeWindow.day_mask / start_day / end_day
+   2 = knows ScheduleConfig.lora_wake_interval_s. By the rule above a
+       collar with a listening slot (an interval above 0) refuses a
+       schedule write from a version below 2; a schedule with no
+       listening slot is still taken from older writers. */
     uint32_t writer_version;
 } schedule_config_packet_t;
 
@@ -607,17 +702,20 @@ typedef struct system_state_packet {
  on every 0x4D frame anyway). Present and empty when no key is held (2 B
  on the wire), absent on firmware without the key store: presence tells
  "no key" from "firmware too old", as on the echo. 2 B unkeyed, 13 B
- keyed after a set, 14 B at most (gen from 128 up). Never a key byte.
+ keyed after a set, 14 B at most (gen from 128 up); a held wake key adds
+ wake_gen and wake_kcv (never wake_group here), 8 B at most: 22 B.
+ Never a key byte.
 
  Size: both radios declare this characteristic at 140 B (SizeStatuschar)
  and keep their old value when handed a longer one, so the whole BlePacket
  must stay at or under 140 B. The collar fills battery, sdcard,
  firmware_version, hw_diag, this field, board, battery_protection and the
- two battery thresholds, never gps_data or sensors: at most 127 B with
+ two battery thresholds, never gps_data or sensors: at most 135 B with
  every one of those at its largest (95 B before the card's identity in
  SDCardState, v1.24.0, 106 B before board and battery_protection, 123 B
- before the battery thresholds; the firmware's test_radio_crypto
- measures each). */
+ before the battery thresholds, 127 B before the wake key's two fields;
+ the firmware's test_radio_crypto measures each). wake_group would add
+ up to 6 B more and pass the 140 B, which is why it stays on the echo. */
     bool has_beacon_key;
     beacon_key_report_t beacon_key;
     /* The boards the collar is built from (firmware board_rev_rule.h). A client
@@ -639,7 +737,7 @@ typedef struct system_state_packet {
  TBD, set at merge), absent before: presence is how a client tells "not
  supported". The collar pushes this packet again after a tunnel commit
  that changed them. 4 B here (values under 128), 127 B for the worst
- status packet. */
+ status packet without a wake key (135 B with one). */
     bool has_battery_hibernate_pct;
     uint32_t battery_hibernate_pct;
     bool has_battery_resume_pct;
@@ -694,6 +792,10 @@ extern "C" {
 #define _RADIO_CODING_RATE_MIN RADIO_CODING_RATE_CR_4_5
 #define _RADIO_CODING_RATE_MAX RADIO_CODING_RATE_CR_4_8
 #define _RADIO_CODING_RATE_ARRAYSIZE ((radio_coding_rate_t)(RADIO_CODING_RATE_CR_4_8+1))
+
+#define _DIRECT_REGION_MIN DIRECT_REGION_DIRECT_REGION_AUTO
+#define _DIRECT_REGION_MAX DIRECT_REGION_DIRECT_REGION_AU915
+#define _DIRECT_REGION_ARRAYSIZE ((direct_region_t)(DIRECT_REGION_DIRECT_REGION_AU915+1))
 
 #define _MIC_SAMPLE_RATE_MIN MIC_SAMPLE_RATE_MIC_RATE_16_KHZ
 #define _MIC_SAMPLE_RATE_MAX MIC_SAMPLE_RATE_MIC_RATE_192_KHZ
@@ -762,6 +864,7 @@ extern "C" {
 #define lo_ra_config_t_radio_spreading_factor_ENUMTYPE radio_spreading_factor_t
 #define lo_ra_config_t_radio_bandwidth_ENUMTYPE radio_bandwidth_t
 #define lo_ra_config_t_radio_coding_rate_ENUMTYPE radio_coding_rate_t
+#define lo_ra_config_t_region_ENUMTYPE direct_region_t
 
 
 
@@ -804,18 +907,18 @@ extern "C" {
 #define RADIO_OTAA_INIT_DEFAULT                  {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_DEFAULT                   {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_DEFAULT            {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_DEFAULT}, 0, 0, 0}
-#define LO_RA_CONFIG_INIT_DEFAULT                {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0}
+#define LO_RA_CONFIG_INIT_DEFAULT                {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0, _DIRECT_REGION_MIN, 0}
 #define LOST_MODE_CONFIG_INIT_DEFAULT            {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_DEFAULT            {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_DEFAULT         {false, LO_RA_WAN_CONFIG_INIT_DEFAULT, false, LO_RA_CONFIG_INIT_DEFAULT, 0, false, LOST_MODE_CONFIG_INIT_DEFAULT, 0, false, MORTALITY_CONFIG_INIT_DEFAULT}
 #define MICROPHONE_CONFIG_INIT_DEFAULT           {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN, _MIC_SENSITIVITY_MIN, _MIC_CODEC_MIN, 0}
 #define ACCELEROMETER_CONFIG_INIT_DEFAULT        {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0, 0}
-#define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT}
+#define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT, 0}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
 #define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, MAG_CAL_REPORT_INIT_DEFAULT}
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
-#define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
+#define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, BOARD_IDENTITY_INIT_DEFAULT, false, BATTERY_PROTECTION_REPORT_INIT_DEFAULT, false, 0, false, 0}
 #define BOARD_IDENTITY_INIT_DEFAULT              {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
@@ -829,18 +932,18 @@ extern "C" {
 #define RADIO_OTAA_INIT_ZERO                     {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_ZERO                      {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_ZERO               {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_ZERO}, 0, 0, 0}
-#define LO_RA_CONFIG_INIT_ZERO                   {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0}
+#define LO_RA_CONFIG_INIT_ZERO                   {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0, _DIRECT_REGION_MIN, 0}
 #define LOST_MODE_CONFIG_INIT_ZERO               {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_ZERO               {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_ZERO            {false, LO_RA_WAN_CONFIG_INIT_ZERO, false, LO_RA_CONFIG_INIT_ZERO, 0, false, LOST_MODE_CONFIG_INIT_ZERO, 0, false, MORTALITY_CONFIG_INIT_ZERO}
 #define MICROPHONE_CONFIG_INIT_ZERO              {0, 0, 0, 0, _MIC_SAMPLE_RATE_MIN, _MIC_BIT_DEPTH_MIN, _MIC_SENSITIVITY_MIN, _MIC_CODEC_MIN, 0}
 #define ACCELEROMETER_CONFIG_INIT_ZERO           {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0, 0}
-#define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO}
+#define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO, 0}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
 #define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, MAG_CAL_REPORT_INIT_ZERO}
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
-#define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0}
+#define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
 #define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, BOARD_IDENTITY_INIT_ZERO, false, BATTERY_PROTECTION_REPORT_INIT_ZERO, false, 0, false, 0}
 #define BOARD_IDENTITY_INIT_ZERO                 {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
@@ -890,6 +993,8 @@ extern "C" {
 #define LO_RA_CONFIG_SYNC_WORD_TAG               5
 #define LO_RA_CONFIG_FREQUENCY_TAG               6
 #define LO_RA_CONFIG_RX_LISTEN_TAG               7
+#define LO_RA_CONFIG_REGION_TAG                  8
+#define LO_RA_CONFIG_WAKE_LONG_RANGE_TAG         9
 #define LOST_MODE_CONFIG_ACTIVATION_EPOCH_TAG    1
 #define LOST_MODE_CONFIG_TRANSMIT_INTERVAL_MIN_TAG 2
 #define LOST_MODE_CONFIG_TX_POWER_DBM_TAG        3
@@ -928,6 +1033,7 @@ extern "C" {
 #define SCHEDULE_CONFIG_LORA_ENABLED_TAG         10
 #define SCHEDULE_CONFIG_LORA_SEND_INTERVAL_MIN_TAG 11
 #define SCHEDULE_CONFIG_MAGNETOMETER_TAG         12
+#define SCHEDULE_CONFIG_LORA_WAKE_INTERVAL_S_TAG 13
 #define MAG_CAL_REPORT_STATE_TAG                 1
 #define MAG_CAL_REPORT_RUN_TAG                   2
 #define MAG_CAL_REPORT_PROGRESS_PCT_TAG          3
@@ -941,6 +1047,9 @@ extern "C" {
 #define BEACON_KEY_REPORT_KCV_TAG                3
 #define BEACON_KEY_REPORT_RESULT_TAG             4
 #define BEACON_KEY_REPORT_TX_COUNTER_TAG         5
+#define BEACON_KEY_REPORT_WAKE_GROUP_TAG         6
+#define BEACON_KEY_REPORT_WAKE_GEN_TAG           7
+#define BEACON_KEY_REPORT_WAKE_KCV_TAG           8
 #define CFG_ECHO_PACKET_TXN_ID_TAG               1
 #define CFG_ECHO_PACKET_ACK_STATUS_TAG           2
 #define CFG_ECHO_PACKET_MISSING_MASK_TAG         3
@@ -1071,7 +1180,9 @@ X(a, STATIC,   SINGULAR, UENUM,    radio_coding_rate,   3) \
 X(a, STATIC,   SINGULAR, INT32,    tx_power_dbm,      4) \
 X(a, STATIC,   SINGULAR, UINT32,   sync_word,         5) \
 X(a, STATIC,   SINGULAR, UINT32,   frequency,         6) \
-X(a, STATIC,   SINGULAR, BOOL,     rx_listen,         7)
+X(a, STATIC,   SINGULAR, BOOL,     rx_listen,         7) \
+X(a, STATIC,   SINGULAR, UENUM,    region,            8) \
+X(a, STATIC,   SINGULAR, BOOL,     wake_long_range,   9)
 #define LO_RA_CONFIG_CALLBACK NULL
 #define LO_RA_CONFIG_DEFAULT NULL
 
@@ -1141,7 +1252,8 @@ X(a, STATIC,   SINGULAR, BOOL,     lorawan_enabled,   8) \
 X(a, STATIC,   SINGULAR, UINT32,   lorawan_send_interval_min,   9) \
 X(a, STATIC,   SINGULAR, BOOL,     lora_enabled,     10) \
 X(a, STATIC,   SINGULAR, UINT32,   lora_send_interval_min,  11) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  magnetometer,     12)
+X(a, STATIC,   OPTIONAL, MESSAGE,  magnetometer,     12) \
+X(a, STATIC,   SINGULAR, UINT32,   lora_wake_interval_s,  13)
 #define SCHEDULE_CONFIG_CALLBACK NULL
 #define SCHEDULE_CONFIG_DEFAULT NULL
 #define schedule_config_t_window_MSGTYPE time_window_t
@@ -1205,7 +1317,10 @@ X(a, STATIC,   SINGULAR, UENUM,    state,             1) \
 X(a, STATIC,   SINGULAR, UINT32,   gen,               2) \
 X(a, STATIC,   SINGULAR, BYTES,    kcv,               3) \
 X(a, STATIC,   SINGULAR, UENUM,    result,            4) \
-X(a, STATIC,   SINGULAR, UINT32,   tx_counter,        5)
+X(a, STATIC,   SINGULAR, UINT32,   tx_counter,        5) \
+X(a, STATIC,   SINGULAR, UINT32,   wake_group,        6) \
+X(a, STATIC,   SINGULAR, UINT32,   wake_gen,          7) \
+X(a, STATIC,   SINGULAR, BYTES,    wake_kcv,          8)
 #define BEACON_KEY_REPORT_CALLBACK NULL
 #define BEACON_KEY_REPORT_DEFAULT NULL
 
@@ -1347,12 +1462,12 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 /* BlePacket_size depends on runtime parameters */
 #define ACCELEROMETER_CONFIG_SIZE                6
 #define BATTERY_PROTECTION_REPORT_SIZE           16
-#define BEACON_KEY_REPORT_SIZE                   21
+#define BEACON_KEY_REPORT_SIZE                   38
 #define BOARD_IDENTITY_SIZE                      4
-#define CFG_ECHO_PACKET_SIZE                     351
+#define CFG_ECHO_PACKET_SIZE                     368
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
-#define LO_RA_CONFIG_SIZE                        31
+#define LO_RA_CONFIG_SIZE                        35
 #define LO_RA_WAN_CONFIG_SIZE                    103
 #define MAGNETOMETER_CONFIG_SIZE                 14
 #define MAG_CAL_REPORT_SIZE                      36
@@ -1360,13 +1475,13 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define MORTALITY_CONFIG_SIZE                    12
 #define PERIPHERAL_PACKET_SIZE                   10
 #define RADIO_ABP_SIZE                           78
-#define RADIO_CONFIG_PACKET_SIZE                 181
+#define RADIO_CONFIG_PACKET_SIZE                 185
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1387
-#define SCHEDULE_CONFIG_SIZE                     180
+#define SCHEDULE_CONFIG_PACKET_SIZE              1434
+#define SCHEDULE_CONFIG_SIZE                     186
 #define SIMPLE_SENSOR_READING_SIZE               51
-#define SYSTEM_STATE_PACKET_SIZE                 215
+#define SYSTEM_STATE_PACKET_SIZE                 232
 #define TIME_WINDOW_SIZE                         30
 
 #ifdef __cplusplus

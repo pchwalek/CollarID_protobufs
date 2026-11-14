@@ -126,9 +126,25 @@ typedef struct packet_header {
  encoding of a downlink.proto RadioSettings filled with ALL its fields
  from the collar's live direct-radio and lost-mode settings. Proves which
  radio settings a collar runs, as sched_crc does for the schedule
- (sched_crc does not cover them). Absent = firmware that predates it. */
+ (sched_crc does not cover them). Absent = firmware that predates it.
+ ALL its fields are fields 1 to 11, always encoded, zeros included. The
+ two LoRa wake settings are encoded only when set: direct_region when it
+ is not 0 (AUTO), wake_long_range when true. So a collar that never set
+ a region or long range reports the radio_crc it reported before those
+ fields existed, and one rule computes it for every firmware build. */
     bool has_radio_crc;
     uint32_t radio_crc;
+    /* LoRa wake (ble.proto ScheduleConfig.lora_wake_interval_s; collarID_thread
+ docs/CONTRACT_lora_wake.md sections 4 and 6). A listening collar keeps a
+ budget per clock hour for what false wakes cost it; in an hour that goes
+ over, it listens at two, at most four, times its interval until the hour
+ ends. This is how many such slowed hours there have been since the last
+ report that carried the field: each slowed hour counts once. Sent only
+ when not zero, then cleared, so its absence means "none since the last
+ count", never "not listening". 3 B on air when sent. The server adds
+ them up per collar. Absent on firmware that predates listening. */
+    bool has_wake_slow_hours;
+    uint32_t wake_slow_hours;
 } packet_header_t;
 
 /* ---- GPS ----
@@ -188,11 +204,11 @@ extern "C" {
 
 
 /* Initializer values for message structs */
-#define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define PACKET_HEADER_INIT_DEFAULT               {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_DEFAULT                    {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_DEFAULT               {0, 0, false, 0}
 #define SD_CARD_STATE_INIT_DEFAULT               {0, 0, 0, false, _SD_CARD_FAMILY_MIN, false, "", false, 0}
-#define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define PACKET_HEADER_INIT_ZERO                  {0, 0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define GPS_DATA_INIT_ZERO                       {0, 0, 0, 0, 0}
 #define BATTERY_STATE_INIT_ZERO                  {0, 0, false, 0}
 #define SD_CARD_STATE_INIT_ZERO                  {0, 0, 0, false, _SD_CARD_FAMILY_MIN, false, "", false, 0}
@@ -214,6 +230,7 @@ extern "C" {
 #define PACKET_HEADER_LINK_MISSES_TAG            14
 #define PACKET_HEADER_BOARD_TAG                  15
 #define PACKET_HEADER_RADIO_CRC_TAG              16
+#define PACKET_HEADER_WAKE_SLOW_HOURS_TAG        17
 #define GPS_DATA_LATITUDE_TAG                    1
 #define GPS_DATA_LONGITUDE_TAG                   2
 #define GPS_DATA_ALTITUDE_TAG                    3
@@ -246,7 +263,8 @@ X(a, STATIC,   OPTIONAL, UINT32,   link_margin_db,   12) \
 X(a, STATIC,   OPTIONAL, UINT32,   link_gateways,    13) \
 X(a, STATIC,   OPTIONAL, UINT32,   link_misses,      14) \
 X(a, STATIC,   OPTIONAL, UINT32,   board,            15) \
-X(a, STATIC,   OPTIONAL, UINT32,   radio_crc,        16)
+X(a, STATIC,   OPTIONAL, UINT32,   radio_crc,        16) \
+X(a, STATIC,   OPTIONAL, UINT32,   wake_slow_hours,  17)
 #define PACKET_HEADER_CALLBACK NULL
 #define PACKET_HEADER_DEFAULT NULL
 
@@ -290,7 +308,7 @@ extern const pb_msgdesc_t sd_card_state_t_msg;
 /* Maximum encoded size of messages (where known) */
 #define BATTERY_STATE_SIZE                       12
 #define GPS_DATA_SIZE                            25
-#define PACKET_HEADER_SIZE                       93
+#define PACKET_HEADER_SIZE                       100
 #define SD_CARD_STATE_SIZE                       35
 
 #ifdef __cplusplus

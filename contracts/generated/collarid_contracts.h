@@ -3,7 +3,7 @@
 #define COLLARID_CONTRACTS_H
 
 #define CID_CONTRACTS_VERSION 1u
-#define CID_CONTRACTS_SHA256 "6152b2a8ce21ba1899d443206dd4abd06dae8d31d30532dd12f8348888e48409"
+#define CID_CONTRACTS_SHA256 "9fb669a76a222c515abe96aea52b6c36dbcc656a96698bd66f7dd0cf10bb9d44"
 
 /* Bluetooth service and characteristics */
 #define CID_GATT_SERVICE "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7"
@@ -105,6 +105,8 @@
     X("lora_sync_word") \
     X("lora_frequency") \
     X("lora_rx_listen") \
+    X("lora_region") \
+    X("lora_wake_long_range") \
     X("lost_mode_enabled") \
     X("lost_mode_activation_epoch") \
     X("lost_mode_transmit_interval_min") \
@@ -121,7 +123,7 @@
     X("lorawan_f_nwk_s_int_key") \
     X("lorawan_s_nwk_s_int_key") \
 
-#define CID_CONFIG_CSV_GLOBAL_COUNT 42u
+#define CID_CONFIG_CSV_GLOBAL_COUNT 44u
 #define CID_CONFIG_CSV_SCHEDULE_KEYS(X) \
     X("start_hour") \
     X("end_hour") \
@@ -163,8 +165,9 @@
     X("lorawan_send_interval_min") \
     X("lora_enabled") \
     X("lora_send_interval_min") \
+    X("lora_wake_interval_s") \
 
-#define CID_CONFIG_CSV_SCHEDULE_COUNT 40u
+#define CID_CONFIG_CSV_SCHEDULE_COUNT 41u
 #define CID_CONFIG_CSV_CONDITIONAL_KEYS(X) \
     X("lorawan_identity_uid") \
     X("lorawan_dev_eui") \
