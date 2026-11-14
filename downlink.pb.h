@@ -134,7 +134,22 @@ typedef enum command_type {
  over the BLE tunnel. Refused (handheld ACK result 12, detail = reason)
  without a key, on a radio that cannot serve files, without a card, or on
  a low battery. Firmware that predates it answers 5 (unknown command). */
-    COMMAND_TYPE_CMD_BLE_WINDOW = 27
+    COMMAND_TYPE_CMD_BLE_WINDOW = 27,
+    /* Locate now ("LoRa wake", collarID_thread docs/CONTRACT_lora_wake.md
+ section 6; fw gate: firmware main build TBD, set at merge). The collar
+ acknowledges, runs ONE GPS attempt outside its schedule for at most
+ locate.timeout_s (0 or absent = 60 s; held to 10..120), and when the
+ fix lands, or the time is up, sends one report carrying its newest fix:
+ over the direct radio on the wake channel when a call window is open
+ (the Handheld Receiver that called it is listening between its trains),
+ otherwise with the carrier's normal next report. The schedule and the
+ stored configuration are not touched. One at a time: a second command
+ while an attempt runs is accepted and restarts nothing.
+ Allowed over the signed direct radio, LoRaWAN and the BLE tunnel. A
+ handheld's CMD-ACK answers 1 accepted with detail = the timeout in
+ seconds as the collar will run it; firmware that predates the command
+ answers 5 (unknown command). */
+    COMMAND_TYPE_CMD_LOCATE_NOW = 28
 } command_type_t;
 
 /* ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
@@ -147,7 +162,33 @@ typedef enum beacon_key_slot {
     /* Reserved for the signed command channel (label CID-LORA-CMD,
  DESIGN_finder_two_way.md). Refused as REJECTED_ARG until the firmware
  that holds it lands. */
-    BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND = 1
+    BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND = 1,
+    /* The wake key: what authenticates a roll call, the signed "every collar
+ of this group, answer once" a Handheld Receiver sends after a train of
+ wake frames (beacon/README.md "Roll call"; collarID_thread
+ docs/CONTRACT_lora_wake.md section 7; fw gate: firmware main build TBD,
+ set at merge). Unlike the two slots above it is ONE key for every
+ collar of a GROUP, the owner's account:
+   key = AES-CMAC(the owner's command master, "CID-LORA-WAK" || group_le32 || gen)
+ so a set for this slot carries BeaconKeySet.group, and its gen is the
+ GROUP's generation (the top byte of every roll call's counter), not the
+ collar's own: it is not held against BeaconKeyReport.gen and does not
+ move it, and it needs neither of the other keys. BLE tunnel only, like
+ every key. The collar refuses (REJECTED_ARG) group 0, which is what a
+ missing field decodes to, and, for the group whose key it holds or last
+ held, a gen below that key's or the held gen with another key
+ (REJECTED_GEN): a group's key is replaced, never rolled back. The held
+ key again is a retry that writes nothing (APPLIED). Because one
+ generation serves every collar of the group, the same gen is taken
+ again after a clear (CMD_BEACON_KEY_CLEAR with this slot erases the key
+ and keeps its group, its generation and the last roll-call counter the
+ collar accepted, so the key coming back does not make an old roll call
+ new), and the key of another group replaces the held one whatever its
+ gen (the collar changed hands) and starts that group's roll-call
+ counter afresh. Without a wake key a collar ignores roll calls and
+ behaves in every other way as before. Firmware that predates the slot
+ answers REJECTED_ARG. */
+    BEACON_KEY_SLOT_BEACON_KEY_SLOT_WAKE = 2
 } beacon_key_slot_t;
 
 /* Struct definitions */
@@ -170,7 +211,8 @@ typedef struct high_fix_params {
     uint32_t sample_interval_sec; /* default 300 */
 } high_fix_params_t;
 
-/* The key set CMD_BEACON_KEY_SET writes (at most 25 B inside the tunnel frame).
+/* The key set CMD_BEACON_KEY_SET writes (at most 25 B inside the tunnel
+ frame; 31 B for the wake slot, which adds group).
  The collar never sees a master: the server derives
  key = AES-CMAC(master, label || uid_le32 || gen) for this collar and hands
  the result over as is. The collar stores {slot, gen, kcv, key} and reports
@@ -190,6 +232,13 @@ typedef struct beacon_key_set {
  it back, and an all-zero key is refused because that is what a missing
  field decodes to. */
     pb_byte_t key[16];
+    /* BEACON_KEY_SLOT_WAKE only: the group the key belongs to, the owner's
+ account number on the server. It is cleartext in every roll call
+ (bytes [1..4]) and takes the uid's place in the key derivation and the
+ nonce. Never 0. Ignored for the other slots, and by CMD_BEACON_KEY_CLEAR
+ (a clear of the wake slot erases whatever wake key is held). Stored
+ with the key and reported in BeaconKeyReport.wake_group. */
+    uint32_t group;
 } beacon_key_set_t;
 
 /* Time window for a schedule slot (~4 bytes) */
@@ -307,7 +356,7 @@ typedef struct config_sampling {
     uint32_t sample_interval_min;
 } config_sampling_t;
 
-/* Per-schedule radio enable/interval (~6 bytes) */
+/* Per-schedule radio enable/interval (~6 bytes; +2 with lora_wake_interval_s) */
 typedef struct config_radio_timing {
     bool has_lorawan_enabled;
     bool lorawan_enabled;
@@ -319,6 +368,20 @@ typedef struct config_radio_timing {
     uint32_t lora_send_interval_min;
     bool has_tx_power_dbm;
     int32_t tx_power_dbm;
+    /* Listening for a Handheld Receiver in this slot, the same numbers as
+ ble.proto ScheduleConfig.lora_wake_interval_s: 0 = not listening, else
+ the seconds between listen windows (senders offer 10, 30 and 60; the
+ collar holds any other non-zero value to 5..120). Optional, so absent =
+ leave the collar's value alone, while an explicit 0 IS encoded and
+ turns listening off in the slot. 2 B in a fragment. The rails refuse the
+ transaction (rule 15, SCHED_RAIL_WAKE_NO_REGION) when the commit would
+ leave any slot listening while no direct radio is configured or its
+ region resolves to none (RadioSettings.direct_region). A collar that
+ predates the field skips it and never listens; the server refuses a
+ non-zero interval for such firmware (fw gate: firmware main build TBD,
+ set at merge). */
+    bool has_lora_wake_interval_s;
+    uint32_t lora_wake_interval_s;
 } config_radio_timing_t;
 
 /* Mortality detection — collar-wide, lives in the radio config on the
@@ -442,6 +505,12 @@ typedef struct ble_window {
     pb_byte_t key[16];
 } ble_window_t;
 
+/* CMD_LOCATE_NOW parameters. timeout_s is how long the one GPS attempt may
+ run: 0 (or the message absent) = 60 s, any other value held to 10..120. */
+typedef struct locate_now {
+    uint32_t timeout_s;
+} locate_now_t;
+
 /* The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
  (pushable remotely) and as the input of PacketHeader.radio_crc. Mirrors
  ble.proto LoRaConfig + the lost-mode fields of RadioConfigPacket with plain
@@ -470,6 +539,25 @@ typedef struct radio_settings {
     uint32_t lost_interval_min;
     bool has_lost_tx_power_dbm;
     int32_t lost_tx_power_dbm;
+    /* LoRa wake (fw gate: firmware main build TBD, set at merge). The direct
+ radio's region and the long-range wake setting, as ble.proto
+ LoRaConfig.region (a DirectRegion value: 0 = AUTO, 1 = US915,
+ 2 = EU868, 3 = AU915) and LoRaConfig.wake_long_range. In a fragment
+ they are like every field here: absent keeps the collar's value, and an
+ explicit 0 or false IS encoded and sets AUTO or the standard setting.
+ In the encoding PacketHeader.radio_crc is taken over they are NOT like
+ fields 1 to 11, which are always there: direct_region is encoded only
+ when it is not 0 and wake_long_range only when true. That CRC proves
+ both settings all the same, and a collar that never set either reports
+ the radio_crc it reported before the fields existed: one rule for every
+ firmware build.
+ The rails refuse a direct_region above 3 (rule 13, a value outside its
+ range) and a change that leaves a listening slot with no region
+ (rule 15, SCHED_RAIL_WAKE_NO_REGION). 4 B for the two in a fragment. */
+    bool has_direct_region;
+    uint32_t direct_region;
+    bool has_wake_long_range;
+    bool wake_long_range;
 } radio_settings_t;
 
 typedef struct config_fragment {
@@ -573,6 +661,11 @@ typedef struct downlink_packet {
  floor and a signed frame). */
     bool has_ble_window;
     ble_window_t ble_window;
+    /* CMD_LOCATE_NOW parameters; absent = a 60 s attempt. 7 B with the command
+ (2 B without the message), 13 B with a LoRaWAN downlink's epoch: fits
+ the 33 B RX2 floor, and a signed frame of 36 B. */
+    bool has_locate;
+    locate_now_t locate;
 } downlink_packet_t;
 
 
@@ -582,17 +675,18 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_BLE_WINDOW
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_BLE_WINDOW+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_LOCATE_NOW
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_LOCATE_NOW+1))
 
 #define _BEACON_KEY_SLOT_MIN BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON
-#define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND
-#define _BEACON_KEY_SLOT_ARRAYSIZE ((beacon_key_slot_t)(BEACON_KEY_SLOT_BEACON_KEY_SLOT_COMMAND+1))
+#define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_WAKE
+#define _BEACON_KEY_SLOT_ARRAYSIZE ((beacon_key_slot_t)(BEACON_KEY_SLOT_BEACON_KEY_SLOT_WAKE+1))
 
 
 
 
 #define beacon_key_set_t_slot_ENUMTYPE beacon_key_slot_t
+
 
 
 
@@ -616,43 +710,45 @@ extern "C" {
 #define GEO_POINT_INIT_DEFAULT                   {0, 0}
 #define GEOFENCE_DATA_INIT_DEFAULT               {0, 0, {GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT, GEO_POINT_INIT_DEFAULT}, 0}
 #define HIGH_FIX_PARAMS_INIT_DEFAULT             {0, 0}
-#define BEACON_KEY_SET_INIT_DEFAULT              {_BEACON_KEY_SLOT_MIN, 0, {0}}
+#define BEACON_KEY_SET_INIT_DEFAULT              {_BEACON_KEY_SLOT_MIN, 0, {0}, 0}
 #define CONFIG_TIME_WINDOW_INIT_DEFAULT          {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_DEFAULT        {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_DEFAULT           {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_DEFAULT                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_DEFAULT         {false, 0, false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
-#define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
 #define FIND_MODE_INIT_DEFAULT                   {0, 0}
 #define BLE_WINDOW_INIT_DEFAULT                  {0, {0}}
-#define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define LOCATE_NOW_INIT_DEFAULT                  {0}
+#define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
-#define BEACON_KEY_SET_INIT_ZERO                 {_BEACON_KEY_SLOT_MIN, 0, {0}}
+#define BEACON_KEY_SET_INIT_ZERO                 {_BEACON_KEY_SLOT_MIN, 0, {0}, 0}
 #define CONFIG_TIME_WINDOW_INIT_ZERO             {false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_ACCELEROMETER_INIT_ZERO           {false, 0, false, 0, false, 0}
 #define CONFIG_MICROPHONE_INIT_ZERO              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GPS_INIT_ZERO                     {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MAGNETOMETER_INIT_ZERO            {false, 0, false, 0, false, 0}
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
-#define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
 #define FIND_MODE_INIT_ZERO                      {0, 0}
 #define BLE_WINDOW_INIT_ZERO                     {0, {0}}
-#define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define LOCATE_NOW_INIT_ZERO                     {0}
+#define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -665,6 +761,7 @@ extern "C" {
 #define BEACON_KEY_SET_SLOT_TAG                  1
 #define BEACON_KEY_SET_GEN_TAG                   2
 #define BEACON_KEY_SET_KEY_TAG                   3
+#define BEACON_KEY_SET_GROUP_TAG                 4
 #define CONFIG_TIME_WINDOW_START_HOUR_TAG        1
 #define CONFIG_TIME_WINDOW_END_HOUR_TAG          2
 #define CONFIG_TIME_WINDOW_DAY_MASK_TAG          3
@@ -702,6 +799,7 @@ extern "C" {
 #define CONFIG_RADIO_TIMING_LORA_ENABLED_TAG     3
 #define CONFIG_RADIO_TIMING_LORA_SEND_INTERVAL_MIN_TAG 4
 #define CONFIG_RADIO_TIMING_TX_POWER_DBM_TAG     5
+#define CONFIG_RADIO_TIMING_LORA_WAKE_INTERVAL_S_TAG 6
 #define CONFIG_MORTALITY_ENABLED_TAG             1
 #define CONFIG_MORTALITY_TRIGGER_DURATION_HOURS_TAG 2
 #define CONFIG_MORTALITY_TRANSMIT_INTERVAL_MIN_TAG 3
@@ -730,6 +828,7 @@ extern "C" {
 #define FIND_MODE_MINUTES_TAG                    2
 #define BLE_WINDOW_MINUTES_TAG                   1
 #define BLE_WINDOW_KEY_TAG                       2
+#define LOCATE_NOW_TIMEOUT_S_TAG                 1
 #define RADIO_SETTINGS_SPREADING_FACTOR_TAG      1
 #define RADIO_SETTINGS_BANDWIDTH_TAG             2
 #define RADIO_SETTINGS_CODING_RATE_TAG           3
@@ -741,6 +840,8 @@ extern "C" {
 #define RADIO_SETTINGS_LOST_ACTIVATION_EPOCH_TAG 9
 #define RADIO_SETTINGS_LOST_INTERVAL_MIN_TAG     10
 #define RADIO_SETTINGS_LOST_TX_POWER_DBM_TAG     11
+#define RADIO_SETTINGS_DIRECT_REGION_TAG         12
+#define RADIO_SETTINGS_WAKE_LONG_RANGE_TAG       13
 #define CONFIG_FRAGMENT_SCHEDULE_INDEX_TAG       1
 #define CONFIG_FRAGMENT_FRAGMENT_INDEX_TAG       2
 #define CONFIG_FRAGMENT_FRAGMENT_TOTAL_TAG       3
@@ -772,6 +873,7 @@ extern "C" {
 #define DOWNLINK_PACKET_FIND_TAG                 13
 #define DOWNLINK_PACKET_ADDON_ARM_DELAY_S_TAG    14
 #define DOWNLINK_PACKET_BLE_WINDOW_TAG           15
+#define DOWNLINK_PACKET_LOCATE_TAG               16
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -797,7 +899,8 @@ X(a, STATIC,   SINGULAR, UINT32,   sample_interval_sec,   2)
 #define BEACON_KEY_SET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UENUM,    slot,              1) \
 X(a, STATIC,   SINGULAR, UINT32,   gen,               2) \
-X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               3)
+X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               3) \
+X(a, STATIC,   SINGULAR, UINT32,   group,             4)
 #define BEACON_KEY_SET_CALLBACK NULL
 #define BEACON_KEY_SET_DEFAULT NULL
 
@@ -862,7 +965,8 @@ X(a, STATIC,   OPTIONAL, BOOL,     lorawan_enabled,   1) \
 X(a, STATIC,   OPTIONAL, UINT32,   lorawan_send_interval_min,   2) \
 X(a, STATIC,   OPTIONAL, BOOL,     lora_enabled,      3) \
 X(a, STATIC,   OPTIONAL, UINT32,   lora_send_interval_min,   4) \
-X(a, STATIC,   OPTIONAL, INT32,    tx_power_dbm,      5)
+X(a, STATIC,   OPTIONAL, INT32,    tx_power_dbm,      5) \
+X(a, STATIC,   OPTIONAL, UINT32,   lora_wake_interval_s,   6)
 #define CONFIG_RADIO_TIMING_CALLBACK NULL
 #define CONFIG_RADIO_TIMING_DEFAULT NULL
 
@@ -919,6 +1023,11 @@ X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               2)
 #define BLE_WINDOW_CALLBACK NULL
 #define BLE_WINDOW_DEFAULT NULL
 
+#define LOCATE_NOW_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   timeout_s,         1)
+#define LOCATE_NOW_CALLBACK NULL
+#define LOCATE_NOW_DEFAULT NULL
+
 #define RADIO_SETTINGS_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, UINT32,   spreading_factor,   1) \
 X(a, STATIC,   OPTIONAL, UINT32,   bandwidth,         2) \
@@ -930,7 +1039,9 @@ X(a, STATIC,   OPTIONAL, BOOL,     rx_listen,         7) \
 X(a, STATIC,   OPTIONAL, BOOL,     lost_mode_enabled,   8) \
 X(a, STATIC,   OPTIONAL, UINT32,   lost_activation_epoch,   9) \
 X(a, STATIC,   OPTIONAL, UINT32,   lost_interval_min,  10) \
-X(a, STATIC,   OPTIONAL, INT32,    lost_tx_power_dbm,  11)
+X(a, STATIC,   OPTIONAL, INT32,    lost_tx_power_dbm,  11) \
+X(a, STATIC,   OPTIONAL, UINT32,   direct_region,    12) \
+X(a, STATIC,   OPTIONAL, BOOL,     wake_long_range,  13)
 #define RADIO_SETTINGS_CALLBACK NULL
 #define RADIO_SETTINGS_DEFAULT NULL
 
@@ -982,7 +1093,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       11) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  session,          12) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  find,             13) \
 X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  ble_window,       15)
+X(a, STATIC,   OPTIONAL, MESSAGE,  ble_window,       15) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  locate,           16)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
@@ -992,6 +1104,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  ble_window,       15)
 #define downlink_packet_t_session_MSGTYPE session_params_t
 #define downlink_packet_t_find_MSGTYPE find_mode_t
 #define downlink_packet_t_ble_window_MSGTYPE ble_window_t
+#define downlink_packet_t_locate_MSGTYPE locate_now_t
 
 extern const pb_msgdesc_t geo_point_t_msg;
 extern const pb_msgdesc_t geofence_data_t_msg;
@@ -1010,6 +1123,7 @@ extern const pb_msgdesc_t config_geofence_t_msg;
 extern const pb_msgdesc_t session_params_t_msg;
 extern const pb_msgdesc_t find_mode_t_msg;
 extern const pb_msgdesc_t ble_window_t_msg;
+extern const pb_msgdesc_t locate_now_t_msg;
 extern const pb_msgdesc_t radio_settings_t_msg;
 extern const pb_msgdesc_t config_fragment_t_msg;
 extern const pb_msgdesc_t downlink_packet_t_msg;
@@ -1032,30 +1146,32 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define SESSION_PARAMS_FIELDS &session_params_t_msg
 #define FIND_MODE_FIELDS &find_mode_t_msg
 #define BLE_WINDOW_FIELDS &ble_window_t_msg
+#define LOCATE_NOW_FIELDS &locate_now_t_msg
 #define RADIO_SETTINGS_FIELDS &radio_settings_t_msg
 #define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
 #define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
-#define BEACON_KEY_SET_SIZE                      26
+#define BEACON_KEY_SET_SIZE                      32
 #define BLE_WINDOW_SIZE                          24
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     440
+#define CONFIG_FRAGMENT_SIZE                     454
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 14
 #define CONFIG_MICROPHONE_SIZE                   46
 #define CONFIG_MORTALITY_SIZE                    14
-#define CONFIG_RADIO_TIMING_SIZE                 27
+#define CONFIG_RADIO_TIMING_SIZE                 33
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       28
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     792
+#define DOWNLINK_PACKET_SIZE                     821
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12
-#define RADIO_SETTINGS_SIZE                      68
+#define LOCATE_NOW_SIZE                          6
+#define RADIO_SETTINGS_SIZE                      76
 #define SESSION_PARAMS_SIZE                      18
 
 #ifdef __cplusplus

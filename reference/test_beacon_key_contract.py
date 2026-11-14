@@ -36,19 +36,27 @@ COMMANDS = {"CMD_FACTORY_RESET": 18,
             "CMD_MAG_CALIBRATE_ABORT": 21,
             "CMD_BEACON_KEY_CLEAR": 22}
 DOWNLINK_FIELD = ("BeaconKeySet", 11)
+# group (LoRa wake, 2026-11-13): the wake slot's group; test_lora_wake_contract.py
+# holds the wake slot's own rules.
 SET_FIELDS = {"slot": ("BeaconKeySlot", 1),
               "gen": ("uint32", 2),
-              "key": ("bytes", 3)}
+              "key": ("bytes", 3),
+              "group": ("uint32", 4)}
 ECHO_FIELD = ("BeaconKeyReport", 15)
 REPORT_FIELDS = {"state": ("BeaconKeyState", 1),
                  "gen": ("uint32", 2),
                  "kcv": ("bytes", 3),
                  "result": ("BeaconKeyResult", 4),
-                 "tx_counter": ("uint32", 5)}
+                 "tx_counter": ("uint32", 5),
+                 # the wake key (slot 2), LoRa wake, 2026-11-13
+                 "wake_group": ("uint32", 6),
+                 "wake_gen": ("uint32", 7),
+                 "wake_kcv": ("bytes", 8)}
 ENUMS = {
     "downlink.proto": {
         "BeaconKeySlot": {"BEACON_KEY_SLOT_BEACON": 0,
-                          "BEACON_KEY_SLOT_COMMAND": 1}},
+                          "BEACON_KEY_SLOT_COMMAND": 1,
+                          "BEACON_KEY_SLOT_WAKE": 2}},
     "ble.proto": {
         "BeaconKeyState": {"BEACON_KEY_STATE_NONE": 0,
                            "BEACON_KEY_STATE_KEYED": 1,
@@ -68,10 +76,12 @@ SYNTHETIC_KEY = bytes(range(KEY_LEN))
 SYNTHETIC_KCV = b"\x2b\x1a\x1e"   # beacon/vectors.json kdf[0], a test master
 
 
-def report_worst(bounded=True):
+def report_worst(bounded=True, wake=False):
     """Largest BeaconKeyReport the contract allows: gen is one byte, kcv is
     three, tx_counter is any 32-bit value. bounded=False lets gen run to
-    2**32-1 as well, the nanopb BEACON_KEY_REPORT_SIZE view."""
+    2**32-1 as well, the nanopb BEACON_KEY_REPORT_SIZE view. wake=True adds
+    a held wake key (LoRa wake, 2026-11-13): any 32-bit group, a one-byte
+    generation and its 3-byte check value."""
     f = message_fields("ble.proto", "BeaconKeyReport")
     return encode([
         (f["state"][1], max(ENUMS["ble.proto"]["BeaconKeyState"].values())),
@@ -79,6 +89,9 @@ def report_worst(bounded=True):
         (f["kcv"][1], b"\xff" * KCV_LEN),
         (f["result"][1], max(ENUMS["ble.proto"]["BeaconKeyResult"].values())),
         (f["tx_counter"][1], U32),
+        (f["wake_group"][1], U32 if wake else 0),
+        (f["wake_gen"][1], (GEN_MAX if bounded else U32) if wake else 0),
+        (f["wake_kcv"][1], b"\xff" * KCV_LEN if wake else None),
     ])
 
 
@@ -167,7 +180,8 @@ class ProtoContract(unittest.TestCase):
         # the key set is referenced from the downlink envelope alone: no
         # uplink or Bluetooth message can echo key material.
         rep = message_fields("ble.proto", "BeaconKeyReport")
-        self.assertEqual([f for f, (t, _) in rep.items() if t == "bytes"], ["kcv"])
+        # old: ... == ["kcv"]  (wake_kcv, 2026-11-13, is the wake key's check value)
+        self.assertEqual([f for f, (t, _) in rep.items() if t == "bytes"], ["kcv", "wake_kcv"])
         for proto in ("ble.proto", "common.proto", "message.proto"):
             self.assertNotIn("BeaconKeySet", read(proto), proto)
         refs = re.findall(r"BeaconKeySet\s+\w+\s*=", read("downlink.proto"))
@@ -219,8 +233,9 @@ class GeneratedC(unittest.TestCase):
         self.assertRegex(fl, r"OPTIONAL, MESSAGE,\s+beacon_key,\s+11\)")
         for value, num in ENUMS["downlink.proto"]["BeaconKeySlot"].items():
             self.assertRegex(h, r"\bBEACON_KEY_SLOT_%s = %d\b" % (value, num))
-        # slot + gen + 16 fixed bytes with their tags.
-        self.assertRegex(h, r"#define BEACON_KEY_SET_SIZE\s+26\b")
+        # slot + gen + 16 fixed bytes with their tags, + group (a 5-byte varint and its tag).
+        # old: self.assertRegex(h, r"#define BEACON_KEY_SET_SIZE\s+26\b")
+        self.assertRegex(h, r"#define BEACON_KEY_SET_SIZE\s+32\b")
 
     def test_downlink_header_does_not_collide_with_beacon_frame_h(self):
         # The firmware's Core/Inc/beacon_frame.h (E1) already defines
@@ -249,9 +264,13 @@ class GeneratedC(unittest.TestCase):
             prefix = re.sub(r"(?<!^)(?=[A-Z])", "_", enum).upper()
             for value, num in values.items():
                 self.assertRegex(h, r"\b%s_%s = %d\b" % (prefix, value, num))
-        # Every varint at its 5-byte maximum plus the 3-byte check value.
-        self.assertRegex(h, r"#define BEACON_KEY_REPORT_SIZE\s+21\b")
+        # Every varint at its 5-byte maximum plus the 3-byte check value; the
+        # wake key's group, generation and check value are 17 B more.
+        # old: self.assertRegex(h, r"#define BEACON_KEY_REPORT_SIZE\s+21\b")
+        self.assertRegex(h, r"#define BEACON_KEY_REPORT_SIZE\s+38\b")
         self.assertEqual(len(report_worst(bounded=False)), 21)
+        self.assertEqual(len(report_worst(bounded=False, wake=True)), 38)
+        self.assertIn("typedef PB_BYTES_ARRAY_T(%d) beacon_key_report_wake_kcv_t;" % KCV_LEN, h)
 
 
 class GeneratedSwift(unittest.TestCase):
@@ -345,6 +364,10 @@ class GeneratedPython(unittest.TestCase):
         r = ble.BeaconKeyReport(state=2, gen=GEN_MAX, kcv=b"\xff" * KCV_LEN,
                                 result=5, tx_counter=U32)
         self.assertEqual(r.SerializeToString(), report_worst())
+        with_wake = ble.BeaconKeyReport(state=2, gen=GEN_MAX, kcv=b"\xff" * KCV_LEN, result=5,
+                                        tx_counter=U32, wake_group=U32, wake_gen=GEN_MAX,
+                                        wake_kcv=b"\xff" * KCV_LEN)
+        self.assertEqual(with_wake.SerializeToString(), report_worst(wake=True))
         p = ble.BlePacket()
         p.header.epoch = U32
         p.header.system_uid = U32
@@ -411,14 +434,19 @@ class SizeBudget(unittest.TestCase):
         self.assertLessEqual(len(key_set_frame()), TUNNEL_FRAME_CAP)
 
     def test_report_at_most_20_bytes(self):
-        # ble.proto: "At most 20 B on the wire" (tag, length and body).
+        # ble.proto: "At most 34 B on the wire (20 B without a wake key)"
+        # (tag, length and body).
         field = encode([(ECHO_FIELD[1], report_worst())])
         self.assertEqual(len(field), 20)
+        self.assertEqual(len(encode([(ECHO_FIELD[1], report_worst(wake=True))])), 34)
 
     def test_status_echo_fits_one_read(self):
         worst = echo_packet(beacon_key=report_worst(), mag_cal=mag_cal_worst())
         self.assertEqual(len(worst), 108)  # ble.options
-        every_u32_max = echo_packet(beacon_key=report_worst(bounded=False),
+        # ... and 122 B with a wake key held (ble.options).
+        self.assertEqual(len(echo_packet(beacon_key=report_worst(wake=True), mag_cal=mag_cal_worst())), 122)
+        # old: beacon_key=report_worst(bounded=False)
+        every_u32_max = echo_packet(beacon_key=report_worst(bounded=False, wake=True),
                                     mag_cal=mag_cal_worst(), bounded=False)
         self.assertLessEqual(len(every_u32_max), BLE_READ_CEILING)
 
@@ -759,7 +787,8 @@ class StatusReadContract(unittest.TestCase):
         for phrase in ("firmware main build TBD", "neither decodes nor re-encodes",
                        "a READ restarts nothing", "tx_counter always 0",
                        "Present and empty", "140 B", "never gps_data or sensors",
-                       "at most 127 B", "Never a key byte"):
+                       # old: "at most 127 B" (before the wake key's two fields)
+                       "at most 135 B", "never wake_group here", "Never a key byte"):
             self.assertIn(phrase, c, phrase)
         self.assertRegex(read("ble.options"),
                          r"SystemStatePacket\.beacon_key, tx_counter never sent there")
@@ -781,7 +810,10 @@ class StatusReadGenerated(unittest.TestCase):
         # thresholds (6 each as uint32); what the collar sends is at most 127 B (the
         # comment above the field). The firmware vendors the same.
         # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+203\b")
-        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+215\b")
+        # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+215\b")
+        # 232 with the wake key's fields in BeaconKeyReport (17 more in nanopb's bound); what
+        # the collar sends is at most 135 B (test_lora_wake_contract.py builds it).
+        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+232\b")
 
     def test_swift(self):
         s = read("ble.pb.swift")

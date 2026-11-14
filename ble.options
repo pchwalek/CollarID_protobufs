@@ -31,6 +31,14 @@ CfgEchoPacket.slot_report             max_size:128
 # the status packet, which with the card's identity (v1.24.0, 11 B) puts the
 # worst status packet at 123 B of the 140 B.
 BeaconKeyReport.kcv                   max_size:3
+# The wake key's check value (LoRa wake, 2026-11-13), like kcv: 3 bytes while
+# a wake key is held, empty otherwise, so NOT fixed_length. With wake_group
+# and wake_gen the report grows by at most 14 B on a status echo (34 B, the
+# worst status echo at 122 B of the 182 B read). The status packet carries
+# wake_gen and wake_kcv only, 8 B at most (22 B, the worst status packet at
+# 135 B of the 140 B, 127 B with the battery thresholds and no wake key):
+# wake_group is never sent there, it would pass the 140 B.
+BeaconKeyReport.wake_kcv              max_size:3
 
 # ---- Fixed-size credentials (no dynamic allocation) -----------------------
 # OTAA

@@ -170,6 +170,22 @@ enum CommandType {
   // without a key, on a radio that cannot serve files, without a card, or on
   // a low battery. Firmware that predates it answers 5 (unknown command).
   CMD_BLE_WINDOW          = 27;
+
+  // Locate now ("LoRa wake", collarID_thread docs/CONTRACT_lora_wake.md
+  // section 6; fw gate: firmware main build TBD, set at merge). The collar
+  // acknowledges, runs ONE GPS attempt outside its schedule for at most
+  // locate.timeout_s (0 or absent = 60 s; held to 10..120), and when the
+  // fix lands, or the time is up, sends one report carrying its newest fix:
+  // over the direct radio on the wake channel when a call window is open
+  // (the Handheld Receiver that called it is listening between its trains),
+  // otherwise with the carrier's normal next report. The schedule and the
+  // stored configuration are not touched. One at a time: a second command
+  // while an attempt runs is accepted and restarts nothing.
+  // Allowed over the signed direct radio, LoRaWAN and the BLE tunnel. A
+  // handheld's CMD-ACK answers 1 accepted with detail = the timeout in
+  // seconds as the collar will run it; firmware that predates the command
+  // answers 5 (unknown command).
+  CMD_LOCATE_NOW          = 28;
 }
 
 // ---- Geofence ----
@@ -201,9 +217,36 @@ enum BeaconKeySlot {
   // DESIGN_finder_two_way.md). Refused as REJECTED_ARG until the firmware
   // that holds it lands.
   BEACON_KEY_SLOT_COMMAND = 1;
+  // The wake key: what authenticates a roll call, the signed "every collar
+  // of this group, answer once" a Handheld Receiver sends after a train of
+  // wake frames (beacon/README.md "Roll call"; collarID_thread
+  // docs/CONTRACT_lora_wake.md section 7; fw gate: firmware main build TBD,
+  // set at merge). Unlike the two slots above it is ONE key for every
+  // collar of a GROUP, the owner's account:
+  //   key = AES-CMAC(the owner's command master, "CID-LORA-WAK" || group_le32 || gen)
+  // so a set for this slot carries BeaconKeySet.group, and its gen is the
+  // GROUP's generation (the top byte of every roll call's counter), not the
+  // collar's own: it is not held against BeaconKeyReport.gen and does not
+  // move it, and it needs neither of the other keys. BLE tunnel only, like
+  // every key. The collar refuses (REJECTED_ARG) group 0, which is what a
+  // missing field decodes to, and, for the group whose key it holds or last
+  // held, a gen below that key's or the held gen with another key
+  // (REJECTED_GEN): a group's key is replaced, never rolled back. The held
+  // key again is a retry that writes nothing (APPLIED). Because one
+  // generation serves every collar of the group, the same gen is taken
+  // again after a clear (CMD_BEACON_KEY_CLEAR with this slot erases the key
+  // and keeps its group, its generation and the last roll-call counter the
+  // collar accepted, so the key coming back does not make an old roll call
+  // new), and the key of another group replaces the held one whatever its
+  // gen (the collar changed hands) and starts that group's roll-call
+  // counter afresh. Without a wake key a collar ignores roll calls and
+  // behaves in every other way as before. Firmware that predates the slot
+  // answers REJECTED_ARG.
+  BEACON_KEY_SLOT_WAKE    = 2;
 }
 
-// The key set CMD_BEACON_KEY_SET writes (at most 25 B inside the tunnel frame).
+// The key set CMD_BEACON_KEY_SET writes (at most 25 B inside the tunnel
+// frame; 31 B for the wake slot, which adds group).
 // The collar never sees a master: the server derives
 // key = AES-CMAC(master, label || uid_le32 || gen) for this collar and hands
 // the result over as is. The collar stores {slot, gen, kcv, key} and reports
@@ -223,6 +266,13 @@ message BeaconKeySet {
   // it back, and an all-zero key is refused because that is what a missing
   // field decodes to.
   bytes key = 3;
+  // BEACON_KEY_SLOT_WAKE only: the group the key belongs to, the owner's
+  // account number on the server. It is cleartext in every roll call
+  // (bytes [1..4]) and takes the uid's place in the key derivation and the
+  // nonce. Never 0. Ignored for the other slots, and by CMD_BEACON_KEY_CLEAR
+  // (a clear of the wake slot erases whatever wake key is held). Stored
+  // with the key and reported in BeaconKeyReport.wake_group.
+  uint32 group = 4;
 }
 
 // ================== CONFIG FRAGMENTS (STAGED) ==================
@@ -312,13 +362,26 @@ message ConfigSampling {
   optional uint32 sample_interval_min  = 2;
 }
 
-// Per-schedule radio enable/interval (~6 bytes)
+// Per-schedule radio enable/interval (~6 bytes; +2 with lora_wake_interval_s)
 message ConfigRadioTiming {
   optional bool   lorawan_enabled           = 1;
   optional uint32 lorawan_send_interval_min = 2;
   optional bool   lora_enabled              = 3;
   optional uint32 lora_send_interval_min    = 4;
   optional int32  tx_power_dbm              = 5;
+  // Listening for a Handheld Receiver in this slot, the same numbers as
+  // ble.proto ScheduleConfig.lora_wake_interval_s: 0 = not listening, else
+  // the seconds between listen windows (senders offer 10, 30 and 60; the
+  // collar holds any other non-zero value to 5..120). Optional, so absent =
+  // leave the collar's value alone, while an explicit 0 IS encoded and
+  // turns listening off in the slot. 2 B in a fragment. The rails refuse the
+  // transaction (rule 15, SCHED_RAIL_WAKE_NO_REGION) when the commit would
+  // leave any slot listening while no direct radio is configured or its
+  // region resolves to none (RadioSettings.direct_region). A collar that
+  // predates the field skips it and never listens; the server refuses a
+  // non-zero interval for such firmware (fw gate: firmware main build TBD,
+  // set at merge).
+  optional uint32 lora_wake_interval_s      = 6;
 }
 
 // Mortality detection — collar-wide, lives in the radio config on the
@@ -422,6 +485,12 @@ message BleWindow {
   bytes  key     = 2;
 }
 
+// CMD_LOCATE_NOW parameters. timeout_s is how long the one GPS attempt may
+// run: 0 (or the message absent) = 60 s, any other value held to 10..120.
+message LocateNow {
+  uint32 timeout_s = 1;
+}
+
 // The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
 // (pushable remotely) and as the input of PacketHeader.radio_crc. Mirrors
 // ble.proto LoRaConfig + the lost-mode fields of RadioConfigPacket with plain
@@ -439,6 +508,23 @@ message RadioSettings {
   optional uint32 lost_activation_epoch = 9;
   optional uint32 lost_interval_min     = 10;
   optional int32  lost_tx_power_dbm     = 11;
+  // LoRa wake (fw gate: firmware main build TBD, set at merge). The direct
+  // radio's region and the long-range wake setting, as ble.proto
+  // LoRaConfig.region (a DirectRegion value: 0 = AUTO, 1 = US915,
+  // 2 = EU868, 3 = AU915) and LoRaConfig.wake_long_range. In a fragment
+  // they are like every field here: absent keeps the collar's value, and an
+  // explicit 0 or false IS encoded and sets AUTO or the standard setting.
+  // In the encoding PacketHeader.radio_crc is taken over they are NOT like
+  // fields 1 to 11, which are always there: direct_region is encoded only
+  // when it is not 0 and wake_long_range only when true. That CRC proves
+  // both settings all the same, and a collar that never set either reports
+  // the radio_crc it reported before the fields existed: one rule for every
+  // firmware build.
+  // The rails refuse a direct_region above 3 (rule 13, a value outside its
+  // range) and a change that leaves a listening slot with no region
+  // (rule 15, SCHED_RAIL_WAKE_NO_REGION). 4 B for the two in a fragment.
+  optional uint32 direct_region         = 12;
+  optional bool   wake_long_range       = 13;
 }
 
 message ConfigFragment {
@@ -525,4 +611,8 @@ message DownlinkPacket {
   // CMD_BLE_WINDOW parameters (24 B with the command: fits the 33 B RX2
   // floor and a signed frame).
   optional BleWindow ble_window = 15;
+  // CMD_LOCATE_NOW parameters; absent = a 60 s attempt. 7 B with the command
+  // (2 B without the message), 13 B with a LoRaWAN downlink's epoch: fits
+  // the 33 B RX2 floor, and a signed frame of 36 B.
+  optional LocateNow locate = 16;
 }

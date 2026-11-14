@@ -367,9 +367,374 @@ COMMAND_ACK_CASES = [
      "4b1200577e2a000002b24e13f8d37bd4271f05ee0ecfad61b3"),
 ]
 
+# LoRa wake, added 2026-11-13 as four new sections (the version stays 1):
+# wake_tags, wake_frames, wake_timing and roll_calls. Collar firmware, the
+# Handheld Receiver, the server, the website and the app all test against
+# them (collarID_thread docs/CONTRACT_lora_wake.md section 11).
+
+# Eight synthetic collars, what one train can call.
+UID_WAKE = [0x7E570021 + i for i in range(8)]
+UID_SALT = 0x57414B45              # a uid equal to the tag's salt: its tag is 0
+UID_TWIN = 0x7E5AE4D9              # shares UID_WAKE[0]'s tag (the first such uid from 0x7E580000 up)
+# (name, uid, tag): the tag is pinned here so a change of the mix fails the run.
+WAKE_TAG_CASES = [
+    ("nominal", UID_TEST, 0xB6B2),
+    ("uid 0", UID_ZERO, 0x0FC7),
+    ("uid 0xFFFFFFFF", UID_ONES, 0x573E),
+    ("uid msb set", UID_MSB, 0x7BF5),
+    ("second collar", UID_BAD, 0xE591),
+    ("uid equal to the salt 'WAKE': tag 0", UID_SALT, 0x0000),
+    ("train collar 1", UID_WAKE[0], 0x67FB),
+    ("train collar 2", UID_WAKE[1], 0x9869),
+    ("train collar 3", UID_WAKE[2], 0x20C3),
+    ("train collar 4", UID_WAKE[3], 0xD257),
+    ("train collar 5", UID_WAKE[4], 0xCD14),
+    ("train collar 6", UID_WAKE[5], 0xC140),
+    ("train collar 7", UID_WAKE[6], 0x809C),
+    ("train collar 8", UID_WAKE[7], 0xB41D),
+    ("another collar with train collar 1's tag (1 in 65,536)", UID_TWIN, 0x67FB),
+]
+
+# The collars each wake frame vector is read by, to pin the verdicts.
+WAKE_PROBES = [UID_WAKE[0], UID_WAKE[4], UID_WAKE[7], UID_TWIN, UID_TEST]
+# (name, uids called, time left in 10 ms units, more, long range, roll, frozen frame hex)
+WAKE_FRAME_CASES = [
+    ("one collar", UID_WAKE[:1], 3012, False, False, False,
+     "5700c40b01fb67"),
+    ("four collars, the most one frame names", UID_WAKE[:4], 1500, False, False, False,
+     "5700dc0504fb676998c32057d2"),
+    ("eight collars, list A: the first four, MORE", UID_WAKE[:4], 1005, True, False, False,
+     "5701ed0304fb676998c32057d2"),
+    ("eight collars, list B: the other four, MORE", UID_WAKE[4:], 1000, True, False, False,
+     "5701e8030414cd40c19c801db4"),
+    ("five collars, list B: the fifth alone, MORE", UID_WAKE[4:5], 59, True, False, False,
+     "57013b000114cd"),
+    ("the last frame of a train: time left 0", UID_WAKE[:2], 0, False, False, False,
+     "5700000002fb676998"),
+    ("long range, two collars", UID_WAKE[6:], 6248, False, True, False,
+     "57026818029c801db4"),
+    ("eight collars at long range, list A (MORE and LONG)", UID_WAKE[:4], 96, True, True, False,
+     "5703600004fb676998c32057d2"),
+    ("a roll-call train: ROLL, no tags", [], 3101, False, False, True,
+     "57041d0c00"),
+    ("the last frame of a roll-call train at long range", [], 0, False, True, True,
+     "5706000000"),
+    ("time left at its largest, 655.35 s", UID_WAKE[7:], 65535, False, False, False,
+     "5700ffff011db4"),
+    ("a collar whose tag is 0", [UID_SALT], 250, False, False, False,
+     "5700fa00010000"),
+]
+# (name, frame hex, the reason a collar ignores it)
+WAKE_MALFORMED_CASES = [
+    ("nothing", "", "length"),
+    ("four bytes: no room for the tag count", "5700c40b", "length"),
+    ("fourteen bytes: four tags and one byte over", "5700dc0504fb676998c32057d200", "length"),
+    ("magic 0x56", "5600c40b01fb67", "magic"),
+    ("a command's magic, 0x44", "4400c40b01fb67", "magic"),
+    ("reserved flag bit 3 set", "5708c40b01fb67", "reserved_flags"),
+    ("reserved flag bit 7 set beside MORE", "5781c40b01fb67", "reserved_flags"),
+    ("five tags declared", "5700dc0505fb676998c32057d2", "tag_count"),
+    ("two tags declared, one sent", "5700c40b02fb67", "tag_bytes"),
+    ("one tag declared, two sent", "5700c40b01fb676998", "tag_bytes"),
+    ("no tags and no ROLL", "5700c40b00", "no_tags"),
+    ("ROLL with a tag", "5704c40b01fb67", "roll_with_tags"),
+    ("ROLL with MORE", "5705c40b00", "roll_with_more"),
+]
+
+# Roll calls. Groups are the owner's account number on the server: small
+# numbers, and the two ends of the range.
+GROUP_A = 42
+GROUP_B = 43
+GROUP_ONE = 1
+GROUP_MAX = 0xFFFFFFFF
+# (name, group, gen): wake keys, all under MASTER_COMMAND
+WAKE_KEY_CASES = [
+    ("wake key, group 42, gen 1", GROUP_A, 1),
+    ("the same group re-keyed: gen 2", GROUP_A, 2),
+    ("gen 255, the last under a master", GROUP_A, 255),
+    ("another group", GROUP_B, 1),
+    ("group 1", GROUP_ONE, 1),
+    ("group 0xFFFFFFFF", GROUP_MAX, 255),
+]
+ROLL_FROM = 1794000000             # as command C1: a two-week window
+ROLL_TO = 1795209600
+# (name, group, gen, seq, valid_from, valid_to, slots, slot_ms, flags, frozen frame hex)
+ROLL_CALL_CASES = [
+    ("RC1 US915 / AU915 standard: 32 slots of 67 ms", GROUP_A, 1, 1, ROLL_FROM, ROLL_TO, 32, 67, 0,
+     "432a000000010000011bccfc937bd3c7a0abec677fa77420b02bb5c075"),
+    ("RC2 EU868 standard: 32 slots of 82 ms", GROUP_A, 1, 2, ROLL_FROM, ROLL_TO, 32, 82, 0,
+     "432a0000000200000186253ca5b92856c41a5badcd6b94a72781981406"),
+    ("RC3 EU868 long range: 64 slots of 463 ms, the group's gen 2", GROUP_A, 2, 256, ROLL_FROM, ROLL_TO, 64, 463, 0,
+     "432a00000000010002a773bfc26432e50ff79bf104687ba79becd964ff"),
+    ("RC4 the first counter of a generation, group 1, one slot", GROUP_ONE, 1, 0, ROLL_FROM, ROLL_TO, 1, 67, 0,
+     "4301000000000000019516be8fff120763c2b72968a4d0d1a52330bb32"),
+    ("RC5 every field at its largest", GROUP_MAX, 255, 16777215, 4294967295, 4294967295, 255, 65535, 255,
+     "43ffffffffffffffff0c5996b5c4cab10c0769270ef015f86849edb915"),
+]
+ROLL_NOW = 1794600000              # a moment inside the window
+
+# The four wake settings, with the table of CONTRACT_lora_wake.md section 3
+# pinned beside them: a frame and the listen window W to 0.1 ms, the cap to
+# the millisecond. (name, regions, long range, SF, kHz, frame, W, cap)
+WAKE_SETTING_CASES = [
+    ("US915 / AU915 standard: SF9 at 500 kHz", [b.DIRECT_REGION_US915, b.DIRECT_REGION_AU915], False, 9, 500,
+     45.3, 56.4, 88),
+    ("EU868 standard: SF7 at 125 kHz", [b.DIRECT_REGION_EU868], False, 7, 125,
+     50.4, 61.5, 96),
+    ("US915 / AU915 long range: SF12 at 500 kHz", [b.DIRECT_REGION_US915, b.DIRECT_REGION_AU915], True, 12, 500,
+     321.5, 361.3, 502),
+    ("EU868 long range: SF10 at 125 kHz", [b.DIRECT_REGION_EU868], True, 10, 125,
+     321.5, 361.3, 502),
+]
+WAKE_TRAIN_INTERVALS = (1, 2, 5, 10, 30, 60, 120)      # 1 and 2 s are the call windows' trains
+WAKE_TOA_SAMPLES = ((13, 12), (13, 8), (14, 8), (29, 8), (30, 8), (255, 8))   # (bytes, preamble symbols)
+# (name, setting, LoRaWAN region or None when LoRaWAN is not configured,
+#  the direct radio's frequency in MHz, the region that results; 0 = none)
+REGION_RESOLVE_CASES = [
+    ("set to US915", 1, None, 0, 1),
+    ("set to EU868, whatever LoRaWAN and the frequency say", 2, 0, 915, 2),
+    ("set to AU915", 3, None, 915, 3),
+    ("AUTO, LoRaWAN US915: LoRaWAN decides, not the frequency", 0, 0, 868, 1),
+    ("AUTO, LoRaWAN AU915 (LoRaWAN's number 1 is direct region 3)", 0, 1, 915, 3),
+    ("AUTO, LoRaWAN EU868 (LoRaWAN's number 2 is direct region 2)", 0, 2, 915, 2),
+    ("AUTO, no LoRaWAN, 915 MHz", 0, None, 915, 1),
+    ("AUTO, no LoRaWAN, 868 MHz", 0, None, 868, 2),
+    ("AUTO, no LoRaWAN, 862 MHz: below the EU band", 0, None, 862, 0),
+    ("AUTO, no LoRaWAN, 863 MHz: the EU band's first", 0, None, 863, 2),
+    ("AUTO, no LoRaWAN, 870 MHz: the EU band's last", 0, None, 870, 2),
+    ("AUTO, no LoRaWAN, 871 MHz", 0, None, 871, 0),
+    ("AUTO, no LoRaWAN, 901 MHz", 0, None, 901, 0),
+    ("AUTO, no LoRaWAN, 902 MHz: the US band's first", 0, None, 902, 1),
+    ("AUTO, no LoRaWAN, 928 MHz: the US band's last", 0, None, 928, 1),
+    ("AUTO, no LoRaWAN, 929 MHz", 0, None, 929, 0),
+    ("AUTO, no LoRaWAN, 433 MHz", 0, None, 433, 0),
+    ("AUTO, no LoRaWAN, frequency 0", 0, None, 0, 0),
+    ("a setting above 3 is no region", 4, 0, 915, 0),
+]
+INTERVAL_CLAMP_CASES = [(0, 0), (1, 5), (4, 5), (5, 5), (6, 6), (10, 10), (30, 30), (60, 60), (119, 119),
+                        (120, 120), (121, 120), (3600, 120), (4294967295, 120)]
+# (microseconds to the train's end, the frame's time-left field)
+TIME_LEFT_CASES = [(0, 0), (4999, 0), (5000, 1), (10000, 1), (14999, 1), (15000, 2), (45312, 5),
+                   (30120000, 3012), (655350000, 65535), (700000000, 65535)]
+
 
 def hx(bs):
     return bytes(bs).hex()
+
+
+def ms1(us):
+    """Microseconds as milliseconds to 0.1 ms, a half rounded up."""
+    return ((us + 50) // 100) / 10
+
+
+def build_wake_tags():
+    out = []
+    for name, uid, tag in WAKE_TAG_CASES:
+        assert b.wake_tag(uid) == tag, name + ": the frozen tag changed"
+        out.append(dict(name=name, uid=uid, uid_hex="%08x" % uid,
+                        mixed_hex="%08x" % b.send_phase_mix(uid ^ b.WAKE_SALT),
+                        tag=tag, tag_hex="%04x" % tag))
+    assert b.wake_tag(UID_TWIN) == b.wake_tag(UID_WAKE[0]) and UID_TWIN != UID_WAKE[0]
+    return out
+
+
+def build_wake_frames():
+    out = []
+    for name, uids, left, more, long_range, roll, frozen in WAKE_FRAME_CASES:
+        tags = [b.wake_tag(u) for u in uids]
+        frame = b.wake_frame(tags, left, more, long_range, roll)
+        assert hx(frame) == frozen, name + ": the frozen frame changed"
+        got = b.parse_wake_frame(frame)
+        assert (list(got.tags), got.time_left_10ms, got.more, got.long_range, got.roll) == \
+            (tags, left, more, long_range, roll), name
+        assert b.classify(frame) == "wake", name
+        out.append(dict(name=name, ok=True, uids=list(uids), tags=tags, flags=got.flags, more=more,
+                        long_range=long_range, roll=roll, time_left_10ms=left,
+                        time_left_ms=left * b.WAKE_TIME_UNIT_MS,
+                        verdicts=[dict(uid=u, tag=b.wake_tag(u), verdict=b.wake_verdict(got, u))
+                                  for u in WAKE_PROBES],
+                        frame=hx(frame), frame_len=len(frame)))
+    for name, frame, reason in WAKE_MALFORMED_CASES:
+        try:
+            b.parse_wake_frame(bytes.fromhex(frame))
+        except b.WakeFrameError as e:
+            assert e.reason == reason, (name, e.reason)
+        else:
+            raise AssertionError(name + ": parsed")
+        out.append(dict(name=name, ok=False, refusal=reason, frame=frame, frame_len=len(frame) // 2))
+    # The alternating lists of a train are what wake_train_frame builds.
+    assert hx(b.wake_train_frame(UID_WAKE, 0, 1005)) == WAKE_FRAME_CASES[2][6]
+    assert hx(b.wake_train_frame(UID_WAKE, 1, 1000)) == WAKE_FRAME_CASES[3][6]
+    assert hx(b.wake_train_frame(UID_WAKE[:5], 1, 59)) == WAKE_FRAME_CASES[4][6]
+    return out
+
+
+def build_wake_timing():
+    regions = [dict(region=c.region, name=c.name, frequency_hz=c.frequency_hz, bw_khz=c.bw_khz,
+                    sf=c.sf, sf_long=c.sf_long, max_dbm=c.max_dbm)
+               for c in (b.WAKE_TABLE[r] for r in sorted(b.WAKE_TABLE))]
+    resolve = []
+    for name, setting, lorawan, mhz, want in REGION_RESOLVE_CASES:
+        assert b.direct_region_resolve(setting, lorawan, mhz) == want, name
+        resolve.append(dict(name=name, setting=setting, lorawan_region=lorawan, frequency_mhz=mhz, region=want))
+    settings = []
+    for name, regs, long_range, sf, bw, frame_ms, w_ms, cap_ms in WAKE_SETTING_CASES:
+        t = b.wake_timing(sf, bw)
+        for r in regs:
+            assert b.wake_setting(r, long_range)[1:3] == (bw, sf), name
+        assert (ms1(t.frame_us), ms1(t.w_us), (t.cap_us + 500) // 1000) == (frame_ms, w_ms, cap_ms), \
+            name + ": the table of CONTRACT_lora_wake.md section 3"
+        sniff = b.call_sniff_s(long_range)
+        settings.append(dict(
+            name=name, regions=regs, long_range=long_range, sf=sf, bw_khz=bw, call_sniff_s=sniff,
+            ts_us=t.ts_us, ts_ms=t.ts_us / 1000,
+            frame_us=t.frame_us, frame_ms=ms1(t.frame_us),
+            tail_us=t.tail_us, tail_ms=ms1(t.tail_us),
+            w_us=t.w_us, w_ms=ms1(t.w_us),
+            cap_us=t.cap_us, cap_ms=ms1(t.cap_us), cap_whole_ms=(t.cap_us + 500) // 1000,
+            intent_wait_us=t.intent_wait_us, intent_wait_ms=ms1(t.intent_wait_us),
+            cmd_window_us=t.cmd_window_us, cmd_window_ms=ms1(t.cmd_window_us),
+            roll_wait_us=t.roll_wait_us, roll_wait_ms=ms1(t.roll_wait_us),
+            roll_slot_min_us=t.roll_slot_min_us, roll_slot_min_ms=ms1(t.roll_slot_min_us),
+            roll_slot_min_whole_ms=-(-t.roll_slot_min_us // 1000),
+            roll_slot_default_ms=t.roll_slot_default_ms,
+            toa=[dict(bytes=n, preamble=p, us=b.lora_toa_us(sf, bw, n, p), ms=ms1(b.lora_toa_us(sf, bw, n, p)))
+                 for n, p in WAKE_TOA_SAMPLES],
+            trains=[dict(interval_s=i, train_us=b.wake_train_us(sf, bw, i), train_ms=ms1(b.wake_train_us(sf, bw, i)),
+                         frames_gap_0=b.wake_train_frames(sf, bw, i, 0),
+                         frames_gap_5ms=b.wake_train_frames(sf, bw, i, 5000))
+                    for i in WAKE_TRAIN_INTERVALS]))
+    for a, want in INTERVAL_CLAMP_CASES:
+        assert b.wake_interval_clamp(a) == want, a
+    for us, want in TIME_LEFT_CASES:
+        assert b.wake_time_left_10ms(us) == want, us
+    return {
+        "constants": {
+            "sync_word": b.WAKE_SYNC_WORD, "preamble_wake": b.WAKE_PREAMBLE_SYMBOLS,
+            "preamble_other": b.LORA_PREAMBLE_SYMBOLS, "frame_bytes": b.WAKE_MAX_LEN,
+            "max_tags": b.WAKE_MAX_TAGS, "max_collars_per_train": b.WAKE_TRAIN_MAX_COLLARS,
+            "salt": b.WAKE_SALT, "time_unit_ms": b.WAKE_TIME_UNIT_MS, "gap_max_ms": b.WAKE_GAP_MAX_MS,
+            "rx_lead_ms": b.WAKE_RX_LEAD_MS, "first_send_ms": b.WAKE_FIRST_SEND_MS,
+            "interval_choices_s": list(b.WAKE_INTERVAL_CHOICES_S),
+            "interval_min_s": b.WAKE_INTERVAL_MIN_S, "interval_max_s": b.WAKE_INTERVAL_MAX_S,
+            "slow_factor_max": b.WAKE_SLOW_FACTOR_MAX,
+            "call_sniff_s": b.CALL_SNIFF_S, "call_sniff_long_s": b.CALL_SNIFF_LONG_S,
+            "called_wait_s": b.CALLED_WAIT_S, "call_idle_s": b.CALL_IDLE_S, "call_max_s": b.CALL_MAX_S,
+            "roll_slots_default": b.ROLL_CALL_SLOTS_DEFAULT, "roll_slots_max": b.ROLL_CALL_SLOTS_MAX,
+            "roll_reply_base_ms": b.ROLL_CALL_REPLY_BASE_MS, "roll_listen_extra_ms": b.ROLL_CALL_LISTEN_EXTRA_MS,
+            "roll_min_gap_s": b.ROLL_CALL_MIN_GAP_S,
+        },
+        "regions": regions,
+        "region_resolve": resolve,
+        "settings": settings,
+        "interval_clamp": [dict(interval_s=a, runs_s=want) for a, want in INTERVAL_CLAMP_CASES],
+        "time_left": [dict(us=us, time_left_10ms=want) for us, want in TIME_LEFT_CASES],
+    }
+
+
+def build_roll_calls():
+    master = bytes.fromhex(MASTER_COMMAND)
+    keys = []
+    for name, group, gen in WAKE_KEY_CASES:
+        key = b.kdf(master, "wake", group, gen)
+        assert key != b.kdf(master, "command", group, gen), name + ": label separation"
+        keys.append(dict(name=name, master=MASTER_COMMAND, purpose="wake", label=b.LABEL_WAKE.decode("ascii"),
+                         group=group, group_hex="%08x" % group, gen=gen,
+                         input=hx(b.kdf_input("wake", group, gen)), wake_key=hx(key), kcv=hx(b.kcv(key))))
+
+    frames, sealed = [], {}
+    for name, group, gen, seq, vf, vt, slots, slot_ms, flags, frozen in ROLL_CALL_CASES:
+        ctr = b.ctr_make(gen, seq)
+        key = b.kdf(master, "wake", group, gen)
+        frame = b.seal_roll_call(key, group, ctr, vf, vt, slots, slot_ms, flags)
+        assert hx(frame) == frozen, name + ": the frozen frame changed"
+        got = b.open_roll_call(key, frame)
+        assert got == b.RollCall(group, ctr, gen, seq, vf, vt, slots, slot_ms, flags), name
+        assert b.open_roll_call_with_master(master, frame) == got, name
+        assert b.classify(frame) == "roll_call", name
+        sealed[name[:3]] = (frame, key, group, gen, ctr)
+        frames.append(dict(name=name, master=MASTER_COMMAND, group=group, group_hex="%08x" % group,
+                           gen=gen, seq=seq, ctr=ctr, ctr_hex="%08x" % ctr,
+                           wake_key=hx(key), kcv=hx(b.kcv(key)),
+                           nonce=hx(b.nonce(group, ctr, b.DIR_ROLL_CALL)), aad=hx(frame[:b.AAD_LEN]),
+                           valid_from=vf, valid_to=vt, slots=slots, slot_ms=slot_ms, flags=flags,
+                           body=hx(b.pack_roll_call_body(vf, vt, slots, slot_ms, flags)),
+                           ct=hx(frame[b.AAD_LEN:b.AAD_LEN + b.ROLL_CALL_BODY_LEN]),
+                           tag=hx(frame[b.AAD_LEN + b.ROLL_CALL_BODY_LEN:]),
+                           listen_ms=b.roll_call_listen_ms(slots, slot_ms),
+                           frame=hx(frame), frame_len=len(frame)))
+
+    # Where each collar answers: five collars, two counters (a new counter
+    # deals the slots again), three slot counts.
+    slots_out = []
+    for ctr in (0x01000001, 0x01000002):
+        for n in (1, 32, 64):
+            for uid in UID_WAKE[:4] + [UID_TEST]:
+                slots_out.append(dict(uid=uid, uid_hex="%08x" % uid, ctr=ctr, ctr_hex="%08x" % ctr,
+                                      slots=n, slot_ms=67, slot=b.roll_call_slot(uid, ctr, n),
+                                      reply_delay_ms=b.roll_call_reply_delay_ms(uid, ctr, n, 67)))
+
+    # The collar's rule, one cause per refusal.
+    f1, k1, g1, gen1, c1 = sealed["RC1"]
+    f2, _, _, _, c2 = sealed["RC2"]
+    f3, k3, _, gen3, c3 = sealed["RC3"]
+    us, eu, eu_long = (9, 500), (7, 125), (10, 125)
+
+    def seal1(seq, slots=32, slot_ms=67, flags=0, vf=ROLL_FROM, vt=ROLL_TO):
+        return b.seal_roll_call(k1, g1, b.ctr_make(gen1, seq), vf, vt, slots, slot_ms, flags)
+
+    def flip(frame, i):
+        t = bytearray(frame)
+        t[i] ^= 0x01
+        return bytes(t)
+
+    cases = [
+        # name, frame, key, group, gen, last counter, now, (SF, kHz), since the last answer, reason
+        ("accepted: RC1, the first roll call this collar hears", f1, k1, g1, gen1, 0, ROLL_NOW, us, None, None),
+        ("accepted: RC2 at the EU setting, a minute after answering RC1", f2, k1, g1, gen1, c1, ROLL_NOW, eu, 60, None),
+        ("accepted: RC3 at EU long range under the gen 2 key, after RC2", f3, k3, g1, gen3, c2, ROLL_NOW, eu_long, None, None),
+        ("accepted at the window's first second", f1, k1, g1, gen1, 0, ROLL_FROM, us, None, None),
+        ("accepted at the window's last second", f1, k1, g1, gen1, 0, ROLL_TO, us, None, None),
+        ("accepted: a 62 ms slot is the shortest at SF9 / 500 kHz", seal1(7, slot_ms=62), k1, g1, gen1, c2,
+         ROLL_NOW, us, None, None),
+        ("accepted: 64 slots, the most", seal1(8, slots=64), k1, g1, gen1, c2, ROLL_NOW, us, None, None),
+        ("refused: 28 bytes", f1[:-1], k1, g1, gen1, 0, ROLL_NOW, us, None, "frame"),
+        ("refused: a command's magic", bytes([b.MAGIC_COMMAND]) + f1[1:], k1, g1, gen1, 0, ROLL_NOW, us, None, "frame"),
+        ("refused: the collar holds no wake key", f1, None, 0, 0, 0, ROLL_NOW, us, None, "no_key"),
+        ("refused: wrong group (the collar holds group 43's key)", f1, b.kdf(master, "wake", GROUP_B, 1),
+         GROUP_B, 1, 0, ROLL_NOW, us, None, "group"),
+        ("refused: wrong generation (the collar holds the group's gen 2 key)", f1, k3, g1, gen3, 0,
+         ROLL_NOW, us, None, "gen"),
+        ("refused: stale counter, the one last accepted", f1, k1, g1, gen1, c1, ROLL_NOW, us, None, "counter"),
+        ("refused: stale counter, below the last accepted", f1, k1, g1, gen1, c2, ROLL_NOW, us, None, "counter"),
+        ("refused: bad tag, one bit of the tag changed", flip(f1, 28), k1, g1, gen1, 0, ROLL_NOW, us, None, "tag"),
+        ("refused: bad tag, one bit of the body changed", flip(f1, 9), k1, g1, gen1, 0, ROLL_NOW, us, None, "tag"),
+        ("refused: bad tag, the right group and gen under another master", f1,
+         b.kdf(bytes.fromhex(MASTER_BEACON_A), "wake", g1, gen1), g1, gen1, 0, ROLL_NOW, us, None, "tag"),
+        ("refused: a flag is set", seal1(9, flags=1), k1, g1, gen1, c2, ROLL_NOW, us, None, "flags"),
+        ("refused: the collar has no valid clock", f1, k1, g1, gen1, 0, None, us, None, "clock"),
+        ("refused: one second before the window", f1, k1, g1, gen1, 0, ROLL_FROM - 1, us, None, "window"),
+        ("refused: one second after the window", f1, k1, g1, gen1, 0, ROLL_TO + 1, us, None, "window"),
+        ("refused: no slots", seal1(10, slots=0), k1, g1, gen1, c2, ROLL_NOW, us, None, "slots"),
+        ("refused: 65 slots", seal1(11, slots=65), k1, g1, gen1, c2, ROLL_NOW, us, None, "slots"),
+        ("refused: a 61 ms slot is too short at SF9 / 500 kHz", seal1(12, slot_ms=61), k1, g1, gen1, c2,
+         ROLL_NOW, us, None, "slot_ms"),
+        ("refused: RC1's 67 ms slot is too short at the EU setting", f1, k1, g1, gen1, 0, ROLL_NOW, eu, None, "slot_ms"),
+        ("refused: it answered a roll call 59 s ago", f2, k1, g1, gen1, c1, ROLL_NOW, us, 59, "recent"),
+    ]
+    checks = []
+    for name, frame, key, group, gen, last, now, (sf, bw), since, want in cases:
+        rc, reason = b.roll_call_check(frame, key, group, gen, last, now, sf, bw, since)
+        assert reason == want, (name, reason)
+        assert (rc is None) == (want is not None), name
+        row = dict(name=name, frame=hx(frame), wake_key=hx(key) if key else None, group=group, gen=gen,
+                   last_ctr=last, now=now, sf=sf, bw_khz=bw, since_answer_s=since,
+                   accept=want is None, reason=want)
+        if rc is not None:
+            row.update(ctr=rc.ctr, slots=rc.slots, slot_ms=rc.slot_ms)
+        checks.append(row)
+    assert {c["reason"] for c in checks if c["reason"]} == set(b.ROLL_CALL_REFUSALS), "every refusal has a vector"
+    return {"keys": keys, "frames": frames, "slots": slots_out, "checks": checks}
 
 
 def build():
@@ -505,6 +870,25 @@ def build():
             "command_ack": "[0]=0x4B [1..4]=uid_le32 [5..8]=the command's counter, then CCM ciphertext of "
                            "result u8 || command u8 || detail u32le || rssi i8 || snr_q4 i8 and an 8-byte tag; "
                            "nonce dir 0x02; 25 B",
+            "wake": "[0]=0x57 [1]=flags (bit 0 MORE, bit 1 LONG, bit 2 ROLL, bits 3..7 = 0) "
+                    "[2..3]=time left u16le in 10 ms units, from the end of this frame to the end of the "
+                    "train's last frame [4]=k, the number of tags (1..4; 0 with ROLL and only then) "
+                    "[5..]=k x u16le tags; tag = fmix32(uid ^ 0x57414B45) & 0xFFFF; 5 + 2k = 5..13 B, cleartext",
+            "wake_timing": "Ts = 2^SF / BW; toa(n, p) = (p + 4.25 + 8 + max(ceil((8n - 4SF + 44) / "
+                           "(4(SF - 2DE))) x 5, 0)) x Ts with DE = 1 when Ts > 16 ms (coding rate 4/5, explicit "
+                           "header, CRC on); frame = toa(13, 12); tail = toa(13, 8) - 8 Ts; W = tail + 16 Ts + 7 ms; "
+                           "cap = 1.5 x frame + 20 ms; intent_wait = 2 x toa(14, 8) + 150 ms; "
+                           "cmd_window = toa(255, 8) + 300 ms; train >= 1.03 x interval + W + frame; "
+                           "roll_wait = 2 x toa(29, 8) + 150 ms; a roll-call slot >= toa(30, 8) + 5 ms, by default "
+                           "ceil(toa(30, 8)) + 10 ms. *_us are exact microseconds, *_ms the same to 0.1 ms",
+            "wake_key": "wake_key = AES-CMAC(the owner's command master, 'CID-LORA-WAK' || group_le32 || gen)",
+            "roll_call": "[0]=0x43 [1..4]=group_le32 [5..8]=ctr_le32 (gen<<24|seq) [9..20]=CCM ciphertext of "
+                         "valid_from u32le || valid_to u32le || slots u8 || slot_ms u16le || flags u8 "
+                         "[21..28]=8-byte tag; AAD=[0..8]; nonce=group_le32||ctr_le32||0x03||0x00000000; "
+                         "key = the group's wake key; 29 B. A collar answers with one v2 beacon starting "
+                         "300 ms + (fmix32(uid ^ 0x57414B45 ^ ctr) % slots) x slot_ms after the roll call's end, "
+                         "sealed after the roll call is accepted; the receiver listens "
+                         "300 ms + slots x slot_ms + 200 ms after sending the roll call",
         },
         "aes128": aes,
         "cmac": cmac,
@@ -515,6 +899,10 @@ def build():
         "reports": reports,
         "commands": commands,
         "command_acks": command_acks,
+        "wake_tags": build_wake_tags(),
+        "wake_frames": build_wake_frames(),
+        "wake_timing": build_wake_timing(),
+        "roll_calls": build_roll_calls(),
     }
 
 
@@ -545,6 +933,11 @@ def main(argv=None):
     print("wrote %s: %d aes, %d cmac, %d ccm, %d kdf, %d frames, %d v1, %d reports" % (
         a.out, len(d["aes128"]), len(d["cmac"]), len(d["ccm"]), len(d["kdf"]), len(d["frames"]), len(d["v1"]),
         len(d["reports"])))
+    print("  %d commands, %d command acks, %d wake tags, %d wake frames, %d wake settings, "
+          "%d roll-call keys, %d roll calls, %d slot choices, %d roll-call checks" % (
+              len(d["commands"]), len(d["command_acks"]), len(d["wake_tags"]), len(d["wake_frames"]),
+              len(d["wake_timing"]["settings"]), len(d["roll_calls"]["keys"]), len(d["roll_calls"]["frames"]),
+              len(d["roll_calls"]["slots"]), len(d["roll_calls"]["checks"])))
     return 0
 
 

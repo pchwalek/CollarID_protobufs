@@ -76,7 +76,23 @@ message PacketHeader {
   // from the collar's live direct-radio and lost-mode settings. Proves which
   // radio settings a collar runs, as sched_crc does for the schedule
   // (sched_crc does not cover them). Absent = firmware that predates it.
+  // ALL its fields are fields 1 to 11, always encoded, zeros included. The
+  // two LoRa wake settings are encoded only when set: direct_region when it
+  // is not 0 (AUTO), wake_long_range when true. So a collar that never set
+  // a region or long range reports the radio_crc it reported before those
+  // fields existed, and one rule computes it for every firmware build.
   optional uint32 radio_crc = 16;
+
+  // LoRa wake (ble.proto ScheduleConfig.lora_wake_interval_s; collarID_thread
+  // docs/CONTRACT_lora_wake.md sections 4 and 6). A listening collar keeps a
+  // budget per clock hour for what false wakes cost it; in an hour that goes
+  // over, it listens at two, at most four, times its interval until the hour
+  // ends. This is how many such slowed hours there have been since the last
+  // report that carried the field: each slowed hour counts once. Sent only
+  // when not zero, then cleared, so its absence means "none since the last
+  // count", never "not listening". 3 B on air when sent. The server adds
+  // them up per collar. Absent on firmware that predates listening.
+  optional uint32 wake_slow_hours = 17;
 }
 
 // ---- GPS ----

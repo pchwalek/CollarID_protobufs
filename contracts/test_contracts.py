@@ -134,5 +134,52 @@ class BatteryThresholds(unittest.TestCase):
         self.assertEqual(g[i + 1:i + 3], ["battery_hibernate_pct", "battery_resume_pct"])
 
 
+class LoRaWake(unittest.TestCase):
+    """LoRa wake (2026-11-13): three CONFIG.CSV keys. The region and the
+    long-range setting follow the direct radio's other global keys; the
+    listening interval closes each schedule's rows, after its direct-radio
+    send interval. Unconditional: every writer emits all three."""
+
+    def test_the_global_keys_follow_the_direct_radio(self):
+        g = R.SPEC["config_csv"]["keys"]["global"]
+        i = g.index("lora_rx_listen")
+        self.assertEqual(g[i + 1:i + 3], ["lora_region", "lora_wake_long_range"])
+        self.assertEqual(g[i + 3], "lost_mode_enabled")
+        self.assertEqual(len(g), len(set(g)))
+
+    def test_the_schedule_key_is_the_last_row(self):
+        sched = R.SPEC["config_csv"]["keys"]["schedule"]
+        self.assertEqual(sched[-2:], ["lora_send_interval_min", "lora_wake_interval_s"])
+        self.assertEqual(len(sched), len(set(sched)))
+
+    def test_they_are_unconditional_and_every_writer_s(self):
+        cfg = R.SPEC["config_csv"]
+        for key in ("lora_region", "lora_wake_long_range", "lora_wake_interval_s"):
+            self.assertNotIn(key, cfg["conditional"])
+            self.assertNotIn(key, cfg["firmware_only"])
+
+    def test_the_names_are_the_proto_s(self):
+        """The schedule key is the proto field's name; the global keys take
+        the direct radio's `lora_` prefix as its other keys do."""
+        root = os.path.dirname(HERE)
+        with open(os.path.join(root, "ble.proto")) as fh:
+            ble = fh.read()
+        self.assertRegex(ble, r"uint32 lora_wake_interval_s\s+= 13;")
+        self.assertRegex(ble, r"DirectRegion region\s+= 8;")
+        self.assertRegex(ble, r"bool wake_long_range\s+= 9;")
+        for key in ("lora_region (0..3)", "lora_wake_long_range (0/1)"):
+            self.assertIn("CONFIG.CSV key " + key, re.sub(r"\s*//\s*", " ", ble))
+
+    def test_the_generated_header_lists_them(self):
+        with open(os.path.join(generate.OUT, "collarid_contracts.h")) as fh:
+            h = fh.read()
+        for key in ("lora_region", "lora_wake_long_range", "lora_wake_interval_s"):
+            self.assertIn('X("%s")' % key, h)
+        g, sched = (R.SPEC["config_csv"]["keys"][k] for k in ("global", "schedule"))
+        self.assertIn("#define CID_CONFIG_CSV_GLOBAL_COUNT %du" % len(g), h)
+        self.assertIn("#define CID_CONFIG_CSV_SCHEDULE_COUNT %du" % len(sched), h)
+        self.assertEqual((len(g), len(sched)), (44, 41))
+
+
 if __name__ == "__main__":
     unittest.main()

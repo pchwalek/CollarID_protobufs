@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "The CollarID contracts that more than one repo implements: the Bluetooth service, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits and the CONFIG.CSV keys. contracts/README.md says how it is used. Change this file first, regenerate (contracts/generate.py), remake the vectors (contracts/make_vectors.py), sync (contracts/sync.py), then fix every repo whose test fails. CONFIG.CSV: every writer emits the keys in this order, every unconditional one, and nothing else; 'conditional' keys depend on the configuration (the LoRaWAN credentials on the activation type, lorawan_identity_uid on credentials from another collar); 'firmware_only' keys only the collar writes. magnetometer_sample_interval_min carries SECONDS on both sides. Battery thresholds (2026-11-12): low-battery hibernation, whole percent; the collar hibernates at or below 'hibernate' and, after such a sleep, runs again only above 'resume'. A pair is valid when hibernate_min <= hibernate <= hibernate_max, resume_min <= resume <= resume_max and resume >= hibernate + min_gap: the rails of a remote push and of the Bluetooth tunnel refuse anything else, and a configurator offers nothing else. A CONFIG.CSV row is read as strtol reads it (leading digits, an optional sign); a missing or unreadable row is the default, each value is held to its range, then resume is raised to hibernate + min_gap when below it (reference.battery_thresholds_from_csv).",
+  "about": "The CollarID contracts that more than one repo implements: the Bluetooth service, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits and the CONFIG.CSV keys. contracts/README.md says how it is used. Change this file first, regenerate (contracts/generate.py), remake the vectors (contracts/make_vectors.py), sync (contracts/sync.py), then fix every repo whose test fails. CONFIG.CSV: every writer emits the keys in this order, every unconditional one, and nothing else; 'conditional' keys depend on the configuration (the LoRaWAN credentials on the activation type, lorawan_identity_uid on credentials from another collar); 'firmware_only' keys only the collar writes. magnetometer_sample_interval_min carries SECONDS on both sides. Battery thresholds (2026-11-12): low-battery hibernation, whole percent; the collar hibernates at or below 'hibernate' and, after such a sleep, runs again only above 'resume'. A pair is valid when hibernate_min <= hibernate <= hibernate_max, resume_min <= resume <= resume_max and resume >= hibernate + min_gap: the rails of a remote push and of the Bluetooth tunnel refuse anything else, and a configurator offers nothing else. A CONFIG.CSV row is read as strtol reads it (leading digits, an optional sign); a missing or unreadable row is the default, each value is held to its range, then resume is raised to hibernate + min_gap when below it (reference.battery_thresholds_from_csv). LoRa wake (2026-11-13): three keys for listening for a Handheld Receiver. lora_wake_interval_s, one per schedule, is the seconds between the slot's listen windows: 0 = not listening (the default), configurators write 0, 10, 30 or 60, the collar holds any other non-zero value to 5..120. lora_region (global) is the direct radio's region, the DirectRegion numbers of ble.proto: 0 = automatic (the LoRaWAN region when LoRaWAN is configured, else from lora_frequency: 863-870 MHz EU868, 902-928 MHz US915), 1 = US915, 2 = EU868, 3 = AU915. lora_wake_long_range (global) is 0 or 1. A missing row of any of the three reads as 0, so a file written before them means what it meant.",
   "gatt": {
     "service": "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7",
     "update_char": "c4dd1054-f3f3-456b-8ad5-44aaa7ba4fd2",
@@ -183,6 +183,8 @@
         "lora_sync_word",
         "lora_frequency",
         "lora_rx_listen",
+        "lora_region",
+        "lora_wake_long_range",
         "lost_mode_enabled",
         "lost_mode_activation_epoch",
         "lost_mode_transmit_interval_min",
@@ -239,7 +241,8 @@
         "lorawan_enabled",
         "lorawan_send_interval_min",
         "lora_enabled",
-        "lora_send_interval_min"
+        "lora_send_interval_min",
+        "lora_wake_interval_s"
       ]
     },
     "conditional": [

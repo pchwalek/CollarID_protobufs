@@ -2,7 +2,8 @@
 """CollarID lost-mode beacon: reference codec for the v1 (0x4C, plaintext) and
 v2 (0x4D, AES-128-CCM) frames, the sealed report (0x52, the v2 construction
 with a variable-length body), the signed handheld command (0x44) and its
-acknowledgement (0x4B), and the key derivation a receiver needs.
+acknowledgement (0x4B), the wake frame (0x57) with the timing both ends of a
+wake compute, the roll call (0x43), and the key derivation a receiver needs.
 
 Standard library only, so it runs anywhere (a field laptop, a CI runner, a
 receiver's build script). It is a REFERENCE, written for clarity and for
@@ -24,6 +25,12 @@ Command line:
   beacon_v2.py report-peek FRAMEHEX               uid and counter of a sealed report, no key
   beacon_v2.py report-open --key HEX FRAMEHEX     open a sealed report (also --master HEX)
   beacon_v2.py report-seal --key HEX --uid UID --ctr CTR PAYLOADHEX
+  beacon_v2.py wake-tag UID [UID ...]             the 16-bit tags a wake frame carries
+  beacon_v2.py wake-parse FRAMEHEX [--uid UID]    decode a wake frame (0x57)
+  beacon_v2.py wake-timing --region R [--long] [--interval S]
+  beacon_v2.py roll-open --key HEX FRAMEHEX       open a roll call (0x43) with a wake key
+  beacon_v2.py roll-open --master HEX FRAMEHEX    ... deriving it from the owner's command master
+  beacon_v2.py derive --master HEX --purpose wake --uid GROUP --gen N
 """
 
 import argparse
@@ -216,11 +223,17 @@ def ccm_open(key, nonce, aad, ct, tag, tag_len=8):
 
 LABEL_BEACON = b"CID-LORA-BCN"     # beacon (confidentiality) key family
 LABEL_COMMAND = b"CID-LORA-CMD"    # command (authentication) key family, never exported
-PURPOSES = {"beacon": LABEL_BEACON, "command": LABEL_COMMAND}
+# The wake key family (roll calls, 0x43, below; 2026-11-13). Derived from the
+# owner's COMMAND master, per GROUP (the owner's account) and generation, not
+# per collar: the group takes the uid's place in the input.
+LABEL_WAKE = b"CID-LORA-WAK"
+# old: PURPOSES = {"beacon": LABEL_BEACON, "command": LABEL_COMMAND}
+PURPOSES = {"beacon": LABEL_BEACON, "command": LABEL_COMMAND, "wake": LABEL_WAKE}
 
 
 def kdf_input(purpose, uid, gen):
-    """label(12) || uid_le32(4) || gen(1) = 17 bytes."""
+    """label(12) || uid_le32(4) || gen(1) = 17 bytes. For purpose "wake" the
+    uid argument is the group."""
     label = PURPOSES[purpose]
     if not 0 <= uid <= 0xFFFFFFFF:
         raise ValueError("uid must be a uint32")
@@ -578,10 +591,568 @@ def open_command_ack(cmd_key, frame):
     return CommandAck(uid, ctr, pt[0], pt[1], int.from_bytes(pt[2:6], "little"), rssi, snr)
 
 
+# ------------------------------------------------- LoRa wake: the wake frame (0x57)
+#
+# Added 2026-11-13 (collarID_thread docs/CONTRACT_lora_wake.md; README "Wake
+# frame"). A Handheld Receiver calls sleeping collars with a TRAIN of wake
+# frames, sent back to back on the wake channel for a little longer than the
+# collars' listening interval. A listening collar opens its receiver for one
+# short window per interval and so catches one frame of the train. The frame
+# is cleartext and unauthenticated: it only says "collars with these tags,
+# stay up for what follows". What follows, an INTENT and then signed 0x44
+# commands, or a signed roll call (0x43, below), is where the authority is.
+#
+#   [0]      0x57            magic ('W')
+#   [1]      flags           bit 0 MORE: the tag list continues in the
+#                                  alternating frame (more than 4 collars called)
+#                            bit 1 LONG: sent at the long-range setting (for
+#                                  the record; it changes nothing)
+#                            bit 2 ROLL: a roll call follows the train; no tags
+#                            bits 3..7 = 0 (a frame with any set is ignored)
+#   [2..3]   u16 time left   10 ms units, from the END of this frame to the
+#                            END of the train's last frame (0 in the last one)
+#   [4]      u8  k           number of tags, 1..4 (0 with ROLL, and only then)
+#   [5..]    k x u16 tags    tag(uid) = fmix32(uid ^ 'WAKE') & 0xFFFF
+#                                                    5 + 2k = 5..13 bytes
+
+MAGIC_WAKE = 0x57                    # 'W'
+WAKE_SYNC_WORD = 0x57                # LoRa sync word of every frame on the wake channel
+WAKE_HEADER_LEN = 5
+WAKE_MAX_TAGS = 4
+WAKE_MAX_LEN = WAKE_HEADER_LEN + 2 * WAKE_MAX_TAGS     # 13
+WAKE_FLAG_MORE = 0x01
+WAKE_FLAG_LONG = 0x02
+WAKE_FLAG_ROLL = 0x04
+WAKE_FLAGS_DEFINED = WAKE_FLAG_MORE | WAKE_FLAG_LONG | WAKE_FLAG_ROLL
+WAKE_SALT = 0x57414B45               # 'WAKE': the tag's salt, and the roll-call slot's
+WAKE_TIME_UNIT_MS = 10               # the time-left field counts 10 ms
+WAKE_TIME_LEFT_MAX = 0xFFFF          # 655.35 s
+WAKE_TRAIN_MAX_COLLARS = 2 * WAKE_MAX_TAGS             # 8: two alternating lists
+
+# Why a parser refused a frame (WakeFrameError.reason), in the order checked.
+WAKE_REFUSALS = ("length",           # not 5..13 bytes
+                 "magic",            # byte 0 is not 0x57
+                 "reserved_flags",   # a flag bit 3..7 is set
+                 "tag_count",        # k above 4
+                 "tag_bytes",        # the length is not 5 + 2k
+                 "no_tags",          # k = 0 without ROLL
+                 "roll_with_tags",   # ROLL with k above 0
+                 "roll_with_more")   # ROLL with MORE: there is no list to continue
+
+WakeFrame = namedtuple("WakeFrame", "flags more long_range roll time_left_10ms tags")
+
+
+class WakeFrameError(ValueError):
+    """Not a wake frame a collar acts on; .reason is one of WAKE_REFUSALS."""
+
+    def __init__(self, reason):
+        ValueError.__init__(self, "not a wake frame: %s" % reason)
+        self.reason = reason
+
+
+def send_phase_mix(x):
+    """The collar firmware's send_phase_mix (send_phase.h): murmur3's 32-bit
+    finalizer, so neighbouring uids land far apart."""
+    if not 0 <= x <= 0xFFFFFFFF:
+        raise ValueError("a uint32")
+    x ^= x >> 16
+    x = (x * 0x85EBCA6B) & 0xFFFFFFFF
+    x ^= x >> 13
+    x = (x * 0xC2B2AE35) & 0xFFFFFFFF
+    x ^= x >> 16
+    return x
+
+
+def wake_tag(uid):
+    """The 16 bits a wake frame names a collar by. Two collars share a tag
+    once in 65,536: the other then stays up for nothing, because the INTENT
+    that follows carries the whole uid."""
+    if not 0 <= uid <= 0xFFFFFFFF:
+        raise ValueError("uid must be a uint32")
+    return send_phase_mix(uid ^ WAKE_SALT) & 0xFFFF
+
+
+def wake_frame(tags, time_left_10ms, more=False, long_range=False, roll=False):
+    """Build one wake frame: up to 4 tags (none with roll), the time left in
+    the train after this frame in 10 ms units."""
+    tags = list(tags)
+    if not 0 <= time_left_10ms <= WAKE_TIME_LEFT_MAX:
+        raise ValueError("time left is a uint16 of 10 ms units")
+    if len(tags) > WAKE_MAX_TAGS:
+        raise ValueError("at most %d tags in a frame" % WAKE_MAX_TAGS)
+    if roll and (tags or more):
+        raise ValueError("a roll-call frame carries no tags and no MORE")
+    if not roll and not tags:
+        raise ValueError("a frame without tags is a roll-call frame")
+    for t in tags:
+        if not 0 <= t <= 0xFFFF:
+            raise ValueError("a tag is 16 bits")
+    flags = ((WAKE_FLAG_MORE if more else 0) | (WAKE_FLAG_LONG if long_range else 0)
+             | (WAKE_FLAG_ROLL if roll else 0))
+    frame = (bytes([MAGIC_WAKE, flags]) + time_left_10ms.to_bytes(2, "little") + bytes([len(tags)])
+             + b"".join(t.to_bytes(2, "little") for t in tags))
+    assert len(frame) == WAKE_HEADER_LEN + 2 * len(tags)
+    return frame
+
+
+def parse_wake_frame(frame):
+    """Decode a wake frame as a collar does. Raises WakeFrameError (its
+    reason says why) for anything a collar does not act on."""
+    frame = bytes(frame)
+    if not WAKE_HEADER_LEN <= len(frame) <= WAKE_MAX_LEN:
+        raise WakeFrameError("length")
+    if frame[0] != MAGIC_WAKE:
+        raise WakeFrameError("magic")
+    flags, k = frame[1], frame[4]
+    if flags & ~WAKE_FLAGS_DEFINED:
+        raise WakeFrameError("reserved_flags")
+    if k > WAKE_MAX_TAGS:
+        raise WakeFrameError("tag_count")
+    if len(frame) != WAKE_HEADER_LEN + 2 * k:
+        raise WakeFrameError("tag_bytes")
+    roll = bool(flags & WAKE_FLAG_ROLL)
+    more = bool(flags & WAKE_FLAG_MORE)
+    if k == 0 and not roll:
+        raise WakeFrameError("no_tags")
+    if roll and k:
+        raise WakeFrameError("roll_with_tags")
+    if roll and more:
+        raise WakeFrameError("roll_with_more")
+    tags = tuple(int.from_bytes(frame[5 + 2 * i:7 + 2 * i], "little") for i in range(k))
+    return WakeFrame(flags, more, bool(flags & WAKE_FLAG_LONG), roll,
+                     int.from_bytes(frame[2:4], "little"), tags)
+
+
+def wake_verdict(frame, uid):
+    """What a parsed frame means to the collar with this uid:
+      "called"      its tag is in the frame: wait for the train's end, then
+                    for the INTENT
+      "roll"        a roll-call train: wait for its end, then for the roll call
+      "more"        its tag is not here but the list continues: read one more
+                    frame before giving up
+      "not_called"  back to listening, nothing charged"""
+    if frame.roll:
+        return "roll"
+    if wake_tag(uid) in frame.tags:
+        return "called"
+    return "more" if frame.more else "not_called"
+
+
+def wake_train_lists(uids):
+    """The tag list or lists of a train that calls these collars (1..8): one
+    list for up to 4, else two (the first four, then the rest), which the
+    train's frames carry in turn, every frame with MORE set. How a train
+    splits its collars is the sender's choice; this is the reference's."""
+    uids = list(uids)
+    if not 1 <= len(uids) <= WAKE_TRAIN_MAX_COLLARS:
+        raise ValueError("a train calls 1..%d collars" % WAKE_TRAIN_MAX_COLLARS)
+    tags = [wake_tag(u) for u in uids]
+    if len(tags) <= WAKE_MAX_TAGS:
+        return [tags]
+    return [tags[:WAKE_MAX_TAGS], tags[WAKE_MAX_TAGS:]]
+
+
+def wake_train_frame(uids, index, time_left_10ms, long_range=False):
+    """Frame number `index` (0 = first) of the train that calls these collars."""
+    lists = wake_train_lists(uids)
+    return wake_frame(lists[index % len(lists)], time_left_10ms,
+                      more=len(lists) > 1, long_range=long_range)
+
+
+# ------------------------------------------- LoRa wake: regions and the wake channel
+#
+# The direct radio's region (ble.proto DirectRegion, LoRaConfig.region) picks
+# the wake channel from this table, the same in the collar and the receiver.
+# Every frame on it: coding rate 4/5, explicit header, CRC on, IQ normal, sync
+# word 0x57; a 12-symbol preamble on wake frames and 8 on every other frame
+# (a receiver set for 12 takes both). Transmit power is the device's
+# direct-radio power, held to the table's cap.
+
+DIRECT_REGION_AUTO = 0
+DIRECT_REGION_US915 = 1
+DIRECT_REGION_EU868 = 2
+DIRECT_REGION_AU915 = 3
+WAKE_REGION_NONE = 0                 # what AUTO resolves to when nothing decides it: no listening
+# ble.proto RadioRegion (the LoRaWAN region): NOT the numbers above.
+LORAWAN_REGION_US915 = 0
+LORAWAN_REGION_AU915 = 1
+LORAWAN_REGION_EU868 = 2
+
+WakeChannel = namedtuple("WakeChannel", "region name frequency_hz bw_khz sf sf_long max_dbm")
+WAKE_TABLE = {
+    DIRECT_REGION_US915: WakeChannel(DIRECT_REGION_US915, "US915", 919000000, 500, 9, 12, 22),
+    DIRECT_REGION_EU868: WakeChannel(DIRECT_REGION_EU868, "EU868", 869525000, 125, 7, 10, 22),
+    DIRECT_REGION_AU915: WakeChannel(DIRECT_REGION_AU915, "AU915", 919000000, 500, 9, 12, 22),
+}
+WAKE_PREAMBLE_SYMBOLS = 12           # wake frames
+LORA_PREAMBLE_SYMBOLS = 8            # every other frame on the wake channel
+
+
+def direct_region_resolve(setting, lorawan_region=None, frequency_mhz=0):
+    """The region a collar or receiver runs: 1 US915, 2 EU868, 3 AU915, or 0
+    for none (no listening). setting is the DirectRegion value; AUTO takes
+    the LoRaWAN region when LoRaWAN is configured (lorawan_region, a ble.proto
+    RadioRegion value; None = not configured), else reads the direct radio's
+    frequency in whole MHz: 863..870 is EU868, 902..928 is US915, never
+    AU915. A setting above 3 is no region."""
+    if setting in WAKE_TABLE:
+        return setting
+    if setting != DIRECT_REGION_AUTO:
+        return WAKE_REGION_NONE
+    if lorawan_region is not None:
+        return {LORAWAN_REGION_US915: DIRECT_REGION_US915,
+                LORAWAN_REGION_AU915: DIRECT_REGION_AU915,
+                LORAWAN_REGION_EU868: DIRECT_REGION_EU868}.get(lorawan_region, WAKE_REGION_NONE)
+    if 863 <= frequency_mhz <= 870:
+        return DIRECT_REGION_EU868
+    if 902 <= frequency_mhz <= 928:
+        return DIRECT_REGION_US915
+    return WAKE_REGION_NONE
+
+
+def wake_setting(region, long_range=False):
+    """(frequency_hz, bw_khz, sf, max_dbm) of a resolved region's wake
+    channel, standard or long range; None for no region."""
+    ch = WAKE_TABLE.get(region)
+    if ch is None:
+        return None
+    return ch.frequency_hz, ch.bw_khz, ch.sf_long if long_range else ch.sf, ch.max_dbm
+
+
+# --------------------------------------------------- LoRa wake: timing
+#
+# Both ends compute these the same way, from the wake channel's SF and
+# bandwidth. Whole microseconds throughout (every value below is one), so a
+# C port in integers gets the same numbers; the *_ms helpers divide by 1000.
+#
+#   Ts          = 2^SF / BW                       one symbol
+#   toa(n, p)   = (p + 4.25 + 8 + max(ceil((8n - 4 SF + 44) / (4 (SF - 2 DE))) x 5, 0)) x Ts
+#                 n payload bytes, p preamble symbols; coding rate 4/5,
+#                 explicit header, CRC on; DE = 1 when Ts > 16 ms, else 0
+#   frame       = toa(13, 12)                     one full wake frame
+#   tail        = toa(13, 8) - 8 Ts               a wake frame after its preamble
+#   W           = tail + 16 Ts + 7 ms             the collar's listen window
+#   cap         = 1.5 x frame + 20 ms             how long a detection may hold the collar
+#   train       >= 1.03 x I + W + frame           I = the called collars' listening interval
+#   intent_wait = 2 x toa(14, 8) + 150 ms         the collar's wait for the INTENT, from T0 - 10 ms
+#   cmd_window  = toa(255, 8) + 300 ms            the existing command window
+#   T0 = the end of the train: the caught frame's end + its time left.
+
+WAKE_INTERVAL_CHOICES_S = (10, 30, 60)   # what configurators offer
+WAKE_INTERVAL_MIN_S = 5                  # the firmware holds a non-zero interval to 5..120
+WAKE_INTERVAL_MAX_S = 120
+WAKE_SLOW_FACTOR_MAX = 4                 # over budget: the interval x2, at most x4, to the hour's end
+WAKE_GAP_MAX_MS = 5                      # between one frame's end and the next one's start
+WAKE_RX_LEAD_MS = 10                     # the collar receives from T0 - 10 ms
+WAKE_FIRST_SEND_MS = 30                  # the handheld's INTENT (or roll call) goes out at T0 + 30 ms
+CALL_SNIFF_S = 1                         # the interval while called, standard setting
+CALL_SNIFF_LONG_S = 2                    # ... long range
+CALLED_WAIT_S = 60                       # listening at CALL_SNIFF after a train, before any signed command
+CALL_IDLE_S = 300                        # the call window ends this long after the last accepted command
+CALL_MAX_S = 900                         # ... or this long after the first
+
+
+def wake_interval_clamp(seconds):
+    """The listening interval a collar runs: 0 stays 0 (not listening), any
+    other value is held to 5..120 s."""
+    if seconds < 0:
+        raise ValueError("an interval is not negative")
+    if seconds == 0:
+        return 0
+    return min(max(seconds, WAKE_INTERVAL_MIN_S), WAKE_INTERVAL_MAX_S)
+
+
+def call_sniff_s(long_range=False):
+    return CALL_SNIFF_LONG_S if long_range else CALL_SNIFF_S
+
+
+def lora_symbol_us(sf, bw_khz):
+    """Ts in microseconds."""
+    if not 7 <= sf <= 12 or bw_khz not in (125, 250, 500):
+        raise ValueError("SF7..12 at 125, 250 or 500 kHz")
+    return (1 << sf) * 1000 // bw_khz
+
+
+def lora_toa_us(sf, bw_khz, n, preamble=LORA_PREAMBLE_SYMBOLS):
+    """Time on air of an n-byte frame with a p-symbol preamble, microseconds
+    (coding rate 4/5, explicit header, CRC on)."""
+    if not 0 <= n <= 255 or preamble < 0:
+        raise ValueError("0..255 payload bytes")
+    ts = lora_symbol_us(sf, bw_khz)
+    de = 1 if ts > 16000 else 0
+    num, den = 8 * n - 4 * sf + 44, 4 * (sf - 2 * de)
+    payload_symbols = max(-(-num // den) * 5, 0)
+    quarter_symbols = 4 * preamble + 17 + 32 + 4 * payload_symbols     # (p + 4.25 + 8 + payload) x 4
+    return quarter_symbols * (ts // 4)                                   # ts is a multiple of 4 us
+
+
+def wake_frame_us(sf, bw_khz):
+    return lora_toa_us(sf, bw_khz, WAKE_MAX_LEN, WAKE_PREAMBLE_SYMBOLS)
+
+
+def wake_tail_us(sf, bw_khz):
+    return lora_toa_us(sf, bw_khz, WAKE_MAX_LEN, LORA_PREAMBLE_SYMBOLS) - 8 * lora_symbol_us(sf, bw_khz)
+
+
+def wake_window_us(sf, bw_khz):
+    """W: a window opened anywhere in a train holds 8 preamble symbols of
+    some frame (the tail of one frame, 16 symbols, 5 ms of gap and 2 ms)."""
+    return wake_tail_us(sf, bw_khz) + 16 * lora_symbol_us(sf, bw_khz) + 7000
+
+
+def wake_cap_us(sf, bw_khz):
+    return wake_frame_us(sf, bw_khz) * 3 // 2 + 20000
+
+
+def wake_intent_wait_us(sf, bw_khz):
+    return 2 * lora_toa_us(sf, bw_khz, 14) + 150000
+
+
+def wake_cmd_window_us(sf, bw_khz):
+    return lora_toa_us(sf, bw_khz, 255) + 300000
+
+
+def wake_train_us(sf, bw_khz, interval_s):
+    """The shortest train that reaches a collar listening every interval_s:
+    3 % for the two clocks, one listen window and one frame over."""
+    if interval_s < 1:
+        raise ValueError("an interval of at least 1 s")
+    return 1030000 * interval_s + wake_window_us(sf, bw_khz) + wake_frame_us(sf, bw_khz)
+
+
+def wake_train_frames(sf, bw_khz, interval_s, gap_us=0):
+    """How many frames make that train when gap_us lies between one frame's
+    end and the next one's start (at most 5 ms): the fewest whose span, first
+    start to last end, is at least wake_train_us. The sender's arithmetic,
+    not a wire rule."""
+    if not 0 <= gap_us <= WAKE_GAP_MAX_MS * 1000:
+        raise ValueError("the gap is 0..5 ms")
+    frame = wake_frame_us(sf, bw_khz)
+    return -(-(wake_train_us(sf, bw_khz, interval_s) + gap_us) // (frame + gap_us))
+
+
+def wake_time_left_10ms(us):
+    """A time to the train's end as the frame's field: 10 ms units, rounded
+    to the nearest (a half up), held to the field's 16 bits."""
+    if us < 0:
+        raise ValueError("time left is not negative")
+    return min((us + 5000) // 10000, WAKE_TIME_LEFT_MAX)
+
+
+def us_to_ms(us):
+    return us / 1000.0
+
+
+WakeTiming = namedtuple("WakeTiming", "ts_us frame_us tail_us w_us cap_us intent_wait_us cmd_window_us "
+                                      "roll_wait_us roll_slot_min_us roll_slot_default_ms")
+
+
+def wake_timing(sf, bw_khz):
+    """Every timing constant of one wake setting."""
+    return WakeTiming(lora_symbol_us(sf, bw_khz), wake_frame_us(sf, bw_khz), wake_tail_us(sf, bw_khz),
+                      wake_window_us(sf, bw_khz), wake_cap_us(sf, bw_khz),
+                      wake_intent_wait_us(sf, bw_khz), wake_cmd_window_us(sf, bw_khz),
+                      roll_call_wait_us(sf, bw_khz), roll_call_slot_min_us(sf, bw_khz),
+                      roll_call_slot_default_ms(sf, bw_khz))
+
+
+# ---------------------------------------- LoRa wake: the roll call (0x43) and the wake key
+#
+# "Every collar of this group in range, answer once." Sent once by a Handheld
+# Receiver 30 ms after the end of a train whose frames carry ROLL, on the
+# wake channel. It cannot be unauthenticated (anyone could then make collars
+# give themselves away), so it is sealed under the group's WAKE KEY:
+#
+#   wake_key = AES-CMAC(the owner's command master, "CID-LORA-WAK" || group_le32 || gen)
+#
+# one key for every collar of a group (the owner's account) and generation,
+# installed over Bluetooth in key slot 2 (downlink.proto BEACON_KEY_SLOT_WAKE).
+#
+#   [0]      0x43                     magic ('C')
+#   [1..4]   group u32                cleartext (key lookup)
+#   [5..8]   counter u32              cleartext; [31:24] generation, [23:0]
+#                                     strictly increasing per group
+#   [9..20]  ciphertext of valid_from u32 || valid_to u32 || slots u8 ||
+#            slot_ms u16 || flags u8 (0)
+#   [21..28] tag                                              29 bytes
+#   AAD = bytes [0..8]; nonce = group_le32 || ctr_le32 || 0x03 || 0x00000000
+#
+# A collar that accepts it sends ONE sealed beacon (0x4D, under its beacon
+# key; a collar without one sends nothing) starting
+#   300 ms + (fmix32(uid ^ 'WAKE' ^ counter) % slots) x slot_ms
+# after the roll call's end, so the collars of a group spread over the slots
+# and a new counter shuffles them again. The 300 ms are the collar's: it
+# seals its beacon AFTER it has accepted the roll call (checking and sealing
+# take it about 0.2 s), so a ROLL train that brings no valid roll call
+# spends no beacon counter. The receiver listens for
+#   300 ms + slots x slot_ms + 200 ms
+# after sending the roll call.
+# old: 50 ms + ... (to 2026-11-13: slots 0 and 1 could not be met in time)
+
+MAGIC_ROLL_CALL = 0x43               # 'C'
+DIR_ROLL_CALL = 0x03                 # the nonce's direction byte
+ROLL_CALL_BODY_LEN = 12              # valid_from, valid_to, slots, slot_ms, flags
+ROLL_CALL_LEN = AAD_LEN + ROLL_CALL_BODY_LEN + TAG_LEN     # 29
+ROLL_CALL_SLOTS_MAX = 64
+ROLL_CALL_SLOTS_DEFAULT = 32
+ROLL_CALL_REPLY_LEN = LEN_V2         # the answer is a v2 beacon, 30 bytes
+# old: ROLL_CALL_REPLY_BASE_MS = 50
+ROLL_CALL_REPLY_BASE_MS = 300        # the first slot starts this long after the roll call's end
+ROLL_CALL_SLOT_MARGIN_MIN_MS = 5     # a slot is at least the beacon's airtime + 5 ms
+ROLL_CALL_SLOT_MARGIN_MS = 10        # ... and by default its airtime, rounded up, + 10 ms
+ROLL_CALL_LISTEN_EXTRA_MS = 200      # the handheld listens 300 ms + slots x slot_ms + 200 ms
+ROLL_CALL_MIN_GAP_S = 60             # a collar answers at most one roll call a minute
+
+# Why a collar does not answer (roll_call_check), in the order checked.
+ROLL_CALL_REFUSALS = ("frame",       # not 0x43 and 29 bytes
+                      "no_key",      # the collar holds no wake key
+                      "group",       # not the group of its key
+                      "gen",         # the counter's generation is not its key's
+                      "counter",     # not above the last roll call it accepted
+                      "tag",         # the tag does not verify
+                      "flags",       # a flag bit is set (none is defined)
+                      "clock",       # the collar has no valid clock
+                      "window",      # now is outside [valid_from, valid_to]
+                      "slots",       # slots is not 1..64
+                      "slot_ms",     # a slot is shorter than the beacon's airtime + 5 ms
+                      "recent")      # it answered a roll call less than 60 s ago
+
+RollCall = namedtuple("RollCall", "group ctr gen seq valid_from valid_to slots slot_ms flags")
+
+
+def header_roll_call(group, ctr):
+    """The 9 cleartext bytes of a roll call, also its AAD."""
+    if not 0 <= group <= 0xFFFFFFFF or not 0 <= ctr <= 0xFFFFFFFF:
+        raise ValueError("group and ctr are uint32")
+    return bytes([MAGIC_ROLL_CALL]) + group.to_bytes(4, "little") + ctr.to_bytes(4, "little")
+
+
+def pack_roll_call_body(valid_from, valid_to, slots, slot_ms, flags=0):
+    for v, top, what in ((valid_from, 0xFFFFFFFF, "valid_from"), (valid_to, 0xFFFFFFFF, "valid_to"),
+                         (slots, 0xFF, "slots"), (slot_ms, 0xFFFF, "slot_ms"), (flags, 0xFF, "flags")):
+        if not 0 <= v <= top:
+            raise ValueError("%s out of range" % what)
+    return (valid_from.to_bytes(4, "little") + valid_to.to_bytes(4, "little") + bytes([slots])
+            + slot_ms.to_bytes(2, "little") + bytes([flags]))
+
+
+def seal_roll_call(wake_key, group, ctr, valid_from, valid_to, slots, slot_ms, flags=0):
+    """Build the 29-byte roll call (the server's side). The codec seals any
+    field values; what a collar accepts is roll_call_check."""
+    hdr = header_roll_call(group, ctr)
+    ct, tag = ccm_seal(wake_key, nonce(group, ctr, DIR_ROLL_CALL), hdr,
+                       pack_roll_call_body(valid_from, valid_to, slots, slot_ms, flags), TAG_LEN)
+    frame = hdr + ct + tag
+    assert len(frame) == ROLL_CALL_LEN
+    return frame
+
+
+def peek_roll_call(frame):
+    """(group, ctr) from a roll call's cleartext header; no key needed."""
+    frame = bytes(frame)
+    if len(frame) != ROLL_CALL_LEN or frame[0] != MAGIC_ROLL_CALL:
+        raise ValueError("not a roll call")
+    return int.from_bytes(frame[1:5], "little"), int.from_bytes(frame[5:9], "little")
+
+
+def open_roll_call(wake_key, frame):
+    """Open and verify a roll call. Raises AuthError on a bad tag."""
+    frame = bytes(frame)
+    group, ctr = peek_roll_call(frame)
+    pt = ccm_open(wake_key, nonce(group, ctr, DIR_ROLL_CALL), frame[:AAD_LEN],
+                  frame[AAD_LEN:-TAG_LEN], frame[-TAG_LEN:], TAG_LEN)
+    return RollCall(group, ctr, ctr_gen(ctr), ctr_seq(ctr),
+                    int.from_bytes(pt[0:4], "little"), int.from_bytes(pt[4:8], "little"),
+                    pt[8], int.from_bytes(pt[9:11], "little"), pt[11])
+
+
+def open_roll_call_with_master(command_master, frame):
+    """Open a roll call holding the owner's COMMAND master: the group and the
+    generation in the cleartext header select the wake key."""
+    group, ctr = peek_roll_call(frame)
+    return open_roll_call(kdf(command_master, "wake", group, ctr_gen(ctr)), frame)
+
+
+def roll_call_wait_us(sf, bw_khz):
+    """How long a collar that caught a ROLL train waits for the roll call,
+    from T0 - 10 ms."""
+    return 2 * lora_toa_us(sf, bw_khz, ROLL_CALL_LEN) + 150000
+
+
+def roll_call_slot_min_us(sf, bw_khz):
+    """The shortest slot a collar accepts: its answer's airtime + 5 ms."""
+    return lora_toa_us(sf, bw_khz, ROLL_CALL_REPLY_LEN) + ROLL_CALL_SLOT_MARGIN_MIN_MS * 1000
+
+
+def roll_call_slot_default_ms(sf, bw_khz):
+    """The slot a server signs by default: the answer's airtime rounded up to
+    a millisecond, + 10 ms."""
+    return -(-lora_toa_us(sf, bw_khz, ROLL_CALL_REPLY_LEN) // 1000) + ROLL_CALL_SLOT_MARGIN_MS
+
+
+def roll_call_listen_ms(slots, slot_ms):
+    """How long the handheld listens after sending its roll call:
+    300 ms + slots x slot_ms + 200 ms."""
+    # old: return slots * slot_ms + ROLL_CALL_LISTEN_EXTRA_MS
+    return ROLL_CALL_REPLY_BASE_MS + slots * slot_ms + ROLL_CALL_LISTEN_EXTRA_MS
+
+
+def roll_call_slot(uid, ctr, slots):
+    """The slot this collar answers in."""
+    if not 1 <= slots <= 255:
+        raise ValueError("slots is 1..255")
+    return send_phase_mix(uid ^ WAKE_SALT ^ ctr) % slots
+
+
+def roll_call_reply_delay_ms(uid, ctr, slots, slot_ms):
+    """From the end of the roll call (the collar's RxDone) to the start of
+    this collar's answer."""
+    return ROLL_CALL_REPLY_BASE_MS + roll_call_slot(uid, ctr, slots) * slot_ms
+
+
+def roll_call_check(frame, wake_key, group, gen, last_ctr, now, sf, bw_khz, since_answer_s=None):
+    """The collar's rule. wake_key, group and gen are the wake key it holds
+    (wake_key None = none); last_ctr is the last roll-call counter it
+    accepted (0 = none yet); now is its clock in UTC seconds (None = no valid
+    clock); sf and bw_khz are its wake setting; since_answer_s is how long
+    ago it last answered a roll call (None = never). Returns (roll call,
+    None) when it answers, else (None, reason), reason one of
+    ROLL_CALL_REFUSALS. Only an accepted roll call moves last_ctr."""
+    try:
+        f_group, f_ctr = peek_roll_call(frame)
+    except ValueError:
+        return None, "frame"
+    if wake_key is None:
+        return None, "no_key"
+    if f_group != group:
+        return None, "group"
+    if ctr_gen(f_ctr) != gen:
+        return None, "gen"
+    if f_ctr <= last_ctr:
+        return None, "counter"
+    try:
+        rc = open_roll_call(wake_key, frame)
+    except AuthError:
+        return None, "tag"
+    if rc.flags != 0:
+        return None, "flags"
+    if now is None:
+        return None, "clock"
+    if not rc.valid_from <= now <= rc.valid_to:
+        return None, "window"
+    if not 1 <= rc.slots <= ROLL_CALL_SLOTS_MAX:
+        return None, "slots"
+    if rc.slot_ms * 1000 < roll_call_slot_min_us(sf, bw_khz):
+        return None, "slot_ms"
+    if since_answer_s is not None and since_answer_s < ROLL_CALL_MIN_GAP_S:
+        return None, "recent"
+    return rc, None
+
+
 def classify(frame):
-    """'v1', 'v2', 'report', 'command', 'command_ack' or None, by magic byte
-    and length only. A plaintext report starts 0x0A (its protobuf header
-    field), so it is None here, never 'report'."""
+    """'v1', 'v2', 'report', 'command', 'command_ack', 'wake', 'roll_call' or
+    None, by magic byte and length only. A plaintext report starts 0x0A (its
+    protobuf header field), so it is None here, never 'report'."""
     frame = bytes(frame)
     if len(frame) == LEN_V1 and frame[0] == MAGIC_V1:
         return "v1"
@@ -593,6 +1164,10 @@ def classify(frame):
         return "command"
     if len(frame) == COMMAND_ACK_LEN and frame[0] == MAGIC_COMMAND_ACK:
         return "command_ack"
+    if WAKE_HEADER_LEN <= len(frame) <= WAKE_MAX_LEN and frame[0] == MAGIC_WAKE:
+        return "wake"
+    if len(frame) == ROLL_CALL_LEN and frame[0] == MAGIC_ROLL_CALL:
+        return "roll_call"
     return None
 
 
@@ -616,7 +1191,8 @@ def main(argv=None):
     o.add_argument("frame", type=_hex, help="30 bytes hex")
     d = sub.add_parser("derive", help="derive a device key from a master")
     d.add_argument("--master", type=_hex, required=True)
-    d.add_argument("--uid", type=_uid, required=True, help="on-air uid32 (0x... or decimal)")
+    d.add_argument("--uid", type=_uid, required=True,
+                   help="on-air uid32 (0x... or decimal); the group for --purpose wake")
     d.add_argument("--gen", type=int, required=True, help="provision generation 1..255")
     d.add_argument("--purpose", choices=sorted(PURPOSES), default="beacon")
     k = sub.add_parser("kcv", help="key check value of a key")
@@ -635,6 +1211,20 @@ def main(argv=None):
     rs.add_argument("--uid", type=_uid, required=True, help="on-air uid32 (0x... or decimal)")
     rs.add_argument("--ctr", type=_uid, required=True, help="tx_counter, gen<<24 | seq (0x... or decimal)")
     rs.add_argument("payload", type=_hex, help="the report's plaintext bytes, 1..238, hex")
+    wt = sub.add_parser("wake-tag", help="the 16-bit tag a wake frame (0x57) names a collar by")
+    wt.add_argument("uids", type=_uid, nargs="+", help="on-air uid32 (0x... or decimal)")
+    wp = sub.add_parser("wake-parse", help="decode a wake frame (0x57)")
+    wp.add_argument("frame", type=_hex, help="5..13 bytes hex")
+    wp.add_argument("--uid", type=_uid, help="also say what the frame means to this collar")
+    wm = sub.add_parser("wake-timing", help="the timing constants of a wake setting")
+    wm.add_argument("--region", required=True, choices=sorted(c.name for c in WAKE_TABLE.values()))
+    wm.add_argument("--long", action="store_true", help="the long-range setting")
+    wm.add_argument("--interval", type=int, default=30, help="the collars' listening interval, s")
+    rc = sub.add_parser("roll-open", help="open a roll call (0x43)")
+    rcg = rc.add_mutually_exclusive_group(required=True)
+    rcg.add_argument("--key", type=_hex, help="the group's wake key, 16 bytes hex")
+    rcg.add_argument("--master", type=_hex, help="the owner's command master, 16 bytes hex")
+    rc.add_argument("frame", type=_hex, help="29 bytes hex")
     a = p.parse_args(argv)
     if a.cmd == "open":
         try:
@@ -666,6 +1256,38 @@ def main(argv=None):
     elif a.cmd == "report-seal":
         frame = seal_report(a.key, a.uid, a.ctr, a.payload)
         print(json.dumps({"frame": frame.hex(), "len": len(frame)}))
+    elif a.cmd == "wake-tag":
+        print(json.dumps([{"uid": "0x%08X" % u, "tag": wake_tag(u), "tag_hex": "%04x" % wake_tag(u)}
+                          for u in a.uids]))
+    elif a.cmd == "wake-parse":
+        try:
+            f = parse_wake_frame(a.frame)
+        except WakeFrameError as e:
+            print(json.dumps({"error": "not a wake frame", "reason": e.reason}))
+            return 1
+        out = f._asdict()
+        out["time_left_ms"] = f.time_left_10ms * WAKE_TIME_UNIT_MS
+        if a.uid is not None:
+            out["tag"] = wake_tag(a.uid)
+            out["verdict"] = wake_verdict(f, a.uid)
+        print(json.dumps(out))
+    elif a.cmd == "wake-timing":
+        ch = [c for c in WAKE_TABLE.values() if c.name == a.region][0]
+        sf = ch.sf_long if a.long else ch.sf
+        t = wake_timing(sf, ch.bw_khz)
+        out = {"region": ch.name, "frequency_hz": ch.frequency_hz, "bw_khz": ch.bw_khz, "sf": sf,
+               "long_range": a.long, "interval_s": a.interval,
+               "train_ms": us_to_ms(wake_train_us(sf, ch.bw_khz, a.interval)),
+               "roll_slot_default_ms": t.roll_slot_default_ms}
+        out.update((k[:-3] + "_ms", us_to_ms(v)) for k, v in t._asdict().items() if k.endswith("_us"))
+        print(json.dumps(out))
+    elif a.cmd == "roll-open":
+        try:
+            r = open_roll_call_with_master(a.master, a.frame) if a.master else open_roll_call(a.key, a.frame)
+        except AuthError as e:
+            print(json.dumps({"error": "authentication failed", "detail": str(e)}))
+            return 1
+        print(json.dumps(r._asdict()))
     return 0
 
 
