@@ -186,6 +186,16 @@ enum CommandType {
   // seconds as the collar will run it; firmware that predates the command
   // answers 5 (unknown command).
   CMD_LOCATE_NOW          = 28;
+  // GPS history (collarID_thread docs/DESIGN_gps_history.md): send the
+  // fixes the collar's card holds for track.from_epoch..track.to_epoch as
+  // GPS-block frames, in coverage order (newest, oldest, the middle, then
+  // halves, quarters, ...), positions track.skip .. skip+count-1 of that
+  // order, so the first frame alone is an even picture of the whole span.
+  // Direct radio only for now: the CMD-ACK answers 1 accepted with detail =
+  // (positions covered << 16) | fixes found, then up to 4 report frames
+  // follow. Over LoRaWAN or the BLE tunnel it is not run. Firmware that
+  // predates it answers 5 (unknown command).
+  CMD_SEND_TRACK          = 29;
 }
 
 // ---- Geofence ----
@@ -491,6 +501,17 @@ message LocateNow {
   uint32 timeout_s = 1;
 }
 
+// CMD_SEND_TRACK parameters. from_epoch 0 = the oldest fix the collar holds;
+// to_epoch 0 = now (pin it when a request is paged, or new fixes move the
+// order); skip = positions of the order already asked for; count = the
+// positions this request covers, 0 = 64, held to 1..96.
+message TrackRequest {
+  uint32 from_epoch = 1;
+  uint32 to_epoch   = 2;
+  uint32 skip       = 3;
+  uint32 count      = 4;
+}
+
 // The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
 // (pushable remotely) and as the input of PacketHeader.radio_crc. Mirrors
 // ble.proto LoRaConfig + the lost-mode fields of RadioConfigPacket with plain
@@ -615,4 +636,7 @@ message DownlinkPacket {
   // (2 B without the message), 13 B with a LoRaWAN downlink's epoch: fits
   // the 33 B RX2 floor, and a signed frame of 36 B.
   optional LocateNow locate = 16;
+  // CMD_SEND_TRACK parameters; absent = the whole history, 64 positions.
+  // At most 26 B with the command, inside a signed frame.
+  optional TrackRequest track = 17;
 }

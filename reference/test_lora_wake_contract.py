@@ -139,12 +139,28 @@ class ProtoContract(unittest.TestCase):
         cmds = enum_values("downlink.proto", "CommandType")
         self.assertEqual(cmds.get("CMD_LOCATE_NOW"), CMD_LOCATE_NOW)
         self.assertEqual(len(cmds.values()), len(set(cmds.values())), "duplicate command number")
-        self.assertEqual(max(cmds.values()), CMD_LOCATE_NOW)       # the newest command
+        # old: self.assertEqual(max(cmds.values()), CMD_LOCATE_NOW)       # the newest command
+        # GPS history (2026-11-15) added CMD_SEND_TRACK = 29 after it.
+        self.assertEqual(max(cmds.values()), cmds.get("CMD_SEND_TRACK"))
+        self.assertEqual(cmds.get("CMD_SEND_TRACK"), CMD_LOCATE_NOW + 1)
         self.assertEqual(message_fields("downlink.proto", "LocateNow"), {"timeout_s": ("uint32", 1)})
         dl = message_fields("downlink.proto", "DownlinkPacket")
         self.assertEqual(dl.get("locate"), LOCATE_FIELD)
         self.assertEqual(field_labels("downlink.proto", "DownlinkPacket")["locate"], "optional")
-        self.assertEqual(sorted(n for _, n in dl.values()), list(range(1, 17)))
+        # old: self.assertEqual(sorted(n for _, n in dl.values()), list(range(1, 17)))
+        # (DownlinkPacket.track = 17 since 2026-11-15, GPS history)
+        self.assertEqual(sorted(n for _, n in dl.values()), list(range(1, 18)))
+
+    def test_send_track(self):
+        """GPS history (collarID_thread docs/DESIGN_gps_history.md): the track
+        request and its parameters."""
+        self.assertEqual(enum_values("downlink.proto", "CommandType").get("CMD_SEND_TRACK"), 29)
+        self.assertEqual(message_fields("downlink.proto", "TrackRequest"),
+                         {"from_epoch": ("uint32", 1), "to_epoch": ("uint32", 2),
+                          "skip": ("uint32", 3), "count": ("uint32", 4)})
+        dl = message_fields("downlink.proto", "DownlinkPacket")
+        self.assertEqual(dl.get("track"), ("TrackRequest", 17))
+        self.assertEqual(field_labels("downlink.proto", "DownlinkPacket")["track"], "optional")
 
     def test_packet_header(self):
         h = message_fields("common.proto", "PacketHeader")

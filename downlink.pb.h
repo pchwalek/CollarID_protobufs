@@ -149,7 +149,17 @@ typedef enum command_type {
  handheld's CMD-ACK answers 1 accepted with detail = the timeout in
  seconds as the collar will run it; firmware that predates the command
  answers 5 (unknown command). */
-    COMMAND_TYPE_CMD_LOCATE_NOW = 28
+    COMMAND_TYPE_CMD_LOCATE_NOW = 28,
+    /* GPS history (collarID_thread docs/DESIGN_gps_history.md): send the
+ fixes the collar's card holds for track.from_epoch..track.to_epoch as
+ GPS-block frames, in coverage order (newest, oldest, the middle, then
+ halves, quarters, ...), positions track.skip .. skip+count-1 of that
+ order, so the first frame alone is an even picture of the whole span.
+ Direct radio only for now: the CMD-ACK answers 1 accepted with detail =
+ (positions covered << 16) | fixes found, then up to 4 report frames
+ follow. Over LoRaWAN or the BLE tunnel it is not run. Firmware that
+ predates it answers 5 (unknown command). */
+    COMMAND_TYPE_CMD_SEND_TRACK = 29
 } command_type_t;
 
 /* ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
@@ -511,6 +521,17 @@ typedef struct locate_now {
     uint32_t timeout_s;
 } locate_now_t;
 
+/* CMD_SEND_TRACK parameters. from_epoch 0 = the oldest fix the collar holds;
+ to_epoch 0 = now (pin it when a request is paged, or new fixes move the
+ order); skip = positions of the order already asked for; count = the
+ positions this request covers, 0 = 64, held to 1..96. */
+typedef struct track_request {
+    uint32_t from_epoch;
+    uint32_t to_epoch;
+    uint32_t skip;
+    uint32_t count;
+} track_request_t;
+
 /* The direct-radio and lost-mode settings, for ConfigFragment.cfg_radio
  (pushable remotely) and as the input of PacketHeader.radio_crc. Mirrors
  ble.proto LoRaConfig + the lost-mode fields of RadioConfigPacket with plain
@@ -666,6 +687,10 @@ typedef struct downlink_packet {
  the 33 B RX2 floor, and a signed frame of 36 B. */
     bool has_locate;
     locate_now_t locate;
+    /* CMD_SEND_TRACK parameters; absent = the whole history, 64 positions.
+ At most 26 B with the command, inside a signed frame. */
+    bool has_track;
+    track_request_t track;
 } downlink_packet_t;
 
 
@@ -675,8 +700,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_LOCATE_NOW
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_LOCATE_NOW+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_SEND_TRACK
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_SEND_TRACK+1))
 
 #define _BEACON_KEY_SLOT_MIN BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON
 #define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_WAKE
@@ -686,6 +711,7 @@ extern "C" {
 
 
 #define beacon_key_set_t_slot_ENUMTYPE beacon_key_slot_t
+
 
 
 
@@ -725,9 +751,10 @@ extern "C" {
 #define FIND_MODE_INIT_DEFAULT                   {0, 0}
 #define BLE_WINDOW_INIT_DEFAULT                  {0, {0}}
 #define LOCATE_NOW_INIT_DEFAULT                  {0}
+#define TRACK_REQUEST_INIT_DEFAULT               {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT, false, TRACK_REQUEST_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
@@ -746,9 +773,10 @@ extern "C" {
 #define FIND_MODE_INIT_ZERO                      {0, 0}
 #define BLE_WINDOW_INIT_ZERO                     {0, {0}}
 #define LOCATE_NOW_INIT_ZERO                     {0}
+#define TRACK_REQUEST_INIT_ZERO                  {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO, false, TRACK_REQUEST_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -829,6 +857,10 @@ extern "C" {
 #define BLE_WINDOW_MINUTES_TAG                   1
 #define BLE_WINDOW_KEY_TAG                       2
 #define LOCATE_NOW_TIMEOUT_S_TAG                 1
+#define TRACK_REQUEST_FROM_EPOCH_TAG             1
+#define TRACK_REQUEST_TO_EPOCH_TAG               2
+#define TRACK_REQUEST_SKIP_TAG                   3
+#define TRACK_REQUEST_COUNT_TAG                  4
 #define RADIO_SETTINGS_SPREADING_FACTOR_TAG      1
 #define RADIO_SETTINGS_BANDWIDTH_TAG             2
 #define RADIO_SETTINGS_CODING_RATE_TAG           3
@@ -874,6 +906,7 @@ extern "C" {
 #define DOWNLINK_PACKET_ADDON_ARM_DELAY_S_TAG    14
 #define DOWNLINK_PACKET_BLE_WINDOW_TAG           15
 #define DOWNLINK_PACKET_LOCATE_TAG               16
+#define DOWNLINK_PACKET_TRACK_TAG                17
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -1028,6 +1061,14 @@ X(a, STATIC,   SINGULAR, UINT32,   timeout_s,         1)
 #define LOCATE_NOW_CALLBACK NULL
 #define LOCATE_NOW_DEFAULT NULL
 
+#define TRACK_REQUEST_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   from_epoch,        1) \
+X(a, STATIC,   SINGULAR, UINT32,   to_epoch,          2) \
+X(a, STATIC,   SINGULAR, UINT32,   skip,              3) \
+X(a, STATIC,   SINGULAR, UINT32,   count,             4)
+#define TRACK_REQUEST_CALLBACK NULL
+#define TRACK_REQUEST_DEFAULT NULL
+
 #define RADIO_SETTINGS_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, UINT32,   spreading_factor,   1) \
 X(a, STATIC,   OPTIONAL, UINT32,   bandwidth,         2) \
@@ -1094,7 +1135,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  session,          12) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  find,             13) \
 X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  ble_window,       15) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  locate,           16)
+X(a, STATIC,   OPTIONAL, MESSAGE,  locate,           16) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  track,            17)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
@@ -1105,6 +1147,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  locate,           16)
 #define downlink_packet_t_find_MSGTYPE find_mode_t
 #define downlink_packet_t_ble_window_MSGTYPE ble_window_t
 #define downlink_packet_t_locate_MSGTYPE locate_now_t
+#define downlink_packet_t_track_MSGTYPE track_request_t
 
 extern const pb_msgdesc_t geo_point_t_msg;
 extern const pb_msgdesc_t geofence_data_t_msg;
@@ -1124,6 +1167,7 @@ extern const pb_msgdesc_t session_params_t_msg;
 extern const pb_msgdesc_t find_mode_t_msg;
 extern const pb_msgdesc_t ble_window_t_msg;
 extern const pb_msgdesc_t locate_now_t_msg;
+extern const pb_msgdesc_t track_request_t_msg;
 extern const pb_msgdesc_t radio_settings_t_msg;
 extern const pb_msgdesc_t config_fragment_t_msg;
 extern const pb_msgdesc_t downlink_packet_t_msg;
@@ -1147,6 +1191,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define FIND_MODE_FIELDS &find_mode_t_msg
 #define BLE_WINDOW_FIELDS &ble_window_t_msg
 #define LOCATE_NOW_FIELDS &locate_now_t_msg
+#define TRACK_REQUEST_FIELDS &track_request_t_msg
 #define RADIO_SETTINGS_FIELDS &radio_settings_t_msg
 #define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
 #define DOWNLINK_PACKET_FIELDS &downlink_packet_t_msg
@@ -1165,7 +1210,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       28
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     821
+#define DOWNLINK_PACKET_SIZE                     848
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
@@ -1173,6 +1218,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define LOCATE_NOW_SIZE                          6
 #define RADIO_SETTINGS_SIZE                      76
 #define SESSION_PARAMS_SIZE                      18
+#define TRACK_REQUEST_SIZE                       24
 
 #ifdef __cplusplus
 } /* extern "C" */
