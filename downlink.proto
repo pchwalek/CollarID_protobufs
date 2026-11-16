@@ -161,14 +161,22 @@ enum CommandType {
   // The collar powers its Bluetooth radio, advertises, and serves its card's
   // files read-only on the bulk characteristic (...6fdc) for
   // ble_window.minutes (0 = 10, clamped 1..30), longer while a phone keeps
-  // asking (at most 60 min from the open). Only a phone that proves it holds
+  // asking (at most 120 min from the open since 2026-11-16; was 60), and
+  // 2 min after a phone leaves without BYE unless one connects again in that
+  // time (never later than it would have closed anyway; a window no phone
+  // has connected to keeps its full time). Only a phone that proves it holds
   // ble_window.key (challenge-response, bulk/README.md) may list or read.
   // While the window is open the radio refuses every settings write, update
   // and add-on forward: settings travel over the signed radio or the magnet
   // session. Allowed over the direct radio (signed) and LoRaWAN; ignored
-  // over the BLE tunnel. Refused (handheld ACK result 12, detail = reason)
-  // without a key, on a radio that cannot serve files, without a card, or on
-  // a low battery. Firmware that predates it answers 5 (unknown command).
+  // over the BLE tunnel (since 2026-11-16 the tunnel echo says so:
+  // CfgEchoPacket.cmd_result 7, ble.proto). Refused (handheld ACK result 12,
+  // detail = reason) without a key (1), on a radio that cannot serve files
+  // (2), without a card (3), on a low battery (4), while a firmware update
+  // runs (5), or (6, 2026-11-16) when ble_window.kinds asks for audio and the
+  // range is missing, reversed or over 24 hours. ble_window.kinds limits
+  // what the window serves (BleWindow below). Firmware that predates it
+  // answers 5 (unknown command).
   CMD_BLE_WINDOW          = 27;
 
   // Locate now ("LoRa wake", collarID_thread docs/CONTRACT_lora_wake.md
@@ -181,10 +189,15 @@ enum CommandType {
   // otherwise with the carrier's normal next report. The schedule and the
   // stored configuration are not touched. One at a time: a second command
   // while an attempt runs is accepted and restarts nothing.
-  // Allowed over the signed direct radio, LoRaWAN and the BLE tunnel. A
-  // handheld's CMD-ACK answers 1 accepted with detail = the timeout in
-  // seconds as the collar will run it; firmware that predates the command
-  // answers 5 (unknown command).
+  // Allowed over the signed direct radio and LoRaWAN. A handheld's CMD-ACK
+  // answers 1 accepted with detail = the timeout in seconds as the collar
+  // will run it; firmware that predates the command answers 5 (unknown
+  // command). Over the BLE tunnel it is refused (2026-11-16): a Bluetooth
+  // session runs with the collar disengaged and no GPS, so nothing starts and
+  // the tunnel echo carries CfgEchoPacket.cmd_result 7 (refused on this
+  // carrier, ble.proto).
+  // old: Allowed over the signed direct radio, LoRaWAN and the BLE tunnel
+  // (over the tunnel it was accepted and started nothing).
   CMD_LOCATE_NOW          = 28;
   // GPS history (collarID_thread docs/DESIGN_gps_history.md): send the
   // fixes the collar's card holds for track.from_epoch..track.to_epoch as
@@ -196,6 +209,23 @@ enum CommandType {
   // follow. Over LoRaWAN or the BLE tunnel it is not run. Firmware that
   // predates it answers 5 (unknown command).
   CMD_SEND_TRACK          = 29;
+  // What's on the card (2026-11-16, collarID_thread
+  // docs/CONTRACT_files_and_spotter_gaps.md Part 3; fw gate: firmware main
+  // build TBD, set at merge): which UTC days and hours hold sound and
+  // movement data, and how much, for card_summary.days days from the UTC day
+  // of card_summary.from_epoch (CardSummaryRequest below). The collar answers
+  // from a small per-day index it keeps on its card, never by scanning the
+  // card on request. Direct radio only: the CMD-ACK answers 1 accepted with
+  // detail = the reply frames that follow (1..4), each a MessagePacket
+  // carrying card_summary (message.proto CardSummary), sealed when a beacon
+  // key is held, with no packet index of its own and kept out of every ring,
+  // as track frames are. Refused with ACK result 12 (CMD_ACK_BLE_REFUSED,
+  // the card refusals) detail 3 when the collar has no readable card, detail
+  // 7 while the index of a card that held data before this firmware is
+  // still being built (ask again later). Over LoRaWAN it is not run (logged)
+  // and over the BLE tunnel it is refused (CfgEchoPacket.cmd_result 7).
+  // Firmware that predates it answers 5 (unknown command).
+  CMD_CARD_SUMMARY        = 30;
 }
 
 // ---- Geofence ----
@@ -490,15 +520,50 @@ message FindMode {
 // signed frame, over TLS). It travels encrypted inside the 0x44 frame (or
 // LoRaWAN's AppSKey). The collar keeps it in RAM for the window only. An
 // absent or all-zero key refuses the window.
+//
+// What the window serves (2026-11-16, collarID_thread
+// docs/CONTRACT_files_and_spotter_gaps.md Part 1; fw gate: firmware main
+// build TBD, set at merge). kinds is a bit set of
+//   BLE_FILES_KIND_LOG   = 1  the card log, /METADATA.CSV
+//   BLE_FILES_KIND_ACCEL = 2  movement data: everything under /accelerometer/
+//                             (and /accelerometer_recovery/)
+//   BLE_FILES_KIND_AUDIO = 4  sound: the takes under /audio/ that overlap
+//                             [audio_from, audio_to], i.e. whose start time
+//                             (from the file name) lies in
+//                             [audio_from - 3600, audio_to] (a take runs at
+//                             most an hour), and the day folders'
+//                             time-anchor files (mic.anc.csv) for the days
+//                             that widened window touches
+// 0 (or absent) = everything on the card, as every build before this one
+// served; a magnet session is never restricted. Outside the kinds asked for,
+// LIST hides a file or folder and STAT / READ answer NOT_FOUND
+// (bulk/README.md "What a window serves" has the exact lists). Bits above 2
+// are reserved: a window whose kinds hold only those serves nothing.
+// audio_from / audio_to (UTC epoch seconds) are read only with bit 2 set,
+// and then must be present with audio_to > audio_from and
+// audio_to - audio_from <= 86400 (24 h), or the collar refuses the command:
+// ACK result 12 (CMD_ACK_BLE_REFUSED), detail 6, and no window opens.
+// Firmware that predates the fields ignores them and serves everything.
 message BleWindow {
-  uint32 minutes = 1;
-  bytes  key     = 2;
+  uint32 minutes    = 1;
+  bytes  key        = 2;
+  uint32 kinds      = 3;   // bit 0 card log, bit 1 accelerometer, bit 2 audio; 0 = everything
+  uint32 audio_from = 4;   // UTC epoch seconds, audio only (bit 2)
+  uint32 audio_to   = 5;   // UTC epoch seconds; audio_to > audio_from, at most 86400 after it
 }
 
 // CMD_LOCATE_NOW parameters. timeout_s is how long the one GPS attempt may
 // run: 0 (or the message absent) = 60 s, any other value held to 10..120.
 message LocateNow {
   uint32 timeout_s = 1;
+}
+
+// CMD_CARD_SUMMARY parameters (2026-11-16). from_epoch: any time on the
+// first UTC day wanted; 0 = the days that end today (the collar's UTC day).
+// days: 0 = 30, held to 1..62. At most 12 B, 16 B with the command.
+message CardSummaryRequest {
+  uint32 from_epoch = 1;
+  uint32 days       = 2;
 }
 
 // CMD_SEND_TRACK parameters. from_epoch 0 = the oldest fix the collar holds;
@@ -630,7 +695,10 @@ message DownlinkPacket {
   // both are present addon_arm_epoch wins.
   optional uint32 addon_arm_delay_s = 14;
   // CMD_BLE_WINDOW parameters (24 B with the command: fits the 33 B RX2
-  // floor and a signed frame).
+  // floor and a signed frame). With kinds (2026-11-16): 26 B for the card
+  // log and movement data, 38 B with an audio range: a signed frame (226 B
+  // body) carries it; LoRaWAN's 33 B RX2 floor does not, and the server
+  // sends a window with kinds through a Spotter only.
   optional BleWindow ble_window = 15;
   // CMD_LOCATE_NOW parameters; absent = a 60 s attempt. 7 B with the command
   // (2 B without the message), 13 B with a LoRaWAN downlink's epoch: fits
@@ -639,4 +707,6 @@ message DownlinkPacket {
   // CMD_SEND_TRACK parameters; absent = the whole history, 64 positions.
   // At most 26 B with the command, inside a signed frame.
   optional TrackRequest track = 17;
+  // CMD_CARD_SUMMARY parameters (2026-11-16); absent = the last 30 days.
+  optional CardSummaryRequest card_summary = 18;
 }

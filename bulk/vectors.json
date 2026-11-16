@@ -318,5 +318,131 @@
     "e": 0
    }
   ]
- }
+ },
+ "info": {
+  "header": {
+   "uid": 12648430,
+   "key": "404142434445464748494a4b4c4d4e4f",
+   "window_s": 600,
+   "data_max": 64,
+   "cnonce": "a0a1a2a3a4a5a6a7",
+   "battery_pct": 64,
+   "battery_mv": 3850,
+   "floor_pct": 20
+  },
+  "steps": [
+   {
+    "note": "INFO before AUTH: auth required",
+    "tick": 12288,
+    "pull": -1,
+    "req": "08010000",
+    "ans": "8801010002"
+   },
+   {
+    "note": "HELLO",
+    "tick": 12289,
+    "pull": -1,
+    "req": "01020800a0a1a2a3a4a5a6a7",
+    "ans": "81021b00000101eeffc0009bf1f7e85401983e44eb211cce6515cf58024000"
+   },
+   {
+    "note": "AUTH",
+    "tick": 12290,
+    "pull": -1,
+    "req": "02031000bb59a10f16f3db7b8cbb066478e26956",
+    "ans": "82030900000d8e1e38c70d5139"
+   },
+   {
+    "note": "INFO (ctr 0)",
+    "tick": 12291,
+    "pull": -1,
+    "req": "080400001af599ee4a65242f",
+    "ans": "8804090000400a0f1458020000"
+   },
+   {
+    "note": "INFO with a payload (ctr 1): bad request",
+    "tick": 12292,
+    "pull": -1,
+    "req": "0805010001d6a6fa159942ee57",
+    "ans": "8805010001"
+   },
+   {
+    "note": "READ, two frames (ctr 2)",
+    "tick": 12293,
+    "pull": 2,
+    "req": "050624000000000000000000000000002f323032362f31312f31322f4750535f303031322e435356d0b2c7ebfc833c66",
+    "ans": "c50648000000000000000000030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc50648004000000000000000c3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c"
+   },
+   {
+    "note": "INFO mid-READ (ctr 3): answered at once, then the READ goes on",
+    "tick": 12294,
+    "pull": -1,
+    "req": "080700005b2251167786268d",
+    "ans": "8807090000400a0f1458020000c50648008000000000000000838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353cc5064800c000000000000000434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fcc50634000001000000000000030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930850611000000000000000000002c010000ce570ede"
+   },
+   {
+    "note": "BYE (ctr 4)",
+    "tick": 12295,
+    "pull": -1,
+    "req": "07080000f277aa0ff4dd7165",
+    "ans": "8708010000"
+   }
+  ]
+ },
+ "windows": [
+  {
+   "note": "no request yet: the minutes asked",
+   "open_s": 1000,
+   "minutes": 10,
+   "last_activity_s": 0,
+   "phone_gone": false,
+   "gone_s": 0,
+   "close_s": 1600
+  },
+  {
+   "note": "a request near the end: 120 s past it",
+   "open_s": 1000,
+   "minutes": 10,
+   "last_activity_s": 1590,
+   "phone_gone": false,
+   "gone_s": 0,
+   "close_s": 1710
+  },
+  {
+   "note": "files keep moving: two hours at most",
+   "open_s": 1000,
+   "minutes": 30,
+   "last_activity_s": 8190,
+   "phone_gone": false,
+   "gone_s": 0,
+   "close_s": 8200
+  },
+  {
+   "note": "the phone left at 300 s with no BYE: 120 s later",
+   "open_s": 1000,
+   "minutes": 30,
+   "last_activity_s": 1290,
+   "phone_gone": true,
+   "gone_s": 1300,
+   "close_s": 1420
+  },
+  {
+   "note": "the phone left near the normal end: the normal end",
+   "open_s": 1000,
+   "minutes": 10,
+   "last_activity_s": 1100,
+   "phone_gone": true,
+   "gone_s": 1590,
+   "close_s": 1600
+  },
+  {
+   "note": "no phone has connected yet: the full time",
+   "open_s": 1000,
+   "minutes": 30,
+   "last_activity_s": 0,
+   "phone_gone": false,
+   "gone_s": 0,
+   "close_s": 2800
+  }
+ ]
 }

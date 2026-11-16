@@ -140,5 +140,51 @@ class Sessions(unittest.TestCase):
         self.assertEqual(len(c.list("/D")), 100)
 
 
+class Info(unittest.TestCase):
+    """INFO (op 0x08, 2026-11-16): the battery and the window's time left."""
+
+    def setUp(self):
+        self.fs, self.mt = make_vectors.files()
+        self.key = make_vectors.KEY
+
+    def test_info_after_auth(self):
+        m = b.CollarModel(7, self.fs, key=self.key, mtimes=self.mt, window_s=900, battery=(64, 3850, 20))
+        w, r = wire(m, [244])
+        c = b.Client(w, r, key=self.key)
+        c.open()
+        i = c.info()
+        self.assertEqual((i.result, i.battery_pct, i.battery_mv, i.floor_pct, i.window_left_s),
+                         (b.R_OK, 64, 3850, 20, 900))
+        gps = "/2026/11/12/GPS_0012.CSV"
+        self.assertEqual(c.read(gps), self.fs[gps])      # requests after INFO keep their MAC counter
+        self.assertEqual(c.info().battery_mv, 3850)
+
+    def test_a_collar_without_info_says_unknown_op(self):
+        self.assertEqual(b.parse_info(bytes([b.R_UNKNOWN_OP])).result, b.R_UNKNOWN_OP)
+        self.assertEqual(b.OP_INFO, 0x08)
+        self.assertEqual(len(b.info_answer(0, 1, 2, 3, 4)), b.INFO_ANSWER_LEN)
+        # the frozen keyed transcript's unknown op is 0x09, never INFO
+        v = json.load(open(make_vectors.OUT))
+        unknown = [st for st in v["keyed"]["steps"] if st["note"].startswith("an unknown op")][0]
+        self.assertEqual(int(unknown["req"][:2], 16), 0x09)
+
+    def test_info_transcript_and_windows(self):
+        v = json.load(open(make_vectors.OUT))
+        self.assertEqual(v["info"]["header"]["battery_pct"], 64)
+        ans = bytes.fromhex(v["info"]["steps"][3]["ans"])
+        self.assertEqual(ans[0], b.OP_INFO | b.RESP)
+        i = b.parse_info(ans[4:4 + b.INFO_ANSWER_LEN])
+        self.assertEqual((i.battery_pct, i.battery_mv, i.floor_pct, i.window_left_s), (64, 3850, 20, 600))
+        for w in v["windows"]:
+            self.assertEqual(b.window_close_s(w["open_s"], w["minutes"], w["last_activity_s"], w["phone_gone"],
+                                              w["gone_s"]), w["close_s"], w["note"])
+        self.assertEqual(b.WINDOW_HARD_CAP_S, 7200)
+        self.assertEqual(b.WINDOW_RECONNECT_S, 120)
+
+    def test_the_earlier_transcripts_are_unchanged(self):
+        v = json.load(open(make_vectors.OUT))
+        self.assertEqual(list(v.keys())[:7], ["format", "version", "note", "files", "keyed", "open", "primitives"])
+
+
 if __name__ == "__main__":
     unittest.main()

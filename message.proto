@@ -322,6 +322,30 @@ message BeaconKeyStatus {
     uint32 result = 4;
 }
 
+// What's on the card (2026-11-16, collarID_thread
+// docs/CONTRACT_files_and_spotter_gaps.md Part 3): one reply frame of a
+// CMD_CARD_SUMMARY answer. `days` holds 10 B per UTC day, consecutive days
+// from first_day (reference/CARD_SUMMARY_V1.md, codec
+// reference/card_summary.py, vectors test_vectors/card_summary_v1.json):
+//   [0..2] sound hours (u24 LE): bit h = some sound on the card covers part
+//          of UTC hour h of that day (from a take's start, its file name, to
+//          its close)
+//   [3..4] sound MiB (u16 LE): the takes that start that day, rounded up;
+//          65535 = that much or more
+//   [5..7] movement hours (u24 LE), as sound (accelerometer files)
+//   [8..9] movement MiB (u16 LE), as sound
+// A day with nothing is all zeros, and is kept so days stay consecutive. A
+// frame carries at most 16 days (160 B); an answer at most 4 frames (62
+// days). log_kib is on part 1 only.
+message CardSummary {
+  uint32 first_day = 1;  // UTC midnight (epoch s) of the first day in `days`
+  bytes  days      = 2;  // 10 B per day (above)
+  uint32 part      = 3;  // 1-based frame number of this answer
+  uint32 parts     = 4;  // frames in this answer
+  uint32 log_kib   = 5;  // size of /METADATA.CSV, KiB rounded up (part 1 only)
+  uint32 as_of     = 6;  // collar UTC when the summary was made
+}
+
 message MessagePacket {
     PacketHeader header = 1;
 
@@ -348,6 +372,11 @@ message MessagePacket {
     // report on this frame, never "no key". Fw gate: firmware main build
     // TBD, set at merge.
     optional BeaconKeyStatus beacon_key = 11;
+
+    // What's on the card (CMD_CARD_SUMMARY, downlink.proto; 2026-11-16).
+    // Only on a direct-radio reply frame answering that command, never on a
+    // report. Fw gate: firmware main build TBD, set at merge.
+    optional CardSummary card_summary = 12;
 }
 
 

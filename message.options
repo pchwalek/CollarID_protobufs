@@ -2,3 +2,12 @@ Deployment.gps_data  max_count:24
 Deployment.addon    max_count:4
 Deployment.gps_block max_size:180
 BeaconKeyStatus.kcv max_size:3
+
+# What's on the card (CMD_CARD_SUMMARY, 2026-11-16): at most 16 days of 10 B
+# per frame. MessagePacket.card_summary is left out of the collar's
+# message_packet_t (five static copies of it live in the firmware, and only
+# the card-summary reply frames carry the field): the collar writes the field
+# itself (collarID_thread Core/Src/card_days.c, field 12 after the header).
+# Every other reader (the server's Python, the apps) sees it as usual.
+CardSummary.days           max_size:160
+MessagePacket.card_summary type:FT_IGNORE

@@ -87,7 +87,9 @@ class Reference(unittest.TestCase):
         for define, key in (("CB_UUID_SERVICE", "service"), ("CB_UUID_UPDATE_CHAR", "update_char"),
                             ("CB_UUID_STATUS_CHAR", "status_char"), ("CB_UUID_CAPS_CHAR", "caps_char"),
                             ("CB_UUID_LOCALDEV_CHAR", "localdev_char"), ("CB_UUID_RADIO_CHAR", "radio_char"),
-                            ("CB_UUID_OTAREBOOT_CHAR", "ota_reboot_char")):
+                            ("CB_UUID_OTAREBOOT_CHAR", "ota_reboot_char"),
+                            # the file characteristic (CIDB, ../bulk/README.md), 2026-11-16
+                            ("CB_UUID_BULK_CHAR", "bulk_char")):
             m = re.search(r"#define %s\s+\"([^\"]+)\"" % define, text)
             self.assertTrue(m and m.group(1) == g[key], define)
         num = lambda name: int(re.search(r"#define %s\s+(0x[0-9A-Fa-f]+|\d+)u" % name, text).group(1), 0)

@@ -54,6 +54,9 @@ PB_BIND(CONFIG_REPORT, config_report_t, 2)
 PB_BIND(BEACON_KEY_STATUS, beacon_key_status_t, AUTO)
 
 
+PB_BIND(CARD_SUMMARY, card_summary_t, AUTO)
+
+
 PB_BIND(MESSAGE_PACKET, message_packet_t, 2)
 
 

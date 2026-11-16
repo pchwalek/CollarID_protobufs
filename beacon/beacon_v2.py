@@ -497,12 +497,23 @@ ACK_NO_CLOCK = 8          # reserved: a collar with no clock answers nothing ins
 ACK_SESSION_OPEN = 9      # CMD_SESSION_OPEN accepted; detail = session SF
 ACK_SESSION_CLOSED = 10   # CMD_SESSION_CLOSE accepted
 ACK_CFG_NOT_USED = 11     # a settings piece the collar did not use; detail = the unfinished transaction in the way (0 = none)
-ACK_BLE_REFUSED = 12      # CMD_BLE_WINDOW refused; detail = BLE_REFUSED_* (an opened window answers ACK_ACCEPTED, detail = minutes)
+ACK_BLE_REFUSED = 12      # CMD_BLE_WINDOW refused; detail = BLE_REFUSED_* (an opened window answers ACK_ACCEPTED, detail = minutes).
+                          # 2026-11-16: also CMD_CARD_SUMMARY's card refusals (detail 3 no card, 7 index being built)
 BLE_REFUSED_NO_KEY = 1    # no window key, or an all-zero one
 BLE_REFUSED_RADIO = 2     # the radio cannot serve files (no bulk capability seen)
 BLE_REFUSED_NO_CARD = 3   # location-only: no card to read
 BLE_REFUSED_BATTERY = 4   # battery low or critical
 BLE_REFUSED_UPDATING = 5  # a firmware update is running
+BLE_REFUSED_RANGE = 6     # 2026-11-16: kinds has audio (bit 2) and audio_from/audio_to is missing, reversed or over 86400 s
+BLE_REFUSED_CARD_INDEX = 7  # 2026-11-16, CMD_CARD_SUMMARY: the card's day index is still being built (ask again later)
+
+# BleWindow.kinds (downlink.proto, 2026-11-16): what a window opened by
+# CMD_BLE_WINDOW serves (../bulk/README.md "What a window serves"). 0 = all.
+BLE_FILES_KIND_LOG = 1    # the card log, /METADATA.CSV
+BLE_FILES_KIND_ACCEL = 2  # movement data: /accelerometer/ (and /accelerometer_recovery/)
+BLE_FILES_KIND_AUDIO = 4  # sound: takes overlapping [audio_from, audio_to] (start up to an hour before), range at most 24 h
+BLE_FILES_AUDIO_SPAN_MAX_S = 86400
+BLE_FILES_TAKE_MAX_S = 3600   # the longest a take runs (hourly file rotation): the overlap reaches back this far
 
 Command = namedtuple("Command", "uid ctr gen seq echo valid_from valid_to body")
 CommandAck = namedtuple("CommandAck", "uid ctr result command detail rssi snr_q4")

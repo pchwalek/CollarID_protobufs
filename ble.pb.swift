@@ -1752,6 +1752,24 @@ struct CfgEchoPacket: @unchecked Sendable {
   /// Clears the value of `magCal`. Subsequent reads from it will return its default value.
   mutating func clearMagCal() {_uniqueStorage()._magCal = nil}
 
+  ///
+  /// The command this tunnel frame carried, when the collar did not run it
+  /// over Bluetooth (2026-11-16; collarID_thread
+  /// docs/CONTRACT_files_and_spotter_gaps.md gap G1; fw gate: firmware main
+  /// build TBD, set at merge). The values are the handheld acknowledgement's
+  /// results (beacon/README.md, beacon_v2.ACK_*); today only
+  ///   7  refused on this carrier: CMD_LOCATE_NOW (a Bluetooth session runs
+  ///      with the collar disengaged: no GPS attempt can run) and
+  ///      CMD_BLE_WINDOW (the collar is in a Bluetooth session already).
+  /// Nothing was started or changed. 0 (absent) = the command ran as it
+  /// always did, or firmware that predates the field (which accepted a
+  /// locate over the tunnel and started nothing). On that frame's echo only.
+  /// 3 B on the wire when present.
+  var cmdResult: UInt32 {
+    get {return _storage._cmdResult}
+    set {_uniqueStorage()._cmdResult = newValue}
+  }
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -3471,6 +3489,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     14: .same(proto: "engaged"),
     15: .standard(proto: "beacon_key"),
     16: .standard(proto: "mag_cal"),
+    17: .standard(proto: "cmd_result"),
   ]
 
   fileprivate class _StorageClass {
@@ -3490,6 +3509,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     var _engaged: Bool = false
     var _beaconKey: BeaconKeyReport? = nil
     var _magCal: MagCalReport? = nil
+    var _cmdResult: UInt32 = 0
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -3520,6 +3540,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       _engaged = source._engaged
       _beaconKey = source._beaconKey
       _magCal = source._magCal
+      _cmdResult = source._cmdResult
     }
   }
 
@@ -3554,6 +3575,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         case 14: try { try decoder.decodeSingularBoolField(value: &_storage._engaged) }()
         case 15: try { try decoder.decodeSingularMessageField(value: &_storage._beaconKey) }()
         case 16: try { try decoder.decodeSingularMessageField(value: &_storage._magCal) }()
+        case 17: try { try decoder.decodeSingularUInt32Field(value: &_storage._cmdResult) }()
         default: break
         }
       }
@@ -3614,6 +3636,9 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       try { if let v = _storage._magCal {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 16)
       } }()
+      if _storage._cmdResult != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._cmdResult, fieldNumber: 17)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3639,6 +3664,7 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         if _storage._engaged != rhs_storage._engaged {return false}
         if _storage._beaconKey != rhs_storage._beaconKey {return false}
         if _storage._magCal != rhs_storage._magCal {return false}
+        if _storage._cmdResult != rhs_storage._cmdResult {return false}
         return true
       }
       if !storagesAreEqual {return false}

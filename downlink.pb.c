@@ -60,6 +60,9 @@ PB_BIND(BLE_WINDOW, ble_window_t, AUTO)
 PB_BIND(LOCATE_NOW, locate_now_t, AUTO)
 
 
+PB_BIND(CARD_SUMMARY_REQUEST, card_summary_request_t, AUTO)
+
+
 PB_BIND(TRACK_REQUEST, track_request_t, AUTO)
 
 

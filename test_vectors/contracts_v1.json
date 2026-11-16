@@ -1,6 +1,6 @@
 {
  "version": 1,
- "contracts_sha256": "9fb669a76a222c515abe96aea52b6c36dbcc656a96698bd66f7dd0cf10bb9d44",
+ "contracts_sha256": "8dd45127470eb4575a0620563475c51f1f0793ec1fe0ba618edcceb863d17924",
  "about": "Made by contracts/make_vectors.py from contracts/reference.py. Do not edit by hand.",
  "special_mode": [
   {

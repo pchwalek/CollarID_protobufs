@@ -49,6 +49,7 @@ OP_STAT = 0x04
 OP_READ = 0x05
 OP_CANCEL = 0x06
 OP_BYE = 0x07
+OP_INFO = 0x08               # 2026-11-16, additive: battery and window time left (README "INFO")
 RESP = 0x80                  # an answer is the request's op | 0x80
 OP_DATA = 0xC5               # READ's data frames (then the 0x85 answer ends it)
 
@@ -67,6 +68,11 @@ R_NO_CARD = 11
 R_UNKNOWN_OP = 12
 R_NOT_NEEDED = 13            # AUTH in a window that needs none (the magnet session)
 R_IS_A_DIR = 14              # READ of a directory
+
+INFO_ANSWER_LEN = 9          # result, battery_pct u8, battery_mv u16, floor_pct u8, window_left_s u32
+WINDOW_HARD_CAP_S = 7200     # 2026-11-16: two hours from the open at most (was 3600)
+WINDOW_GRACE_S = 120         # past the last request
+WINDOW_RECONNECT_S = 120     # 2026-11-16: the phone left without BYE and none came back
 
 FLAG_AUTH_REQUIRED = 0x01    # HELLO answer flags
 FLAG_AUTHENTICATED = 0x02
@@ -197,6 +203,10 @@ def cancel_req(seq, ks=None, ctr=0):
     return request(OP_CANCEL, seq, b"", ks, ctr)
 
 
+def info_req(seq, ks=None, ctr=0):
+    return request(OP_INFO, seq, b"", ks, ctr)
+
+
 def bye_req(seq, ks=None, ctr=0):
     return request(OP_BYE, seq, b"", ks, ctr)
 
@@ -268,6 +278,39 @@ def parse_data(payload):
     return struct.unpack_from("<Q", payload, 0)[0], bytes(payload[8:])
 
 
+Info = namedtuple("Info", "result battery_pct battery_mv floor_pct window_left_s")
+
+
+def info_answer(result, battery_pct, battery_mv, floor_pct, window_left_s):
+    return struct.pack("<BBHBI", result, battery_pct, battery_mv, floor_pct, window_left_s)
+
+
+def parse_info(payload):
+    """INFO's answer. battery_mv 0 = not read yet (the percentage is then
+    0 too); floor_pct = the level at which the window closes by itself."""
+    if len(payload) == 1:
+        return Info(payload[0], 0, 0, 0, 0)          # an error, the result alone
+    if len(payload) != INFO_ANSWER_LEN:
+        raise ProtocolError("INFO answer of %d B" % len(payload))
+    return Info(*struct.unpack("<BBHBI", payload))
+
+
+def window_close_s(open_s, minutes, last_activity_s=0, phone_gone=False, gone_s=0):
+    """When a window closes by its own rules (the collar's bb_window_close_s):
+    the minutes asked (0 = 10, held to 1..30) from the open, or 120 s past the
+    last request when that is later, never more than two hours from the open;
+    and when the phone left without BYE and none has connected since, 120 s
+    after it left if that is sooner. window_left_s = this minus now."""
+    m = 10 if minutes == 0 else max(1, min(30, minutes))
+    end = open_s + m * 60
+    if last_activity_s and last_activity_s + WINDOW_GRACE_S > end:
+        end = last_activity_s + WINDOW_GRACE_S
+    end = min(end, open_s + WINDOW_HARD_CAP_S)
+    if phone_gone:
+        end = min(end, gone_s + WINDOW_RECONNECT_S)
+    return end
+
+
 def read_end(result, offset, count, crc):
     return struct.pack("<BQII", result, offset, count, crc)
 
@@ -317,7 +360,9 @@ class CollarModel:
     files: {"/A/B.TXT": b"...", ...}; mtimes: {path: epoch} optional.
     key: the window key (keyed window), or None (the magnet session)."""
 
-    def __init__(self, uid, files, key=None, mtimes=None, window_s=600, data_max=DATA_MAX):
+    def __init__(self, uid, files, key=None, mtimes=None, window_s=600, data_max=DATA_MAX,
+                 battery=(0, 0, 0)):
+        self.battery = tuple(battery)   # INFO: (battery_pct, battery_mv, floor_pct)
         self.uid = uid
         self.files = dict(files)
         self.mtimes = dict(mtimes or {})
@@ -392,6 +437,11 @@ class CollarModel:
             self.stream = None
             self.bye = True
             return frame(OP_BYE | RESP, seq, bytes([R_OK]))
+        if op == OP_INFO:
+            # no card work: answered at once, even while a READ runs
+            if len(payload):
+                return frame(op | RESP, seq, bytes([R_BAD_REQUEST]))
+            return frame(OP_INFO | RESP, seq, info_answer(R_OK, *self.battery, self.window_s))
         if op not in (OP_LIST, OP_STAT, OP_READ):
             return frame(op | RESP, seq, bytes([R_UNKNOWN_OP]))
         if self.stream:
@@ -612,6 +662,17 @@ class Client:
                     raise ProtocolError("READ %s: range check failed (%d B crc %08x, collar says %d B crc %08x)"
                                         % (path, count, crc, end.count, end.crc))
                 return b"".join(chunks) if not sink else count
+
+    def info(self):
+        """The collar's battery and the window's time left (INFO). A collar
+        that predates it answers UNKNOWN_OP: returns None then."""
+        seq = self._send(OP_INFO)
+        i = parse_info(self._answer(seq, OP_INFO))
+        if i.result == R_UNKNOWN_OP:
+            return None
+        if i.result != R_OK:
+            raise ProtocolError("INFO: result %d" % i.result)
+        return i
 
     def cancel(self):
         seq = self._send(OP_CANCEL)

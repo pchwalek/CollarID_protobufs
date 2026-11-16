@@ -467,6 +467,20 @@ message CfgEchoPacket {
   // (about 20 B for a finished run); kept off the report echoes because a
   // large slot_report already fills the 182 B read.
   MagCalReport mag_cal = 16;
+  //
+  // The command this tunnel frame carried, when the collar did not run it
+  // over Bluetooth (2026-11-16; collarID_thread
+  // docs/CONTRACT_files_and_spotter_gaps.md gap G1; fw gate: firmware main
+  // build TBD, set at merge). The values are the handheld acknowledgement's
+  // results (beacon/README.md, beacon_v2.ACK_*); today only
+  //   7  refused on this carrier: CMD_LOCATE_NOW (a Bluetooth session runs
+  //      with the collar disengaged: no GPS attempt can run) and
+  //      CMD_BLE_WINDOW (the collar is in a Bluetooth session already).
+  // Nothing was started or changed. 0 (absent) = the command ran as it
+  // always did, or firmware that predates the field (which accepted a
+  // locate over the tunnel and started nothing). On that frame's echo only.
+  // 3 B on the wire when present.
+  uint32 cmd_result = 17;
 }
 
 // ---- Magnetometer calibration report (CfgEchoPacket.mag_cal) ----

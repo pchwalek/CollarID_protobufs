@@ -140,16 +140,21 @@ class ProtoContract(unittest.TestCase):
         self.assertEqual(cmds.get("CMD_LOCATE_NOW"), CMD_LOCATE_NOW)
         self.assertEqual(len(cmds.values()), len(set(cmds.values())), "duplicate command number")
         # old: self.assertEqual(max(cmds.values()), CMD_LOCATE_NOW)       # the newest command
-        # GPS history (2026-11-15) added CMD_SEND_TRACK = 29 after it.
-        self.assertEqual(max(cmds.values()), cmds.get("CMD_SEND_TRACK"))
+        # GPS history (2026-11-15) added CMD_SEND_TRACK = 29 after it, and
+        # What's on the card (2026-11-16) CMD_CARD_SUMMARY = 30 after that.
+        # old: self.assertEqual(max(cmds.values()), cmds.get("CMD_SEND_TRACK"))
+        self.assertEqual(max(cmds.values()), cmds.get("CMD_CARD_SUMMARY"))
+        self.assertEqual(cmds.get("CMD_CARD_SUMMARY"), cmds.get("CMD_SEND_TRACK") + 1)
         self.assertEqual(cmds.get("CMD_SEND_TRACK"), CMD_LOCATE_NOW + 1)
         self.assertEqual(message_fields("downlink.proto", "LocateNow"), {"timeout_s": ("uint32", 1)})
         dl = message_fields("downlink.proto", "DownlinkPacket")
         self.assertEqual(dl.get("locate"), LOCATE_FIELD)
         self.assertEqual(field_labels("downlink.proto", "DownlinkPacket")["locate"], "optional")
         # old: self.assertEqual(sorted(n for _, n in dl.values()), list(range(1, 17)))
-        # (DownlinkPacket.track = 17 since 2026-11-15, GPS history)
-        self.assertEqual(sorted(n for _, n in dl.values()), list(range(1, 18)))
+        # (DownlinkPacket.track = 17 since 2026-11-15, GPS history;
+        # DownlinkPacket.card_summary = 18 since 2026-11-16, What's on the card)
+        # old: self.assertEqual(sorted(n for _, n in dl.values()), list(range(1, 18)))
+        self.assertEqual(sorted(n for _, n in dl.values()), list(range(1, 19)))
 
     def test_send_track(self):
         """GPS history (collarID_thread docs/DESIGN_gps_history.md): the track

@@ -3,7 +3,7 @@
 #define COLLARID_CONTRACTS_H
 
 #define CID_CONTRACTS_VERSION 1u
-#define CID_CONTRACTS_SHA256 "9fb669a76a222c515abe96aea52b6c36dbcc656a96698bd66f7dd0cf10bb9d44"
+#define CID_CONTRACTS_SHA256 "8dd45127470eb4575a0620563475c51f1f0793ec1fe0ba618edcceb863d17924"
 
 /* Bluetooth service and characteristics */
 #define CID_GATT_SERVICE "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7"
@@ -13,6 +13,7 @@
 #define CID_GATT_LOCALDEV_CHAR "1a17b2cd-7314-493d-a4b5-32a2d53e6fd9"
 #define CID_GATT_RADIO_CHAR "68a6a356-49c1-4bed-b152-a02c0cb2c024"
 #define CID_GATT_OTA_REBOOT_CHAR "1a17b2cd-7314-493d-a4b5-32a2d53e6fda"
+#define CID_GATT_BULK_CHAR "1a17b2cd-7314-493d-a4b5-32a2d53e6fdc"
 #define CID_GATT_ADV_NAME_PREFIX "CollarID-"
 
 /* The radio's capability characteristic */

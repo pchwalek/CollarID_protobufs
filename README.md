@@ -89,6 +89,23 @@ Deployment.gps_block type:FT_IGNORE
 instead of copying the master options. Point-to-point frames never carry more
 than 5 `gps_data` entries or any `gps_block`.
 
+## What's on the card (`CardSummary`)
+
+`CMD_CARD_SUMMARY = 30` asks a collar, over the signed direct radio, which
+UTC days and hours its card holds sound and movement data for, and how much;
+it answers with up to 4 reply frames carrying `MessagePacket.card_summary`
+(field 12), 10 B per day (added 2026-11-16).
+
+* `reference/CARD_SUMMARY_V1.md`: the format, normative.
+* `reference/card_summary.py`: reference codec (standard library only).
+* `test_vectors/card_summary_v1.json`: frozen vectors from
+  `reference/make_card_summary_vectors.py` (`--check` in CI style); tests
+  `cd reference && python3 -m unittest test_card_summary`.
+
+`message.options` keeps `MessagePacket.card_summary` out of the collar's
+`message_packet_t` (`FT_IGNORE`): the collar writes that field by hand on its
+reply frames only. Every other reader decodes it as usual.
+
 ## Lost-mode beacon (`beacon/`)
 
 The raw-LoRa frame a collar broadcasts in lost mode: the plaintext `0x4C`

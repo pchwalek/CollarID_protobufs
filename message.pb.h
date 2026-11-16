@@ -345,6 +345,31 @@ typedef struct beacon_key_status {
     uint32_t result;
 } beacon_key_status_t;
 
+typedef PB_BYTES_ARRAY_T(160) card_summary_days_t;
+/* What's on the card (2026-11-16, collarID_thread
+ docs/CONTRACT_files_and_spotter_gaps.md Part 3): one reply frame of a
+ CMD_CARD_SUMMARY answer. `days` holds 10 B per UTC day, consecutive days
+ from first_day (reference/CARD_SUMMARY_V1.md, codec
+ reference/card_summary.py, vectors test_vectors/card_summary_v1.json):
+   [0..2] sound hours (u24 LE): bit h = some sound on the card covers part
+          of UTC hour h of that day (from a take's start, its file name, to
+          its close)
+   [3..4] sound MiB (u16 LE): the takes that start that day, rounded up;
+          65535 = that much or more
+   [5..7] movement hours (u24 LE), as sound (accelerometer files)
+   [8..9] movement MiB (u16 LE), as sound
+ A day with nothing is all zeros, and is kept so days stay consecutive. A
+ frame carries at most 16 days (160 B); an answer at most 4 frames (62
+ days). log_kib is on part 1 only. */
+typedef struct card_summary {
+    uint32_t first_day; /* UTC midnight (epoch s) of the first day in `days` */
+    card_summary_days_t days; /* 10 B per day (above) */
+    uint32_t part; /* 1-based frame number of this answer */
+    uint32_t parts; /* frames in this answer */
+    uint32_t log_kib; /* size of /METADATA.CSV, KiB rounded up (part 1 only) */
+    uint32_t as_of; /* collar UTC when the summary was made */
+} card_summary_t;
+
 typedef struct message_packet {
     bool has_header;
     packet_header_t header;
@@ -404,6 +429,7 @@ extern "C" {
 
 
 
+
 /* Initializer values for message structs */
 #define SYSTEM_INFO_PACKET_INIT_DEFAULT          {false, SYSTEM_SENSOR_SUMMARY_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, BATTERY_STATE_INIT_DEFAULT, false, METADATA_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT}
 #define METADATA_INIT_DEFAULT                    {0}
@@ -421,6 +447,7 @@ extern "C" {
 #define ADDON_REPORT_INIT_DEFAULT                {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_REPORT_INIT_DEFAULT               {0, 0, 0, false, CONFIG_FRAGMENT_INIT_DEFAULT, 0}
 #define BEACON_KEY_STATUS_INIT_DEFAULT           {0, 0, {0, {0}}, 0}
+#define CARD_SUMMARY_INIT_DEFAULT                {0, {0, {0}}, 0, 0, 0, 0}
 #define MESSAGE_PACKET_INIT_DEFAULT              {false, PACKET_HEADER_INIT_DEFAULT, 0, {SYSTEM_INFO_PACKET_INIT_DEFAULT}, false, RADIO_INFO_INIT_DEFAULT, false, ACK_PACKET_INIT_DEFAULT, false, CONFIG_REPORT_INIT_DEFAULT, false, BEACON_KEY_STATUS_INIT_DEFAULT}
 #define SYSTEM_INFO_PACKET_INIT_ZERO             {false, SYSTEM_SENSOR_SUMMARY_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, BATTERY_STATE_INIT_ZERO, false, METADATA_INIT_ZERO, false, GPS_DATA_INIT_ZERO}
 #define METADATA_INIT_ZERO                       {0}
@@ -438,6 +465,7 @@ extern "C" {
 #define ADDON_REPORT_INIT_ZERO                   {0, 0, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_REPORT_INIT_ZERO                  {0, 0, 0, false, CONFIG_FRAGMENT_INIT_ZERO, 0}
 #define BEACON_KEY_STATUS_INIT_ZERO              {0, 0, {0, {0}}, 0}
+#define CARD_SUMMARY_INIT_ZERO                   {0, {0, {0}}, 0, 0, 0, 0}
 #define MESSAGE_PACKET_INIT_ZERO                 {false, PACKET_HEADER_INIT_ZERO, 0, {SYSTEM_INFO_PACKET_INIT_ZERO}, false, RADIO_INFO_INIT_ZERO, false, ACK_PACKET_INIT_ZERO, false, CONFIG_REPORT_INIT_ZERO, false, BEACON_KEY_STATUS_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -529,6 +557,12 @@ extern "C" {
 #define BEACON_KEY_STATUS_GEN_TAG                2
 #define BEACON_KEY_STATUS_KCV_TAG                3
 #define BEACON_KEY_STATUS_RESULT_TAG             4
+#define CARD_SUMMARY_FIRST_DAY_TAG               1
+#define CARD_SUMMARY_DAYS_TAG                    2
+#define CARD_SUMMARY_PART_TAG                    3
+#define CARD_SUMMARY_PARTS_TAG                   4
+#define CARD_SUMMARY_LOG_KIB_TAG                 5
+#define CARD_SUMMARY_AS_OF_TAG                   6
 #define MESSAGE_PACKET_HEADER_TAG                1
 #define MESSAGE_PACKET_SYSTEM_INFO_PACKET_TAG    2
 #define MESSAGE_PACKET_CONFIG_PACKET_TAG         3
@@ -706,6 +740,16 @@ X(a, STATIC,   SINGULAR, UINT32,   result,            4)
 #define BEACON_KEY_STATUS_CALLBACK NULL
 #define BEACON_KEY_STATUS_DEFAULT NULL
 
+#define CARD_SUMMARY_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   first_day,         1) \
+X(a, STATIC,   SINGULAR, BYTES,    days,              2) \
+X(a, STATIC,   SINGULAR, UINT32,   part,              3) \
+X(a, STATIC,   SINGULAR, UINT32,   parts,             4) \
+X(a, STATIC,   SINGULAR, UINT32,   log_kib,           5) \
+X(a, STATIC,   SINGULAR, UINT32,   as_of,             6)
+#define CARD_SUMMARY_CALLBACK NULL
+#define CARD_SUMMARY_DEFAULT NULL
+
 #define MESSAGE_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  header,            1) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,system_info_packet,payload.system_info_packet),   2) \
@@ -744,6 +788,7 @@ extern const pb_msgdesc_t deployment_t_msg;
 extern const pb_msgdesc_t addon_report_t_msg;
 extern const pb_msgdesc_t config_report_t_msg;
 extern const pb_msgdesc_t beacon_key_status_t_msg;
+extern const pb_msgdesc_t card_summary_t_msg;
 extern const pb_msgdesc_t message_packet_t_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
@@ -763,6 +808,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ADDON_REPORT_FIELDS &addon_report_t_msg
 #define CONFIG_REPORT_FIELDS &config_report_t_msg
 #define BEACON_KEY_STATUS_FIELDS &beacon_key_status_t_msg
+#define CARD_SUMMARY_FIELDS &card_summary_t_msg
 #define MESSAGE_PACKET_FIELDS &message_packet_t_msg
 
 /* Maximum encoded size of messages (where known) */
@@ -771,6 +817,7 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define ACK_PACKET_SIZE                          20
 #define ADDON_REPORT_SIZE                        60
 #define BEACON_KEY_STATUS_SIZE                   23
+#define CARD_SUMMARY_SIZE                        193
 #define CONFIG_PACKET_SIZE                       16
 #define CONFIG_REPORT_SIZE                       481
 #define DEPLOYMENT_SIZE                          1888

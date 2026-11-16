@@ -126,14 +126,22 @@ typedef enum command_type {
  The collar powers its Bluetooth radio, advertises, and serves its card's
  files read-only on the bulk characteristic (...6fdc) for
  ble_window.minutes (0 = 10, clamped 1..30), longer while a phone keeps
- asking (at most 60 min from the open). Only a phone that proves it holds
+ asking (at most 120 min from the open since 2026-11-16; was 60), and
+ 2 min after a phone leaves without BYE unless one connects again in that
+ time (never later than it would have closed anyway; a window no phone
+ has connected to keeps its full time). Only a phone that proves it holds
  ble_window.key (challenge-response, bulk/README.md) may list or read.
  While the window is open the radio refuses every settings write, update
  and add-on forward: settings travel over the signed radio or the magnet
  session. Allowed over the direct radio (signed) and LoRaWAN; ignored
- over the BLE tunnel. Refused (handheld ACK result 12, detail = reason)
- without a key, on a radio that cannot serve files, without a card, or on
- a low battery. Firmware that predates it answers 5 (unknown command). */
+ over the BLE tunnel (since 2026-11-16 the tunnel echo says so:
+ CfgEchoPacket.cmd_result 7, ble.proto). Refused (handheld ACK result 12,
+ detail = reason) without a key (1), on a radio that cannot serve files
+ (2), without a card (3), on a low battery (4), while a firmware update
+ runs (5), or (6, 2026-11-16) when ble_window.kinds asks for audio and the
+ range is missing, reversed or over 24 hours. ble_window.kinds limits
+ what the window serves (BleWindow below). Firmware that predates it
+ answers 5 (unknown command). */
     COMMAND_TYPE_CMD_BLE_WINDOW = 27,
     /* Locate now ("LoRa wake", collarID_thread docs/CONTRACT_lora_wake.md
  section 6; fw gate: firmware main build TBD, set at merge). The collar
@@ -145,10 +153,15 @@ typedef enum command_type {
  otherwise with the carrier's normal next report. The schedule and the
  stored configuration are not touched. One at a time: a second command
  while an attempt runs is accepted and restarts nothing.
- Allowed over the signed direct radio, LoRaWAN and the BLE tunnel. A
- handheld's CMD-ACK answers 1 accepted with detail = the timeout in
- seconds as the collar will run it; firmware that predates the command
- answers 5 (unknown command). */
+ Allowed over the signed direct radio and LoRaWAN. A handheld's CMD-ACK
+ answers 1 accepted with detail = the timeout in seconds as the collar
+ will run it; firmware that predates the command answers 5 (unknown
+ command). Over the BLE tunnel it is refused (2026-11-16): a Bluetooth
+ session runs with the collar disengaged and no GPS, so nothing starts and
+ the tunnel echo carries CfgEchoPacket.cmd_result 7 (refused on this
+ carrier, ble.proto).
+ old: Allowed over the signed direct radio, LoRaWAN and the BLE tunnel
+ (over the tunnel it was accepted and started nothing). */
     COMMAND_TYPE_CMD_LOCATE_NOW = 28,
     /* GPS history (collarID_thread docs/DESIGN_gps_history.md): send the
  fixes the collar's card holds for track.from_epoch..track.to_epoch as
@@ -159,7 +172,24 @@ typedef enum command_type {
  (positions covered << 16) | fixes found, then up to 4 report frames
  follow. Over LoRaWAN or the BLE tunnel it is not run. Firmware that
  predates it answers 5 (unknown command). */
-    COMMAND_TYPE_CMD_SEND_TRACK = 29
+    COMMAND_TYPE_CMD_SEND_TRACK = 29,
+    /* What's on the card (2026-11-16, collarID_thread
+ docs/CONTRACT_files_and_spotter_gaps.md Part 3; fw gate: firmware main
+ build TBD, set at merge): which UTC days and hours hold sound and
+ movement data, and how much, for card_summary.days days from the UTC day
+ of card_summary.from_epoch (CardSummaryRequest below). The collar answers
+ from a small per-day index it keeps on its card, never by scanning the
+ card on request. Direct radio only: the CMD-ACK answers 1 accepted with
+ detail = the reply frames that follow (1..4), each a MessagePacket
+ carrying card_summary (message.proto CardSummary), sealed when a beacon
+ key is held, with no packet index of its own and kept out of every ring,
+ as track frames are. Refused with ACK result 12 (CMD_ACK_BLE_REFUSED,
+ the card refusals) detail 3 when the collar has no readable card, detail
+ 7 while the index of a card that held data before this firmware is
+ still being built (ask again later). Over LoRaWAN it is not run (logged)
+ and over the BLE tunnel it is refused (CfgEchoPacket.cmd_result 7).
+ Firmware that predates it answers 5 (unknown command). */
+    COMMAND_TYPE_CMD_CARD_SUMMARY = 30
 } command_type_t;
 
 /* ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
@@ -509,10 +539,37 @@ typedef struct find_mode {
  for this one command and handed to the phone that will connect (with the
  signed frame, over TLS). It travels encrypted inside the 0x44 frame (or
  LoRaWAN's AppSKey). The collar keeps it in RAM for the window only. An
- absent or all-zero key refuses the window. */
+ absent or all-zero key refuses the window.
+
+ What the window serves (2026-11-16, collarID_thread
+ docs/CONTRACT_files_and_spotter_gaps.md Part 1; fw gate: firmware main
+ build TBD, set at merge). kinds is a bit set of
+   BLE_FILES_KIND_LOG   = 1  the card log, /METADATA.CSV
+   BLE_FILES_KIND_ACCEL = 2  movement data: everything under /accelerometer/
+                             (and /accelerometer_recovery/)
+   BLE_FILES_KIND_AUDIO = 4  sound: the takes under /audio/ that overlap
+                             [audio_from, audio_to], i.e. whose start time
+                             (from the file name) lies in
+                             [audio_from - 3600, audio_to] (a take runs at
+                             most an hour), and the day folders'
+                             time-anchor files (mic.anc.csv) for the days
+                             that widened window touches
+ 0 (or absent) = everything on the card, as every build before this one
+ served; a magnet session is never restricted. Outside the kinds asked for,
+ LIST hides a file or folder and STAT / READ answer NOT_FOUND
+ (bulk/README.md "What a window serves" has the exact lists). Bits above 2
+ are reserved: a window whose kinds hold only those serves nothing.
+ audio_from / audio_to (UTC epoch seconds) are read only with bit 2 set,
+ and then must be present with audio_to > audio_from and
+ audio_to - audio_from <= 86400 (24 h), or the collar refuses the command:
+ ACK result 12 (CMD_ACK_BLE_REFUSED), detail 6, and no window opens.
+ Firmware that predates the fields ignores them and serves everything. */
 typedef struct ble_window {
     uint32_t minutes;
     pb_byte_t key[16];
+    uint32_t kinds; /* bit 0 card log, bit 1 accelerometer, bit 2 audio; 0 = everything */
+    uint32_t audio_from; /* UTC epoch seconds, audio only (bit 2) */
+    uint32_t audio_to; /* UTC epoch seconds; audio_to > audio_from, at most 86400 after it */
 } ble_window_t;
 
 /* CMD_LOCATE_NOW parameters. timeout_s is how long the one GPS attempt may
@@ -520,6 +577,14 @@ typedef struct ble_window {
 typedef struct locate_now {
     uint32_t timeout_s;
 } locate_now_t;
+
+/* CMD_CARD_SUMMARY parameters (2026-11-16). from_epoch: any time on the
+ first UTC day wanted; 0 = the days that end today (the collar's UTC day).
+ days: 0 = 30, held to 1..62. At most 12 B, 16 B with the command. */
+typedef struct card_summary_request {
+    uint32_t from_epoch;
+    uint32_t days;
+} card_summary_request_t;
 
 /* CMD_SEND_TRACK parameters. from_epoch 0 = the oldest fix the collar holds;
  to_epoch 0 = now (pin it when a request is paged, or new fixes move the
@@ -679,7 +744,10 @@ typedef struct downlink_packet {
     bool has_addon_arm_delay_s;
     uint32_t addon_arm_delay_s;
     /* CMD_BLE_WINDOW parameters (24 B with the command: fits the 33 B RX2
- floor and a signed frame). */
+ floor and a signed frame). With kinds (2026-11-16): 26 B for the card
+ log and movement data, 38 B with an audio range: a signed frame (226 B
+ body) carries it; LoRaWAN's 33 B RX2 floor does not, and the server
+ sends a window with kinds through a Spotter only. */
     bool has_ble_window;
     ble_window_t ble_window;
     /* CMD_LOCATE_NOW parameters; absent = a 60 s attempt. 7 B with the command
@@ -691,6 +759,9 @@ typedef struct downlink_packet {
  At most 26 B with the command, inside a signed frame. */
     bool has_track;
     track_request_t track;
+    /* CMD_CARD_SUMMARY parameters (2026-11-16); absent = the last 30 days. */
+    bool has_card_summary;
+    card_summary_request_t card_summary;
 } downlink_packet_t;
 
 
@@ -700,8 +771,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_SEND_TRACK
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_SEND_TRACK+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_CARD_SUMMARY
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_CARD_SUMMARY+1))
 
 #define _BEACON_KEY_SLOT_MIN BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON
 #define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_WAKE
@@ -711,6 +782,7 @@ extern "C" {
 
 
 #define beacon_key_set_t_slot_ENUMTYPE beacon_key_slot_t
+
 
 
 
@@ -749,12 +821,13 @@ extern "C" {
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
 #define FIND_MODE_INIT_DEFAULT                   {0, 0}
-#define BLE_WINDOW_INIT_DEFAULT                  {0, {0}}
+#define BLE_WINDOW_INIT_DEFAULT                  {0, {0}, 0, 0, 0}
 #define LOCATE_NOW_INIT_DEFAULT                  {0}
+#define CARD_SUMMARY_REQUEST_INIT_DEFAULT        {0, 0}
 #define TRACK_REQUEST_INIT_DEFAULT               {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT, false, TRACK_REQUEST_INIT_DEFAULT}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT, false, TRACK_REQUEST_INIT_DEFAULT, false, CARD_SUMMARY_REQUEST_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
@@ -771,12 +844,13 @@ extern "C" {
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
 #define FIND_MODE_INIT_ZERO                      {0, 0}
-#define BLE_WINDOW_INIT_ZERO                     {0, {0}}
+#define BLE_WINDOW_INIT_ZERO                     {0, {0}, 0, 0, 0}
 #define LOCATE_NOW_INIT_ZERO                     {0}
+#define CARD_SUMMARY_REQUEST_INIT_ZERO           {0, 0}
 #define TRACK_REQUEST_INIT_ZERO                  {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO, false, TRACK_REQUEST_INIT_ZERO}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO, false, TRACK_REQUEST_INIT_ZERO, false, CARD_SUMMARY_REQUEST_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -856,7 +930,12 @@ extern "C" {
 #define FIND_MODE_MINUTES_TAG                    2
 #define BLE_WINDOW_MINUTES_TAG                   1
 #define BLE_WINDOW_KEY_TAG                       2
+#define BLE_WINDOW_KINDS_TAG                     3
+#define BLE_WINDOW_AUDIO_FROM_TAG                4
+#define BLE_WINDOW_AUDIO_TO_TAG                  5
 #define LOCATE_NOW_TIMEOUT_S_TAG                 1
+#define CARD_SUMMARY_REQUEST_FROM_EPOCH_TAG      1
+#define CARD_SUMMARY_REQUEST_DAYS_TAG            2
 #define TRACK_REQUEST_FROM_EPOCH_TAG             1
 #define TRACK_REQUEST_TO_EPOCH_TAG               2
 #define TRACK_REQUEST_SKIP_TAG                   3
@@ -907,6 +986,7 @@ extern "C" {
 #define DOWNLINK_PACKET_BLE_WINDOW_TAG           15
 #define DOWNLINK_PACKET_LOCATE_TAG               16
 #define DOWNLINK_PACKET_TRACK_TAG                17
+#define DOWNLINK_PACKET_CARD_SUMMARY_TAG         18
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -1052,7 +1132,10 @@ X(a, STATIC,   SINGULAR, UINT32,   minutes,           2)
 
 #define BLE_WINDOW_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   minutes,           1) \
-X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               2)
+X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               2) \
+X(a, STATIC,   SINGULAR, UINT32,   kinds,             3) \
+X(a, STATIC,   SINGULAR, UINT32,   audio_from,        4) \
+X(a, STATIC,   SINGULAR, UINT32,   audio_to,          5)
 #define BLE_WINDOW_CALLBACK NULL
 #define BLE_WINDOW_DEFAULT NULL
 
@@ -1060,6 +1143,12 @@ X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               2)
 X(a, STATIC,   SINGULAR, UINT32,   timeout_s,         1)
 #define LOCATE_NOW_CALLBACK NULL
 #define LOCATE_NOW_DEFAULT NULL
+
+#define CARD_SUMMARY_REQUEST_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   from_epoch,        1) \
+X(a, STATIC,   SINGULAR, UINT32,   days,              2)
+#define CARD_SUMMARY_REQUEST_CALLBACK NULL
+#define CARD_SUMMARY_REQUEST_DEFAULT NULL
 
 #define TRACK_REQUEST_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   from_epoch,        1) \
@@ -1136,7 +1225,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  find,             13) \
 X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  ble_window,       15) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  locate,           16) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  track,            17)
+X(a, STATIC,   OPTIONAL, MESSAGE,  track,            17) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  card_summary,     18)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
@@ -1148,6 +1238,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  track,            17)
 #define downlink_packet_t_ble_window_MSGTYPE ble_window_t
 #define downlink_packet_t_locate_MSGTYPE locate_now_t
 #define downlink_packet_t_track_MSGTYPE track_request_t
+#define downlink_packet_t_card_summary_MSGTYPE card_summary_request_t
 
 extern const pb_msgdesc_t geo_point_t_msg;
 extern const pb_msgdesc_t geofence_data_t_msg;
@@ -1167,6 +1258,7 @@ extern const pb_msgdesc_t session_params_t_msg;
 extern const pb_msgdesc_t find_mode_t_msg;
 extern const pb_msgdesc_t ble_window_t_msg;
 extern const pb_msgdesc_t locate_now_t_msg;
+extern const pb_msgdesc_t card_summary_request_t_msg;
 extern const pb_msgdesc_t track_request_t_msg;
 extern const pb_msgdesc_t radio_settings_t_msg;
 extern const pb_msgdesc_t config_fragment_t_msg;
@@ -1191,6 +1283,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define FIND_MODE_FIELDS &find_mode_t_msg
 #define BLE_WINDOW_FIELDS &ble_window_t_msg
 #define LOCATE_NOW_FIELDS &locate_now_t_msg
+#define CARD_SUMMARY_REQUEST_FIELDS &card_summary_request_t_msg
 #define TRACK_REQUEST_FIELDS &track_request_t_msg
 #define RADIO_SETTINGS_FIELDS &radio_settings_t_msg
 #define CONFIG_FRAGMENT_FIELDS &config_fragment_t_msg
@@ -1198,7 +1291,8 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define BEACON_KEY_SET_SIZE                      32
-#define BLE_WINDOW_SIZE                          24
+#define BLE_WINDOW_SIZE                          42
+#define CARD_SUMMARY_REQUEST_SIZE                12
 #define CONFIG_ACCELEROMETER_SIZE                14
 #define CONFIG_FRAGMENT_SIZE                     454
 #define CONFIG_GEOFENCE_SIZE                     86
@@ -1210,7 +1304,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       28
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     848
+#define DOWNLINK_PACKET_SIZE                     881
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22

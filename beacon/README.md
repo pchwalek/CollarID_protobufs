@@ -245,8 +245,15 @@ is not replaced until it is past its 10 min limit, after which a piece of any
 newer transaction drops it and the collar reports EXPIRED for it), 12
 Bluetooth file window refused (`CMD_BLE_WINDOW`; detail = why: 1 no window
 key, 2 the radio cannot serve files, 3 no card, 4 battery low, 5 a firmware
-update is running; an opened window answers 1 accepted with detail = the
-minutes granted; `../bulk/README.md`).
+update is running, 6 the window asks for audio (`ble_window.kinds` bit 2)
+and its range is missing, reversed or over 24 hours (added 2026-11-16); an
+opened window answers 1 accepted with detail = the minutes granted;
+`../bulk/README.md`). Since 2026-11-16 result 12 is also how
+`CMD_CARD_SUMMARY` says the card cannot answer: detail 3 no readable card,
+7 the card's day index is still being built (ask again later).
+For `CMD_CARD_SUMMARY`, the detail of result 1 is the number of reply frames
+that follow (1..4), each a report frame carrying `card_summary`
+(`../reference/CARD_SUMMARY_V1.md`).
 For `CMD_RESEND`, the detail of result 1 is the number of frames that follow:
 the asked-for ones the collar's ring holds, at most 4.
 For `CMD_LOCATE_NOW` (downlink.proto), the detail of result 1 is the time the

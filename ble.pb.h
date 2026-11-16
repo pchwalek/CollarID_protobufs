@@ -564,6 +564,19 @@ typedef struct cfg_echo_packet {
  large slot_report already fills the 182 B read. */
     bool has_mag_cal;
     mag_cal_report_t mag_cal;
+    /* The command this tunnel frame carried, when the collar did not run it
+ over Bluetooth (2026-11-16; collarID_thread
+ docs/CONTRACT_files_and_spotter_gaps.md gap G1; fw gate: firmware main
+ build TBD, set at merge). The values are the handheld acknowledgement's
+ results (beacon/README.md, beacon_v2.ACK_*); today only
+   7  refused on this carrier: CMD_LOCATE_NOW (a Bluetooth session runs
+      with the collar disengaged: no GPS attempt can run) and
+      CMD_BLE_WINDOW (the collar is in a Bluetooth session already).
+ Nothing was started or changed. 0 (absent) = the command ran as it
+ always did, or firmware that predates the field (which accepted a
+ locate over the tunnel and started nothing). On that frame's echo only.
+ 3 B on the wire when present. */
+    uint32_t cmd_result;
 } cfg_echo_packet_t;
 
 typedef PB_BYTES_ARRAY_T(96) schedule_config_packet_cfg_downlink_t;
@@ -916,7 +929,7 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT, 0}
 #define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
-#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, MAG_CAL_REPORT_INIT_DEFAULT}
+#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, MAG_CAL_REPORT_INIT_DEFAULT, 0}
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
@@ -941,7 +954,7 @@ extern "C" {
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO, 0}
 #define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
-#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, MAG_CAL_REPORT_INIT_ZERO}
+#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, MAG_CAL_REPORT_INIT_ZERO, 0}
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
@@ -1066,6 +1079,7 @@ extern "C" {
 #define CFG_ECHO_PACKET_ENGAGED_TAG              14
 #define CFG_ECHO_PACKET_BEACON_KEY_TAG           15
 #define CFG_ECHO_PACKET_MAG_CAL_TAG              16
+#define CFG_ECHO_PACKET_CMD_RESULT_TAG           17
 #define SCHEDULE_CONFIG_PACKET_ENGAGED_TAG       1
 #define SCHEDULE_CONFIG_PACKET_SCHEDULES_TAG     2
 #define SCHEDULE_CONFIG_PACKET_SPECIAL_MODE_TAG  3
@@ -1294,7 +1308,8 @@ X(a, STATIC,   SINGULAR, BYTES,    slot_report,      12) \
 X(a, STATIC,   SINGULAR, UINT32,   schedule_count,   13) \
 X(a, STATIC,   SINGULAR, BOOL,     engaged,          14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       15) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  mag_cal,          16)
+X(a, STATIC,   OPTIONAL, MESSAGE,  mag_cal,          16) \
+X(a, STATIC,   SINGULAR, UINT32,   cmd_result,       17)
 #define CFG_ECHO_PACKET_CALLBACK NULL
 #define CFG_ECHO_PACKET_DEFAULT NULL
 #define cfg_echo_packet_t_beacon_key_MSGTYPE beacon_key_report_t
@@ -1464,7 +1479,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define BATTERY_PROTECTION_REPORT_SIZE           16
 #define BEACON_KEY_REPORT_SIZE                   38
 #define BOARD_IDENTITY_SIZE                      4
-#define CFG_ECHO_PACKET_SIZE                     368
+#define CFG_ECHO_PACKET_SIZE                     375
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        35
@@ -1478,7 +1493,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 185
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1434
+#define SCHEDULE_CONFIG_PACKET_SIZE              1441
 #define SCHEDULE_CONFIG_SIZE                     186
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 232
