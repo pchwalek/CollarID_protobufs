@@ -11,8 +11,8 @@
 typedef char dr_table_fits_bands[(6u <= DR_MAX_BANDS) ? 1 : -1];
 typedef char dr_table_fits_ids[(15u <= DR_REGION_MAX) ? 1 : -1];
 
-const char dr_contracts_sha256[65] = "aa4c97d6ae8f3c96eecf6ba16276fea2ffc28ec19fb77ed73890a5b5dfd1be07";
-const char dr_table_sha256[65] = "33fd72a67a1d226db24fdcdf93538ae7bd30dcadb28b22d72b5e7277eeb686a1";
+const char dr_contracts_sha256[65] = "3518fbbcf877c516d80b6f681f2e73a9336bb9195790c2703dd54c7b3c723844";
+const char dr_table_sha256[65] = "d4dcd845c5a71182658e8580401f6758d8bf9a81e41741fa68593ed36e06d559";
 
 /* 1 US915: United States, Canada, Mexico */
 static const dr_band_t dr_bands_us915[1] = {
@@ -207,8 +207,8 @@ const uint8_t dr_country_count = 54u;
 
 /* gain_cdbi, min_dbm, max_dbm, below_floor (0 unusable, 1 send at the floor) */
 const dr_device_t dr_device_collar_wio = { 90, -9, 22, 0u };
-const dr_device_t dr_device_collar_mk3 = { 90, 9, 28, 1u };
+const dr_device_t dr_device_collar_mk3 = { 100, 9, 28, 1u };
 const dr_device_t dr_device_spotter = { 200, -9, 22, 0u };
-const dr_device_t dr_device_generic = { 90, -9, 22, 0u };
+const dr_device_t dr_device_generic = { 100, -9, 22, 0u };
 
 const dr_setting_t dr_no_region_default = { 915000u, 500u, 9u };

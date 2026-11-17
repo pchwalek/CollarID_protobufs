@@ -1295,15 +1295,15 @@
     ],
     "devices": {
       "collar_wio": {
-        "name": "Collar, Wio board",
+        "name": "Collar, Wio board (Linx ANT-915-USP410, +0.9 dBi peak)",
         "gain_cdbi": 90,
         "min_dbm": -9,
         "max_dbm": 22,
         "below_floor": "unusable"
       },
       "collar_mk3": {
-        "name": "Collar, Mk III amplifier board",
-        "gain_cdbi": 90,
+        "name": "Collar, Mk III amplifier board (Abracon ACR1504I3, horizontal placement: 1.0 dBi peak at 915 MHz, 0.5 at 868; data sheet revised 10-29-24)",
+        "gain_cdbi": 100,
         "min_dbm": 9,
         "max_dbm": 28,
         "below_floor": "send_at_floor"
@@ -1316,8 +1316,8 @@
         "below_floor": "unusable"
       },
       "generic": {
-        "name": "Website and app (a collar, board unknown); convert() checks with it",
-        "gain_cdbi": 90,
+        "name": "Website and app (a collar, board unknown: the higher collar antenna gain); convert() checks with it",
+        "gain_cdbi": 100,
         "min_dbm": -9,
         "max_dbm": 22,
         "below_floor": "unusable"
@@ -1401,7 +1401,7 @@
     }
   }
 };
-  C.CONTRACTS_SHA256 = 'aa4c97d6ae8f3c96eecf6ba16276fea2ffc28ec19fb77ed73890a5b5dfd1be07';
-  C.DIRECT_REGIONS_SHA256 = '33fd72a67a1d226db24fdcdf93538ae7bd30dcadb28b22d72b5e7277eeb686a1';
+  C.CONTRACTS_SHA256 = '3518fbbcf877c516d80b6f681f2e73a9336bb9195790c2703dd54c7b3c723844';
+  C.DIRECT_REGIONS_SHA256 = 'd4dcd845c5a71182658e8580401f6758d8bf9a81e41741fa68593ed36e06d559';
   return Object.freeze(C);
 });

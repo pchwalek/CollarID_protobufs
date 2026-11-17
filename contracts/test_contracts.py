@@ -289,8 +289,10 @@ class DirectRegions(unittest.TestCase):
     def test_devices_and_constants(self):
         d = self.DR["devices"]
         self.assertEqual({k: (v["gain_cdbi"], v["min_dbm"], v["max_dbm"], v["below_floor"]) for k, v in d.items()},
-                         {"collar_wio": (90, -9, 22, "unusable"), "collar_mk3": (90, 9, 28, "send_at_floor"),
-                          "spotter": (200, -9, 22, "unusable"), "generic": (90, -9, 22, "unusable")})
+                         {"collar_wio": (90, -9, 22, "unusable"), "collar_mk3": (100, 9, 28, "send_at_floor"),
+                          "spotter": (200, -9, 22, "unusable"), "generic": (100, -9, 22, "unusable")})
+        # Mk III and board unknown: the ACR1504I3's 1.0 dBi (Abracon, revised 10-29-24, horizontal
+        # placement, 915 MHz; 0.5 at 868). old: 90 for both, the Wio's Linx antenna (until 2026-11-17)
         self.assertEqual(self.DR["below_floor"], ["unusable", "send_at_floor"])   # direct_rules.h DR_BELOW_FLOOR_*
         with open(os.path.join(ROOT, "beacon", "c", "direct_rules.h")) as fh:
             h = fh.read()

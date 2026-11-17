@@ -392,10 +392,10 @@
         {"iso": "TZ", "name": "Tanzania", "why": "no fixed-channel route, or rules not found"}
       ],
       "devices": {
-        "collar_wio": {"name": "Collar, Wio board", "gain_cdbi": 90, "min_dbm": -9, "max_dbm": 22, "below_floor": "unusable"},
-        "collar_mk3": {"name": "Collar, Mk III amplifier board", "gain_cdbi": 90, "min_dbm": 9, "max_dbm": 28, "below_floor": "send_at_floor"},
+        "collar_wio": {"name": "Collar, Wio board (Linx ANT-915-USP410, +0.9 dBi peak)", "gain_cdbi": 90, "min_dbm": -9, "max_dbm": 22, "below_floor": "unusable"},
+        "collar_mk3": {"name": "Collar, Mk III amplifier board (Abracon ACR1504I3, horizontal placement: 1.0 dBi peak at 915 MHz, 0.5 at 868; data sheet revised 10-29-24)", "gain_cdbi": 100, "min_dbm": 9, "max_dbm": 28, "below_floor": "send_at_floor"},
         "spotter": {"name": "Spotter, stub antenna (a Spotter uses its current antenna profile's gain)", "gain_cdbi": 200, "min_dbm": -9, "max_dbm": 22, "below_floor": "unusable"},
-        "generic": {"name": "Website and app (a collar, board unknown); convert() checks with it", "gain_cdbi": 90, "min_dbm": -9, "max_dbm": 22, "below_floor": "unusable"}
+        "generic": {"name": "Website and app (a collar, board unknown: the higher collar antenna gain); convert() checks with it", "gain_cdbi": 100, "min_dbm": -9, "max_dbm": 22, "below_floor": "unusable"}
       },
       "below_floor": ["unusable", "send_at_floor"],
       "auto": {
