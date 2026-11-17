@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "The CollarID contracts that more than one repo implements: the Bluetooth service, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits and the CONFIG.CSV keys. contracts/README.md says how it is used. Change this file first, regenerate (contracts/generate.py), remake the vectors (contracts/make_vectors.py), sync (contracts/sync.py), then fix every repo whose test fails. CONFIG.CSV: every writer emits the keys in this order, every unconditional one, and nothing else; 'conditional' keys depend on the configuration (the LoRaWAN credentials on the activation type, lorawan_identity_uid on credentials from another collar); 'firmware_only' keys only the collar writes. magnetometer_sample_interval_min carries SECONDS on both sides. Battery thresholds (2026-11-12): low-battery hibernation, whole percent; the collar hibernates at or below 'hibernate' and, after such a sleep, runs again only above 'resume'. A pair is valid when hibernate_min <= hibernate <= hibernate_max, resume_min <= resume <= resume_max and resume >= hibernate + min_gap: the rails of a remote push and of the Bluetooth tunnel refuse anything else, and a configurator offers nothing else. A CONFIG.CSV row is read as strtol reads it (leading digits, an optional sign); a missing or unreadable row is the default, each value is held to its range, then resume is raised to hibernate + min_gap when below it (reference.battery_thresholds_from_csv). LoRa wake (2026-11-13): three keys for listening for a Handheld Receiver. lora_wake_interval_s, one per schedule, is the seconds between the slot's listen windows: 0 = not listening (the default), configurators write 0, 10, 30 or 60, the collar holds any other non-zero value to 5..120. lora_region (global) is the direct radio's region, the DirectRegion numbers of ble.proto: 0 = automatic (the LoRaWAN region when LoRaWAN is configured, else from lora_frequency: 863-870 MHz EU868, 902-928 MHz US915), 1 = US915, 2 = EU868, 3 = AU915. lora_wake_long_range (global) is 0 or 1. A missing row of any of the three reads as 0, so a file written before them means what it meant.",
+  "about": "The CollarID contracts that more than one repo implements: the Bluetooth service, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits and the CONFIG.CSV keys. contracts/README.md says how it is used. Change this file first, regenerate (contracts/generate.py), remake the vectors (contracts/make_vectors.py), sync (contracts/sync.py), then fix every repo whose test fails. CONFIG.CSV: every writer emits the keys in this order, every unconditional one, and nothing else; 'conditional' keys depend on the configuration (the LoRaWAN credentials on the activation type, lorawan_identity_uid on credentials from another collar); 'firmware_only' keys only the collar writes. magnetometer_sample_interval_min carries SECONDS on both sides. Battery thresholds (2026-11-12): low-battery hibernation, whole percent; the collar hibernates at or below 'hibernate' and, after such a sleep, runs again only above 'resume'. A pair is valid when hibernate_min <= hibernate <= hibernate_max, resume_min <= resume <= resume_max and resume >= hibernate + min_gap: the rails of a remote push and of the Bluetooth tunnel refuse anything else, and a configurator offers nothing else. A CONFIG.CSV row is read as strtol reads it (leading digits, an optional sign); a missing or unreadable row is the default, each value is held to its range, then resume is raised to hibernate + min_gap when below it (reference.battery_thresholds_from_csv). LoRa wake (2026-11-13): three keys for listening for a Handheld Receiver. lora_wake_interval_s, one per schedule, is the seconds between the slot's listen windows: 0 = not listening (the default), configurators write 0, 10, 30 or 60, the collar holds any other non-zero value to 5..120. lora_region (global) is the direct radio's region, the DirectRegion numbers of ble.proto: 0 = automatic (the LoRaWAN region when LoRaWAN is configured, else from lora_frequency: 863-870 MHz EU868, 902-928 MHz US915), 1 = US915, 2 = EU868, 3 = AU915, 4..15 the other rule sets of direct_regions. lora_wake_long_range (global) is 0 or 1. A missing row of any of the three reads as 0, so a file written before them means what it meant. lora_region now takes 0..15 (2026-11-17): 4..15 are the rule sets of direct_regions. lora_frequency_khz (global, after lora_wake_long_range, conditional) is the direct radio's frequency in kHz, written only when it is not a whole MHz; lora_frequency then holds it rounded to the nearest MHz (a half up), and a missing row reads as 0 (use lora_frequency). Direct-radio regions (collarID_thread docs/CONTRACT_direct_regions.md, 2026-11-17), key direct_regions: a rule set is a DirectRegion value (ble.proto); 0 and any id not listed is no region and nothing is checked. Units: kHz, centi-dBm (cdBm, 1615 = 16.15 dBm), centi-dBi (cdBi), ms per hour. A band allows the channels lying wholly inside lo_khz..hi_khz at the bandwidths in bw_khz, on its grid when it has one (grid_base_khz + k x grid_step_khz, null = none), at most eirp_cdbm e.i.r.p. and conducted_dbm at the radio; budget_ms_per_h is its hourly air budget (0 = none), lbt_dbm/lbt_ms its listen-before-talk (null = none), max_send_ms/pause_ms the longest single send and the pause after it (0 = none). A rule set's default is the channel a new configuration uses, wake its wake channel (sf standard, sf_long long range). The reference is contracts/reference.py (dr_*), the C engine beacon/c/direct_rules.[ch] over the generated beacon/c/direct_rules_table.c, the vectors test_vectors/contracts_v1.json direct_regions.",
   "gatt": {
     "service": "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7",
     "update_char": "c4dd1054-f3f3-456b-8ad5-44aaa7ba4fd2",
@@ -186,6 +186,7 @@
         "lora_rx_listen",
         "lora_region",
         "lora_wake_long_range",
+        "lora_frequency_khz",
         "lost_mode_enabled",
         "lost_mode_activation_epoch",
         "lost_mode_transmit_interval_min",
@@ -255,7 +256,8 @@
       "lorawan_nwk_s_key",
       "lorawan_app_s_key",
       "lorawan_f_nwk_s_int_key",
-      "lorawan_s_nwk_s_int_key"
+      "lorawan_s_nwk_s_int_key",
+      "lora_frequency_khz"
     ],
     "firmware_only": [
       "lorawan_identity_uid"
@@ -269,5 +271,156 @@
     "resume_min": 10,
     "resume_max": 60,
     "min_gap": 5
+  },
+  "direct_regions": {
+      "rule_sets": [
+        {"id": 1, "key": "US915", "name": "United States, Canada, Mexico", "bands": [
+          {"name": "902-928", "lo_khz": 902000, "hi_khz": 928000, "bw_khz": [500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 3600, "conducted_dbm": 30, "budget_ms_per_h": 0, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 915000, "bw_khz": 500, "sf": 9}, "wake": {"freq_hz": 919000000, "bw_khz": 500, "sf": 9, "sf_long": 12}},
+        {"id": 2, "key": "EU868", "name": "Europe", "bands": [
+          {"name": "K", "lo_khz": 863000, "hi_khz": 865000, "bw_khz": [125, 250, 500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 1615, "conducted_dbm": 30, "budget_ms_per_h": 3600, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0},
+          {"name": "L", "lo_khz": 865000, "hi_khz": 868000, "bw_khz": [125, 250, 500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 1615, "conducted_dbm": 30, "budget_ms_per_h": 36000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0},
+          {"name": "M", "lo_khz": 868000, "hi_khz": 868600, "bw_khz": [125, 250, 500], "grid_base_khz": 868100, "grid_step_khz": 100, "eirp_cdbm": 1615, "conducted_dbm": 30, "budget_ms_per_h": 36000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0},
+          {"name": "N", "lo_khz": 868700, "hi_khz": 869200, "bw_khz": [125, 250], "grid_base_khz": 868800, "grid_step_khz": 100, "eirp_cdbm": 1615, "conducted_dbm": 30, "budget_ms_per_h": 3600, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0},
+          {"name": "O", "lo_khz": 869400, "hi_khz": 869650, "bw_khz": [125], "grid_base_khz": 869525, "grid_step_khz": 125, "eirp_cdbm": 2915, "conducted_dbm": 30, "budget_ms_per_h": 360000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0},
+          {"name": "Q", "lo_khz": 869700, "hi_khz": 870000, "bw_khz": [125, 250], "grid_base_khz": 869800, "grid_step_khz": 50, "eirp_cdbm": 1615, "conducted_dbm": 30, "budget_ms_per_h": 36000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 869525, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 869525000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 3, "key": "AU915", "name": "Australia and New Zealand", "bands": [
+          {"name": "915-928", "lo_khz": 915000, "hi_khz": 928000, "bw_khz": [125, 250, 500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 3000, "conducted_dbm": 30, "budget_ms_per_h": 0, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 916000, "bw_khz": 500, "sf": 9}, "wake": {"freq_hz": 919000000, "bw_khz": 500, "sf": 9, "sf_long": 12}},
+        {"id": 4, "key": "BR915", "name": "Brazil", "bands": [
+          {"name": "902-907.5", "lo_khz": 902000, "hi_khz": 907500, "bw_khz": [500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 3600, "conducted_dbm": 30, "budget_ms_per_h": 0, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0},
+          {"name": "915-928", "lo_khz": 915000, "hi_khz": 928000, "bw_khz": [500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 3600, "conducted_dbm": 30, "budget_ms_per_h": 0, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 916000, "bw_khz": 500, "sf": 9}, "wake": {"freq_hz": 919000000, "bw_khz": 500, "sf": 9, "sf_long": 12}},
+        {"id": 5, "key": "LA915", "name": "Chile, Argentina, Colombia", "bands": [
+          {"name": "915-928", "lo_khz": 915000, "hi_khz": 928000, "bw_khz": [500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 2700, "conducted_dbm": 30, "budget_ms_per_h": 0, "lbt_dbm": -80, "lbt_ms": 5, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 916000, "bw_khz": 500, "sf": 9}, "wake": {"freq_hz": 919000000, "bw_khz": 500, "sf": 9, "sf_long": 12}},
+        {"id": 6, "key": "IN865", "name": "India", "bands": [
+          {"name": "865-868", "lo_khz": 865000, "hi_khz": 868000, "bw_khz": [125], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 2915, "conducted_dbm": 30, "budget_ms_per_h": 90000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 866000, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 867000000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 7, "key": "JP920", "name": "Japan", "bands": [
+          {"name": "920.5-923.5", "lo_khz": 920500, "hi_khz": 923500, "bw_khz": [125, 500], "grid_base_khz": 920600, "grid_step_khz": 200, "eirp_cdbm": 1600, "conducted_dbm": 13, "budget_ms_per_h": 0, "lbt_dbm": -80, "lbt_ms": 5, "max_send_ms": 4000, "pause_ms": 50}],
+          "default": {"freq_khz": 921000, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 922000000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 8, "key": "KR920", "name": "South Korea", "bands": [
+          {"name": "922-923.4", "lo_khz": 922000, "hi_khz": 923400, "bw_khz": [125], "grid_base_khz": 922100, "grid_step_khz": 200, "eirp_cdbm": 1400, "conducted_dbm": 30, "budget_ms_per_h": 0, "lbt_dbm": -65, "lbt_ms": 5, "max_send_ms": 4000, "pause_ms": 50}],
+          "default": {"freq_khz": 922700, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 923100000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 9, "key": "SG920", "name": "Singapore", "bands": [
+          {"name": "917-925", "lo_khz": 917000, "hi_khz": 925000, "bw_khz": [125, 250, 500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 2215, "conducted_dbm": 30, "budget_ms_per_h": 36000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 921000, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 922000000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 10, "key": "MY919", "name": "Malaysia", "bands": [
+          {"name": "919-923", "lo_khz": 919000, "hi_khz": 923000, "bw_khz": [125, 250, 500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 2700, "conducted_dbm": 30, "budget_ms_per_h": 0, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 921000, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 922000000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 11, "key": "TH920", "name": "Thailand", "bands": [
+          {"name": "920-925", "lo_khz": 920000, "hi_khz": 925000, "bw_khz": [125, 250, 500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 3600, "conducted_dbm": 30, "budget_ms_per_h": 360000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 921000, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 922000000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 12, "key": "VN920", "name": "Vietnam", "bands": [
+          {"name": "920-923", "lo_khz": 920000, "hi_khz": 923000, "bw_khz": [125, 250, 500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 1615, "conducted_dbm": 30, "budget_ms_per_h": 36000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 921000, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 922000000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 13, "key": "ID920", "name": "Indonesia", "bands": [
+          {"name": "920-923", "lo_khz": 920000, "hi_khz": 923000, "bw_khz": [125, 250], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 2000, "conducted_dbm": 30, "budget_ms_per_h": 36000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 921000, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 922000000, "bw_khz": 125, "sf": 7, "sf_long": 10}},
+        {"id": 14, "key": "TW920", "name": "Taiwan", "bands": [
+          {"name": "920-925", "lo_khz": 920000, "hi_khz": 925000, "bw_khz": [500], "grid_base_khz": null, "grid_step_khz": null, "eirp_cdbm": 3300, "conducted_dbm": 27, "budget_ms_per_h": 0, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 921000, "bw_khz": 500, "sf": 9}, "wake": {"freq_hz": 923000000, "bw_khz": 500, "sf": 9, "sf_long": 12}},
+        {"id": 15, "key": "RU868", "name": "Russia", "bands": [
+          {"name": "868.7-869.2", "lo_khz": 868700, "hi_khz": 869200, "bw_khz": [125, 250], "grid_base_khz": 868800, "grid_step_khz": 100, "eirp_cdbm": 2215, "conducted_dbm": 30, "budget_ms_per_h": 360000, "lbt_dbm": null, "lbt_ms": null, "max_send_ms": 0, "pause_ms": 0}],
+          "default": {"freq_khz": 868900, "bw_khz": 125, "sf": 9}, "wake": {"freq_hz": 869100000, "bw_khz": 125, "sf": 7, "sf_long": 10}}
+      ],
+      "no_region_default": {"freq_khz": 915000, "bw_khz": 500, "sf": 9},
+      "countries": [
+        {"iso": "US", "name": "United States", "rule_set": 1, "confidence": "primary"},
+        {"iso": "CA", "name": "Canada", "rule_set": 1, "confidence": "primary"},
+        {"iso": "MX", "name": "Mexico", "rule_set": 1, "confidence": "primary"},
+        {"iso": "PR", "name": "Puerto Rico", "rule_set": 1, "confidence": "primary"},
+        {"iso": "AT", "name": "Austria", "rule_set": 2, "confidence": "primary"},
+        {"iso": "BE", "name": "Belgium", "rule_set": 2, "confidence": "primary"},
+        {"iso": "BG", "name": "Bulgaria", "rule_set": 2, "confidence": "primary"},
+        {"iso": "HR", "name": "Croatia", "rule_set": 2, "confidence": "primary"},
+        {"iso": "CY", "name": "Cyprus", "rule_set": 2, "confidence": "primary"},
+        {"iso": "CZ", "name": "Czechia", "rule_set": 2, "confidence": "primary"},
+        {"iso": "DK", "name": "Denmark", "rule_set": 2, "confidence": "primary"},
+        {"iso": "EE", "name": "Estonia", "rule_set": 2, "confidence": "primary"},
+        {"iso": "FI", "name": "Finland", "rule_set": 2, "confidence": "primary"},
+        {"iso": "FR", "name": "France", "rule_set": 2, "confidence": "primary"},
+        {"iso": "DE", "name": "Germany", "rule_set": 2, "confidence": "primary"},
+        {"iso": "GR", "name": "Greece", "rule_set": 2, "confidence": "primary"},
+        {"iso": "HU", "name": "Hungary", "rule_set": 2, "confidence": "primary"},
+        {"iso": "IE", "name": "Ireland", "rule_set": 2, "confidence": "primary"},
+        {"iso": "IT", "name": "Italy", "rule_set": 2, "confidence": "primary"},
+        {"iso": "LV", "name": "Latvia", "rule_set": 2, "confidence": "primary"},
+        {"iso": "LT", "name": "Lithuania", "rule_set": 2, "confidence": "primary"},
+        {"iso": "LU", "name": "Luxembourg", "rule_set": 2, "confidence": "primary"},
+        {"iso": "MT", "name": "Malta", "rule_set": 2, "confidence": "primary"},
+        {"iso": "NL", "name": "Netherlands", "rule_set": 2, "confidence": "primary"},
+        {"iso": "PL", "name": "Poland", "rule_set": 2, "confidence": "primary"},
+        {"iso": "PT", "name": "Portugal", "rule_set": 2, "confidence": "primary"},
+        {"iso": "RO", "name": "Romania", "rule_set": 2, "confidence": "primary"},
+        {"iso": "SK", "name": "Slovakia", "rule_set": 2, "confidence": "primary"},
+        {"iso": "SI", "name": "Slovenia", "rule_set": 2, "confidence": "primary"},
+        {"iso": "ES", "name": "Spain", "rule_set": 2, "confidence": "primary"},
+        {"iso": "SE", "name": "Sweden", "rule_set": 2, "confidence": "primary"},
+        {"iso": "IS", "name": "Iceland", "rule_set": 2, "confidence": "cept"},
+        {"iso": "LI", "name": "Liechtenstein", "rule_set": 2, "confidence": "cept"},
+        {"iso": "NO", "name": "Norway", "rule_set": 2, "confidence": "cept"},
+        {"iso": "CH", "name": "Switzerland", "rule_set": 2, "confidence": "cept"},
+        {"iso": "GB", "name": "United Kingdom", "rule_set": 2, "confidence": "primary"},
+        {"iso": "ZA", "name": "South Africa", "rule_set": 2, "confidence": "primary"},
+        {"iso": "KE", "name": "Kenya", "rule_set": 2, "confidence": "primary"},
+        {"iso": "AU", "name": "Australia", "rule_set": 3, "confidence": "primary"},
+        {"iso": "NZ", "name": "New Zealand", "rule_set": 3, "confidence": "primary"},
+        {"iso": "BR", "name": "Brazil", "rule_set": 4, "confidence": "primary"},
+        {"iso": "CL", "name": "Chile", "rule_set": 5, "confidence": "primary"},
+        {"iso": "AR", "name": "Argentina", "rule_set": 5, "confidence": "low"},
+        {"iso": "CO", "name": "Colombia", "rule_set": 5, "confidence": "low"},
+        {"iso": "IN", "name": "India", "rule_set": 6, "confidence": "primary"},
+        {"iso": "JP", "name": "Japan", "rule_set": 7, "confidence": "primary"},
+        {"iso": "KR", "name": "South Korea", "rule_set": 8, "confidence": "primary"},
+        {"iso": "SG", "name": "Singapore", "rule_set": 9, "confidence": "primary"},
+        {"iso": "MY", "name": "Malaysia", "rule_set": 10, "confidence": "low"},
+        {"iso": "TH", "name": "Thailand", "rule_set": 11, "confidence": "primary"},
+        {"iso": "VN", "name": "Vietnam", "rule_set": 12, "confidence": "primary"},
+        {"iso": "ID", "name": "Indonesia", "rule_set": 13, "confidence": "primary"},
+        {"iso": "TW", "name": "Taiwan", "rule_set": 14, "confidence": "primary"},
+        {"iso": "RU", "name": "Russia", "rule_set": 15, "confidence": "low"}
+      ],
+      "confidences": ["primary", "cept", "low"],
+      "not_offered": [
+        {"iso": "CN", "name": "China", "why": "470-510 MHz, outside the radio's 862-930 MHz"},
+        {"iso": "HK", "name": "Hong Kong", "why": "frequency hopping only"},
+        {"iso": "PH", "name": "Philippines", "why": "no fixed-channel route, or rules not found"},
+        {"iso": "PE", "name": "Peru", "why": "no fixed-channel route, or rules not found"},
+        {"iso": "TZ", "name": "Tanzania", "why": "no fixed-channel route, or rules not found"}
+      ],
+      "devices": {
+        "collar_wio": {"name": "Collar, Wio board", "gain_cdbi": 90, "min_dbm": -9, "max_dbm": 22},
+        "collar_mk3": {"name": "Collar, Mk III amplifier board", "gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27},
+        "spotter": {"name": "Spotter, stub antenna (a Spotter uses its current antenna profile's gain)", "gain_cdbi": 200, "min_dbm": -9, "max_dbm": 22},
+        "generic": {"name": "Website and app (a collar, board unknown); convert() checks with it", "gain_cdbi": 90, "min_dbm": -9, "max_dbm": 22}
+      },
+      "auto": {
+        "lorawan": [[0, 1], [1, 3], [2, 2]],
+        "frequency_khz": [[863000, 870000, 2], [902000, 928000, 1]]
+      },
+      "reasons": ["OK", "NO_BAND", "BANDWIDTH", "GRID", "POWER_FLOOR", "FRAME_TIME"],
+      "classes": ["normal", "beacon"],
+      "convert_how": ["kept", "moved", "default"],
+      "fit_reasons": ["fits", "no_budget", "normal_over", "total_over"],
+      "constants": {
+        "region_max": 15,
+        "sf_min": 7,
+        "sf_max": 12,
+        "bandwidths_khz": [125, 250, 500],
+        "normal_share_pct": 75,
+        "base_frame_bytes": 64,
+        "preamble_symbols": 8,
+        "lbt_sample_max_ms": 1,
+        "lbt_backoff_min_ms": 20,
+        "lbt_backoff_max_ms": 200,
+        "lbt_give_up_s": 20,
+        "bucket_s": 60,
+        "buckets": 60,
+        "default_coding_rate": 0,
+        "default_sync_word": 18
+      }
   }
 }

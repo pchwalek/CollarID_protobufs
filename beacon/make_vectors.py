@@ -509,7 +509,10 @@ REGION_RESOLVE_CASES = [
     ("AUTO, no LoRaWAN, 929 MHz", 0, None, 929, 0),
     ("AUTO, no LoRaWAN, 433 MHz", 0, None, 433, 0),
     ("AUTO, no LoRaWAN, frequency 0", 0, None, 0, 0),
-    ("a setting above 3 is no region", 4, 0, 915, 0),
+    # old: ("a setting above 3 is no region", 4, 0, 915, 0),  (to 2026-11-17: 1..3 were the only regions)
+    ("set to BR915 (4..15 are regions since 2026-11-17)", 4, 0, 915, 4),
+    ("set to RU868, the last region", 15, None, 868, 15),
+    ("a setting above 15 is no region", 16, 0, 915, 0),
 ]
 INTERVAL_CLAMP_CASES = [(0, 0), (1, 5), (4, 5), (5, 5), (6, 6), (10, 10), (30, 30), (60, 60), (119, 119),
                         (120, 120), (121, 120), (3600, 120), (4294967295, 120)]
@@ -570,9 +573,11 @@ def build_wake_frames():
 
 
 def build_wake_timing():
+    # The three regions of 2026-11-13, unchanged; every rule set's wake
+    # channel is in contracts_v1.json direct_regions.wake_channels.
     regions = [dict(region=c.region, name=c.name, frequency_hz=c.frequency_hz, bw_khz=c.bw_khz,
                     sf=c.sf, sf_long=c.sf_long, max_dbm=c.max_dbm)
-               for c in (b.WAKE_TABLE[r] for r in sorted(b.WAKE_TABLE))]
+               for c in (b.WAKE_TABLE[r] for r in b.WAKE_REGIONS_2026_11_13)]
     resolve = []
     for name, setting, lorawan, mhz, want in REGION_RESOLVE_CASES:
         assert b.direct_region_resolve(setting, lorawan, mhz) == want, name

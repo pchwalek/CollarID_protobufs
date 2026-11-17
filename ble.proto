@@ -102,15 +102,38 @@ enum RadioCodingRate {
 // the cap. The numbers below are NOT those of the LoRaWAN region
 // (RadioRegion above: US915 0, AU915 1, EU868 2); only EU868 has the same
 // one, so one is never cast to the other.
+//
+// Direct-radio regions (collarID_thread docs/CONTRACT_direct_regions.md,
+// 2026-11-17; fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at merge, and
+// Spotter v2.3.0). Each value is also a RULE SET: the channels (bands,
+// bandwidths, grids), power caps, listen-before-talk, send-time limits and
+// hourly air budgets the direct radio and the wake channel keep in the
+// countries that map to it. 4..15 are new; 0..3 keep their meaning. The
+// table, the wake channel of every value and the countries live in
+// contracts/collarid_contracts.json (direct_regions), the C engine in
+// beacon/c/direct_rules.[ch]. A saved setting that breaks its rule set is
+// converted once and saved; a new one is refused and nothing changes.
 enum DirectRegion {
   // The LoRaWAN region when LoRaWAN is configured; otherwise from the
   // direct radio's frequency: 863 to 870 MHz is EU868, 902 to 928 MHz is
   // US915 (never AU915: the frequency cannot tell the two apart). Anything
   // else is no region, and a collar with no region does not listen.
   DIRECT_REGION_AUTO  = 0;
-  DIRECT_REGION_US915 = 1;  // US and Canada
-  DIRECT_REGION_EU868 = 2;  // EU
-  DIRECT_REGION_AU915 = 3;  // Australia
+  DIRECT_REGION_US915 = 1;  // US, Canada, Mexico, Puerto Rico
+  DIRECT_REGION_EU868 = 2;  // EU, EEA, Switzerland, UK, South Africa, Kenya
+  DIRECT_REGION_AU915 = 3;  // Australia, New Zealand
+  DIRECT_REGION_BR915 = 4;  // Brazil
+  DIRECT_REGION_LA915 = 5;  // Chile, Argentina, Colombia
+  DIRECT_REGION_IN865 = 6;  // India
+  DIRECT_REGION_JP920 = 7;  // Japan
+  DIRECT_REGION_KR920 = 8;  // South Korea
+  DIRECT_REGION_SG920 = 9;  // Singapore
+  DIRECT_REGION_MY919 = 10; // Malaysia
+  DIRECT_REGION_TH920 = 11; // Thailand
+  DIRECT_REGION_VN920 = 12; // Vietnam
+  DIRECT_REGION_ID920 = 13; // Indonesia
+  DIRECT_REGION_TW920 = 14; // Taiwan
+  DIRECT_REGION_RU868 = 15; // Russia
 }
 
 message LoRaWANConfig {
@@ -144,8 +167,10 @@ message LoRaConfig {
   // radio's region, which picks the wake channel a listening collar and a
   // Handheld Receiver meet on (DirectRegion above). 0 = AUTO, which is what
   // every existing config decodes to; proto3 does not encode it, so those
-  // configs are byte-identical. CONFIG.CSV key lora_region (0..3). A value
-  // above 3 is no region: the collar does not listen.
+  // configs are byte-identical. CONFIG.CSV key lora_region (0..15). A value
+  // above 15 is no region: the collar does not listen (old, to 2026-11-17:
+  // 0..3 and above 3). Since 2026-11-17 it is also the rule set the direct
+  // radio keeps (CONTRACT_direct_regions.md).
   DirectRegion region				= 8;
   // The long-range wake setting: the wake channel runs at SF12 (US915,
   // AU915) or SF10 (EU868) instead of SF9 or SF7. A wake frame is then
@@ -156,6 +181,16 @@ message LoRaConfig {
   // setting it was sent at (flag LONG) for the record only. proto3 default
   // false = the standard setting. CONFIG.CSV key lora_wake_long_range (0/1).
   bool wake_long_range				= 9;
+  // Direct-radio regions (fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at
+  // merge). The direct radio's frequency in kHz, for a channel that is not
+  // a whole MHz (EU 869.525 MHz, Korea's 200 kHz grid). 0 = use frequency
+  // (whole MHz), which is what every existing config decodes to; proto3
+  // does not encode it, so those configs are byte-identical. Written only
+  // when the frequency is not a whole MHz; frequency then holds it rounded
+  // to the nearest MHz (a half up) for older readers. A reader takes this
+  // when it is not 0, else frequency x 1000. CONFIG.CSV key
+  // lora_frequency_khz, the same rule.
+  uint32 frequency_khz				= 10;
 }
 
 message LostMode_config{

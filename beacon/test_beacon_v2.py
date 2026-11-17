@@ -879,12 +879,16 @@ class TestWakeTiming(unittest.TestCase):
             self.assertEqual(b.wake_setting(r["region"]), (r["frequency_hz"], r["bw_khz"], r["sf"], r["max_dbm"]))
             self.assertEqual(b.wake_setting(r["region"], True), (r["frequency_hz"], r["bw_khz"], r["sf_long"], r["max_dbm"]))
         self.assertIsNone(b.wake_setting(0))
-        self.assertIsNone(b.wake_setting(4))
+        # old: self.assertIsNone(b.wake_setting(4))  (to 2026-11-17)
+        self.assertEqual(b.wake_setting(4), (919000000, 500, 9, 22))      # BR915
+        self.assertIsNone(b.wake_setting(16))
+        self.assertEqual(sorted(b.WAKE_TABLE), list(range(1, 16)))
         self.assertEqual((b.DIRECT_REGION_AUTO, b.DIRECT_REGION_US915, b.DIRECT_REGION_EU868, b.DIRECT_REGION_AU915),
                          (0, 1, 2, 3))
 
     def test_region_resolve(self):
-        self.assertEqual(len(self.T["region_resolve"]), 19)
+        # old: 19 (to 2026-11-17); "above 3 is no region" became 4 -> 4, plus 15 -> 15 and 16 -> none
+        self.assertEqual(len(self.T["region_resolve"]), 21)
         for v in self.T["region_resolve"]:
             self.assertEqual(b.direct_region_resolve(v["setting"], v["lorawan_region"], v["frequency_mhz"]),
                              v["region"], v["name"])

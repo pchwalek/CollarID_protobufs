@@ -783,6 +783,22 @@ DIRECT_REGION_AUTO = 0
 DIRECT_REGION_US915 = 1
 DIRECT_REGION_EU868 = 2
 DIRECT_REGION_AU915 = 3
+# 4..15 (2026-11-17, collarID_thread docs/CONTRACT_direct_regions.md section 9):
+# the other rule sets of CollarID_protobufs contracts/collarid_contracts.json
+# direct_regions; contracts/test_contracts.py holds this table to that one.
+DIRECT_REGION_BR915 = 4
+DIRECT_REGION_LA915 = 5
+DIRECT_REGION_IN865 = 6
+DIRECT_REGION_JP920 = 7
+DIRECT_REGION_KR920 = 8
+DIRECT_REGION_SG920 = 9
+DIRECT_REGION_MY919 = 10
+DIRECT_REGION_TH920 = 11
+DIRECT_REGION_VN920 = 12
+DIRECT_REGION_ID920 = 13
+DIRECT_REGION_TW920 = 14
+DIRECT_REGION_RU868 = 15
+DIRECT_REGION_MAX = 15               # a setting above this is no region
 WAKE_REGION_NONE = 0                 # what AUTO resolves to when nothing decides it: no listening
 # ble.proto RadioRegion (the LoRaWAN region): NOT the numbers above.
 LORAWAN_REGION_US915 = 0
@@ -790,23 +806,43 @@ LORAWAN_REGION_AU915 = 1
 LORAWAN_REGION_EU868 = 2
 
 WakeChannel = namedtuple("WakeChannel", "region name frequency_hz bw_khz sf sf_long max_dbm")
+# max_dbm: the cap of the wake channel's band for a collar of unknown board
+# (direct_regions, the generic device): 22 where the band allows it, less in
+# Japan, Korea, Singapore, Vietnam, Indonesia and Russia. A device sends at
+# its direct-radio power held to the cap for its own antenna and radio.
 WAKE_TABLE = {
     DIRECT_REGION_US915: WakeChannel(DIRECT_REGION_US915, "US915", 919000000, 500, 9, 12, 22),
     DIRECT_REGION_EU868: WakeChannel(DIRECT_REGION_EU868, "EU868", 869525000, 125, 7, 10, 22),
     DIRECT_REGION_AU915: WakeChannel(DIRECT_REGION_AU915, "AU915", 919000000, 500, 9, 12, 22),
+    DIRECT_REGION_BR915: WakeChannel(DIRECT_REGION_BR915, "BR915", 919000000, 500, 9, 12, 22),
+    DIRECT_REGION_LA915: WakeChannel(DIRECT_REGION_LA915, "LA915", 919000000, 500, 9, 12, 22),
+    DIRECT_REGION_IN865: WakeChannel(DIRECT_REGION_IN865, "IN865", 867000000, 125, 7, 10, 22),
+    DIRECT_REGION_JP920: WakeChannel(DIRECT_REGION_JP920, "JP920", 922000000, 125, 7, 10, 13),
+    DIRECT_REGION_KR920: WakeChannel(DIRECT_REGION_KR920, "KR920", 923100000, 125, 7, 10, 13),
+    DIRECT_REGION_SG920: WakeChannel(DIRECT_REGION_SG920, "SG920", 922000000, 125, 7, 10, 21),
+    DIRECT_REGION_MY919: WakeChannel(DIRECT_REGION_MY919, "MY919", 922000000, 125, 7, 10, 22),
+    DIRECT_REGION_TH920: WakeChannel(DIRECT_REGION_TH920, "TH920", 922000000, 125, 7, 10, 22),
+    DIRECT_REGION_VN920: WakeChannel(DIRECT_REGION_VN920, "VN920", 922000000, 125, 7, 10, 15),
+    DIRECT_REGION_ID920: WakeChannel(DIRECT_REGION_ID920, "ID920", 922000000, 125, 7, 10, 19),
+    DIRECT_REGION_TW920: WakeChannel(DIRECT_REGION_TW920, "TW920", 923000000, 500, 9, 12, 22),
+    DIRECT_REGION_RU868: WakeChannel(DIRECT_REGION_RU868, "RU868", 869100000, 125, 7, 10, 21),
 }
+# The three regions of the wake contract (2026-11-13), whose rows the wake
+# vectors' "regions" section keeps; contracts_v1.json direct_regions has all.
+WAKE_REGIONS_2026_11_13 = (DIRECT_REGION_US915, DIRECT_REGION_EU868, DIRECT_REGION_AU915)
 WAKE_PREAMBLE_SYMBOLS = 12           # wake frames
 LORA_PREAMBLE_SYMBOLS = 8            # every other frame on the wake channel
 
 
 def direct_region_resolve(setting, lorawan_region=None, frequency_mhz=0):
-    """The region a collar or receiver runs: 1 US915, 2 EU868, 3 AU915, or 0
-    for none (no listening). setting is the DirectRegion value; AUTO takes
-    the LoRaWAN region when LoRaWAN is configured (lorawan_region, a ble.proto
-    RadioRegion value; None = not configured), else reads the direct radio's
-    frequency in whole MHz: 863..870 is EU868, 902..928 is US915, never
-    AU915. A setting above 3 is no region."""
-    if setting in WAKE_TABLE:
+    """The region a collar or receiver runs: 1..15 (1 US915, 2 EU868, 3
+    AU915, 4..15 the other rule sets), or 0 for none (no listening). setting
+    is the DirectRegion value; AUTO takes the LoRaWAN region when LoRaWAN is
+    configured (lorawan_region, a ble.proto RadioRegion value; None = not
+    configured), else reads the direct radio's frequency in whole MHz:
+    863..870 is EU868, 902..928 is US915, never AU915. A setting above 15 is
+    no region (old, to 2026-11-17: above 3)."""
+    if 1 <= setting <= DIRECT_REGION_MAX:
         return setting
     if setting != DIRECT_REGION_AUTO:
         return WAKE_REGION_NONE

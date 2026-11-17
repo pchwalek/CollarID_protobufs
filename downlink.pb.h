@@ -614,7 +614,7 @@ typedef struct radio_settings {
     bool has_sync_word;
     uint32_t sync_word;
     bool has_frequency_mhz;
-    uint32_t frequency_mhz; /* as LoRaConfig.frequency (whole MHz) */
+    uint32_t frequency_mhz; /* as LoRaConfig.frequency (whole MHz; frequency_khz below for kHz) */
     bool has_rx_listen;
     bool rx_listen;
     bool has_lost_mode_enabled;
@@ -637,13 +637,30 @@ typedef struct radio_settings {
  both settings all the same, and a collar that never set either reports
  the radio_crc it reported before the fields existed: one rule for every
  firmware build.
- The rails refuse a direct_region above 3 (rule 13, a value outside its
- range) and a change that leaves a listening slot with no region
- (rule 15, SCHED_RAIL_WAKE_NO_REGION). 4 B for the two in a fragment. */
+ The rails refuse a direct_region above 15 (rule 13, a value outside its
+ range; old, to 2026-11-17: above 3), a setting that breaks the rule
+ set for the collar's own board (rule 13, collarID_thread
+ docs/CONTRACT_direct_regions.md section 4) and a change that leaves a
+ listening slot with no region (rule 15, SCHED_RAIL_WAKE_NO_REGION).
+ 4 B for the two in a fragment. */
     bool has_direct_region;
     uint32_t direct_region;
     bool has_wake_long_range;
     bool wake_long_range;
+    /* Direct-radio regions (fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at
+ merge). The direct radio's frequency in kHz, as ble.proto
+ LoRaConfig.frequency_khz: written only when the frequency is not a whole
+ MHz, frequency_mhz then holding it rounded to the nearest MHz (a half
+ up) for older readers; a reader takes it when present and not 0, else
+ frequency_mhz x 1000. In a fragment: present (not 0) sets the frequency
+ in kHz; frequency_mhz present without it sets that whole MHz and clears
+ a kHz frequency the collar held; both absent keep the collar's
+ frequency. In the encoding PacketHeader.radio_crc is taken over it is
+ encoded ONLY WHEN THE FREQUENCY IS NOT A WHOLE MHz (as direct_region
+ only when not 0), after field 13, so every collar on a whole MHz keeps
+ its radio_crc. 6 B in a fragment. */
+    bool has_frequency_khz;
+    uint32_t frequency_khz;
 } radio_settings_t;
 
 typedef struct config_fragment {
@@ -825,7 +842,7 @@ extern "C" {
 #define LOCATE_NOW_INIT_DEFAULT                  {0}
 #define CARD_SUMMARY_REQUEST_INIT_DEFAULT        {0, 0}
 #define TRACK_REQUEST_INIT_DEFAULT               {0, 0, 0, 0}
-#define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT}
 #define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT, false, TRACK_REQUEST_INIT_DEFAULT, false, CARD_SUMMARY_REQUEST_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
@@ -848,7 +865,7 @@ extern "C" {
 #define LOCATE_NOW_INIT_ZERO                     {0}
 #define CARD_SUMMARY_REQUEST_INIT_ZERO           {0, 0}
 #define TRACK_REQUEST_INIT_ZERO                  {0, 0, 0, 0}
-#define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO}
 #define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO, false, TRACK_REQUEST_INIT_ZERO, false, CARD_SUMMARY_REQUEST_INIT_ZERO}
 
@@ -953,6 +970,7 @@ extern "C" {
 #define RADIO_SETTINGS_LOST_TX_POWER_DBM_TAG     11
 #define RADIO_SETTINGS_DIRECT_REGION_TAG         12
 #define RADIO_SETTINGS_WAKE_LONG_RANGE_TAG       13
+#define RADIO_SETTINGS_FREQUENCY_KHZ_TAG         14
 #define CONFIG_FRAGMENT_SCHEDULE_INDEX_TAG       1
 #define CONFIG_FRAGMENT_FRAGMENT_INDEX_TAG       2
 #define CONFIG_FRAGMENT_FRAGMENT_TOTAL_TAG       3
@@ -1171,7 +1189,8 @@ X(a, STATIC,   OPTIONAL, UINT32,   lost_activation_epoch,   9) \
 X(a, STATIC,   OPTIONAL, UINT32,   lost_interval_min,  10) \
 X(a, STATIC,   OPTIONAL, INT32,    lost_tx_power_dbm,  11) \
 X(a, STATIC,   OPTIONAL, UINT32,   direct_region,    12) \
-X(a, STATIC,   OPTIONAL, BOOL,     wake_long_range,  13)
+X(a, STATIC,   OPTIONAL, BOOL,     wake_long_range,  13) \
+X(a, STATIC,   OPTIONAL, UINT32,   frequency_khz,    14)
 #define RADIO_SETTINGS_CALLBACK NULL
 #define RADIO_SETTINGS_DEFAULT NULL
 
@@ -1294,7 +1313,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define BLE_WINDOW_SIZE                          42
 #define CARD_SUMMARY_REQUEST_SIZE                12
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     454
+#define CONFIG_FRAGMENT_SIZE                     460
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 14
@@ -1304,13 +1323,13 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       28
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     881
+#define DOWNLINK_PACKET_SIZE                     887
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
 #define HIGH_FIX_PARAMS_SIZE                     12
 #define LOCATE_NOW_SIZE                          6
-#define RADIO_SETTINGS_SIZE                      76
+#define RADIO_SETTINGS_SIZE                      82
 #define SESSION_PARAMS_SIZE                      18
 #define TRACK_REQUEST_SIZE                       24
 

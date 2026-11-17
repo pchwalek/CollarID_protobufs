@@ -14,10 +14,15 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "reference"))
+# old: sys.path.insert(0, os.path.join(ROOT, "reference"))  (to 2026-11-17: reference/ then came
+# first, so `import make_vectors` below was reference/make_vectors.py and Fresh compared the
+# GPS block vectors, not contracts_v1.json). reference/ is only for test_error_flags_contract.
+sys.path.append(os.path.join(ROOT, "reference"))
 import generate  # noqa: E402
 import make_vectors  # noqa: E402
 import reference as R  # noqa: E402
+
+assert os.path.dirname(os.path.abspath(make_vectors.__file__)) == HERE, "contracts/make_vectors.py, not another"
 
 
 class Fresh(unittest.TestCase):
@@ -26,14 +31,24 @@ class Fresh(unittest.TestCase):
             with open(os.path.join(generate.OUT, name)) as fh:
                 self.assertEqual(fh.read(), text, f"{name} is stale: run contracts/generate.py")
 
+    def test_the_c_table_is_current(self):
+        """beacon/c/direct_rules_table.c is generated too (generate.py --check covers it)."""
+        all_files = generate.render_all()
+        self.assertIn(generate.TABLE_PATH, all_files)
+        with open(generate.TABLE_PATH) as fh:
+            self.assertEqual(fh.read(), all_files[generate.TABLE_PATH], "run contracts/generate.py")
+
     def test_vectors_are_current(self):
         with open(make_vectors.OUT) as fh:
             self.assertEqual(fh.read(), make_vectors.render(), "run contracts/make_vectors.py")
 
     def test_every_generated_file_names_the_spec_hash(self):
         h = generate.sha256(generate.load())
-        for name, text in generate.render().items():
+        for name, text in generate.render_all().items():
             self.assertIn(h, text, name)
+        d = generate.dr_sha256(generate.load())
+        for name, text in generate.render_all().items():
+            self.assertIn(d, text, name)            # and the region table's own hash
 
 
 class Ledger(unittest.TestCase):
@@ -146,7 +161,9 @@ class LoRaWake(unittest.TestCase):
         g = R.SPEC["config_csv"]["keys"]["global"]
         i = g.index("lora_rx_listen")
         self.assertEqual(g[i + 1:i + 3], ["lora_region", "lora_wake_long_range"])
-        self.assertEqual(g[i + 3], "lost_mode_enabled")
+        # old: self.assertEqual(g[i + 3], "lost_mode_enabled")  (to 2026-11-17; lora_frequency_khz
+        # follows, DirectRegions.test_the_csv_key below)
+        self.assertEqual(g[i + 4], "lost_mode_enabled")
         self.assertEqual(len(g), len(set(g)))
 
     def test_the_schedule_key_is_the_last_row(self):
@@ -169,7 +186,8 @@ class LoRaWake(unittest.TestCase):
         self.assertRegex(ble, r"uint32 lora_wake_interval_s\s+= 13;")
         self.assertRegex(ble, r"DirectRegion region\s+= 8;")
         self.assertRegex(ble, r"bool wake_long_range\s+= 9;")
-        for key in ("lora_region (0..3)", "lora_wake_long_range (0/1)"):
+        # old: "lora_region (0..3)" (to 2026-11-17)
+        for key in ("lora_region (0..15)", "lora_wake_long_range (0/1)"):
             self.assertIn("CONFIG.CSV key " + key, re.sub(r"\s*//\s*", " ", ble))
 
     def test_the_generated_header_lists_them(self):
@@ -180,7 +198,303 @@ class LoRaWake(unittest.TestCase):
         g, sched = (R.SPEC["config_csv"]["keys"][k] for k in ("global", "schedule"))
         self.assertIn("#define CID_CONFIG_CSV_GLOBAL_COUNT %du" % len(g), h)
         self.assertIn("#define CID_CONFIG_CSV_SCHEDULE_COUNT %du" % len(sched), h)
-        self.assertEqual((len(g), len(sched)), (44, 41))
+        # old: (44, 41) (to 2026-11-17; + lora_frequency_khz)
+        self.assertEqual((len(g), len(sched)), (45, 41))
+
+
+
+class DirectRegions(unittest.TestCase):
+    """Direct-radio regions (collarID_thread docs/CONTRACT_direct_regions.md,
+    2026-11-17): the spec is the contract's table, the reference does what
+    the contract says, and the beacon reference agrees with it."""
+
+    DR = R.SPEC["direct_regions"]
+
+    # -------------------------------------------------------------- the spec
+
+    def test_rule_sets_are_the_direct_region_values(self):
+        ids = [r["id"] for r in self.DR["rule_sets"]]
+        self.assertEqual(ids, list(range(1, 16)))
+        keys = [r["key"] for r in self.DR["rule_sets"]]
+        self.assertEqual(keys, ["US915", "EU868", "AU915", "BR915", "LA915", "IN865", "JP920", "KR920", "SG920",
+                                "MY919", "TH920", "VN920", "ID920", "TW920", "RU868"])
+        with open(os.path.join(ROOT, "ble.proto")) as fh:
+            ble = fh.read()
+        for r in self.DR["rule_sets"]:
+            self.assertRegex(ble, r"DIRECT_REGION_%s\s*=\s*%d;" % (r["key"], r["id"]))
+        self.assertEqual(self.DR["constants"]["region_max"], max(ids))
+
+    def test_bands_are_well_formed(self):
+        with open(os.path.join(ROOT, "beacon", "c", "direct_rules.h")) as fh:
+            max_bands = int(re.search(r"(?m)^#define DR_MAX_BANDS\s+(\d+)u", fh.read()).group(1))
+        for r in self.DR["rule_sets"]:
+            self.assertTrue(1 <= len(r["bands"]) <= max_bands, r["key"])
+            last_hi = 0
+            for b in r["bands"]:
+                name = "%s %s" % (r["key"], b["name"])
+                self.assertLess(b["lo_khz"], b["hi_khz"], name)
+                self.assertGreaterEqual(b["lo_khz"], last_hi, name + ": bands in order, not overlapping")
+                last_hi = b["hi_khz"]
+                self.assertTrue(b["bw_khz"] and set(b["bw_khz"]) <= {125, 250, 500}, name)
+                self.assertEqual(b["bw_khz"], sorted(b["bw_khz"]), name)
+                self.assertEqual(b["grid_base_khz"] is None, b["grid_step_khz"] is None, name)
+                if b["grid_step_khz"] is not None:
+                    self.assertGreater(b["grid_step_khz"], 0, name)
+                self.assertEqual(b["lbt_dbm"] is None, b["lbt_ms"] is None, name)
+                self.assertEqual(b["max_send_ms"] == 0, b["pause_ms"] == 0, name)
+                self.assertGreaterEqual(b["budget_ms_per_h"], 0, name)
+                # the website's and app's collar can use every band (convert relies on it)
+                self.assertTrue(R.dr_power_cap(r["id"], r["bands"].index(b), "generic")[1], name)
+                # every allowed bandwidth has a legal centre in the band
+                for bw in b["bw_khz"]:
+                    self.assertIsNotNone(R._dr_nearest_centre(b, bw, b["lo_khz"]), (name, bw))
+
+    def test_the_contract_table_of_section_1(self):
+        """A few rows of the contract's table, as written there."""
+        def band(key, i):
+            return R.dr_rule_set(key)["bands"][i]
+        self.assertEqual((band("EU868", 4)["lo_khz"], band("EU868", 4)["hi_khz"], band("EU868", 4)["eirp_cdbm"],
+                          band("EU868", 4)["budget_ms_per_h"], band("EU868", 4)["grid_base_khz"]),
+                         (869400, 869650, 2915, 360000, 869525))
+        self.assertEqual((band("JP920", 0)["conducted_dbm"], band("JP920", 0)["lbt_dbm"], band("JP920", 0)["lbt_ms"],
+                          band("JP920", 0)["max_send_ms"], band("JP920", 0)["pause_ms"]), (13, -80, 5, 4000, 50))
+        self.assertEqual((band("KR920", 0)["lbt_dbm"], band("KR920", 0)["eirp_cdbm"]), (-65, 1400))
+        self.assertEqual((band("LA915", 0)["lbt_dbm"], band("LA915", 0)["max_send_ms"]), (-80, 0))
+        self.assertEqual(band("US915", 0)["bw_khz"], [500])
+        self.assertEqual([(b["lo_khz"], b["hi_khz"]) for b in R.dr_rule_set("BR915")["bands"]],
+                         [(902000, 907500), (915000, 928000)])
+        self.assertEqual(band("TW920", 0)["conducted_dbm"], 27)
+
+    def test_countries(self):
+        cs = self.DR["countries"]
+        isos = [c["iso"] for c in cs]
+        self.assertEqual(len(isos), len(set(isos)))
+        self.assertEqual(len(cs), 54)
+        for c in cs:
+            self.assertRegex(c["iso"], r"^[A-Z]{2}$")
+            self.assertIsNotNone(R.dr_rule_set(c["rule_set"]), c)
+            self.assertIn(c["confidence"], self.DR["confidences"])
+        by = {c["iso"]: (R.dr_rule_set(c["rule_set"])["key"], c["confidence"]) for c in cs}
+        self.assertEqual(by["CH"], ("EU868", "cept"))
+        self.assertEqual(by["GB"], ("EU868", "primary"))
+        self.assertEqual(by["AR"], ("LA915", "low"))
+        self.assertEqual(by["MY"], ("MY919", "low"))
+        self.assertEqual(by["RU"], ("RU868", "low"))
+        self.assertEqual(by["PR"], ("US915", "primary"))
+        self.assertEqual(sum(1 for c in cs if c["rule_set"] == 2), 27 + 4 + 3)
+        for c in self.DR["not_offered"]:
+            self.assertNotIn(c["iso"], isos)
+        self.assertEqual([c["name"] for c in R.dr_countries_by_name()][:3], ["Argentina", "Australia", "Austria"])
+
+    def test_devices_and_constants(self):
+        d = self.DR["devices"]
+        self.assertEqual({k: (v["gain_cdbi"], v["min_dbm"], v["max_dbm"]) for k, v in d.items()},
+                         {"collar_wio": (90, -9, 22), "collar_mk3": (90, 16, 27), "spotter": (200, -9, 22),
+                          "generic": (90, -9, 22)})
+        with open(os.path.join(ROOT, "beacon", "c", "direct_rules.h")) as fh:
+            h = fh.read()
+        c = self.DR["constants"]
+        for name, key in (("DR_REGION_MAX", "region_max"), ("DR_SF_MIN", "sf_min"), ("DR_SF_MAX", "sf_max"),
+                          ("DR_NORMAL_SHARE_PCT", "normal_share_pct"), ("DR_BASE_FRAME_BYTES", "base_frame_bytes"),
+                          ("DR_PREAMBLE_SYMBOLS", "preamble_symbols"), ("DR_LBT_SAMPLE_MAX_MS", "lbt_sample_max_ms"),
+                          ("DR_LBT_BACKOFF_MIN_MS", "lbt_backoff_min_ms"), ("DR_LBT_BACKOFF_MAX_MS", "lbt_backoff_max_ms"),
+                          ("DR_LBT_GIVE_UP_S", "lbt_give_up_s"), ("DR_BUCKET_S", "bucket_s"),
+                          ("DR_AIR_BUCKETS", "buckets"), ("DR_DEFAULT_CODING_RATE", "default_coding_rate"),
+                          ("DR_DEFAULT_SYNC_WORD", "default_sync_word")):
+            m = re.search(r"(?m)^#define %s\s+(0x[0-9A-Fa-f]+|\d+)u" % name, h)
+            self.assertIsNotNone(m, name)
+            self.assertEqual(int(m.group(1), 0), c[key], name)
+        for i, name in enumerate(self.DR["reasons"]):
+            self.assertRegex(h, r"\bDR_%s\s+= %d\b" % (name, i))
+        for r in self.DR["rule_sets"]:
+            self.assertRegex(h, r"(?m)^#define DR_REGION_%s\s+%du" % (r["key"], r["id"]))
+        self.assertEqual((c["normal_share_pct"], c["base_frame_bytes"], c["lbt_backoff_min_ms"], c["lbt_backoff_max_ms"],
+                          c["lbt_give_up_s"], c["bucket_s"], c["buckets"], c["preamble_symbols"]),
+                         (75, 64, 20, 200, 20, 60, 60, 8))
+
+    def test_the_csv_key(self):
+        cfg = R.SPEC["config_csv"]
+        g = cfg["keys"]["global"]
+        self.assertEqual(g[g.index("lora_wake_long_range") + 1], "lora_frequency_khz")
+        self.assertIn("lora_frequency_khz", cfg["conditional"])          # written only when not a whole MHz
+        self.assertNotIn("lora_frequency_khz", cfg["firmware_only"])
+
+    def test_the_generated_files_carry_the_table(self):
+        files = generate.render()
+        h = files["collarid_contracts.h"]
+        for r in self.DR["rule_sets"]:
+            self.assertIn("#define CID_DR_RULE_SET_%s %du" % (r["key"], r["id"]), h)
+        self.assertIn('X(7u, 0u, "920.5-923.5", 920500u, 923500u, 0x05u, 920600u, 200u, 1600, 13, 0u, (-80), 5u, '
+                      '4000u, 50u)', h)
+        self.assertIn('X("JP", "Japan", 7u, 0u)', h)
+        self.assertIn("#define CID_DR_DEVICE_COLLAR_MK3_MIN_DBM 16", h)
+        self.assertIn("DIRECT_REGIONS = CONTRACTS['direct_regions']", files["collarid_contracts.py"])
+        self.assertIn("export const DIRECT_REGIONS = CONTRACTS.direct_regions;", files["collaridContracts.ts"])
+        self.assertIn("C.DIRECT_REGIONS_SHA256 = ", files["collarid-contracts.js"])
+
+    # -------------------------------------------------------------- the reference
+
+    def test_the_contract_s_convert_table(self):
+        """Section 5's table: every row as the contract writes it."""
+        import make_vectors as mv
+        for key, i, o, why in mv.DR_CONTRACT_TABLE:
+            self.assertEqual(R.dr_convert(key, *i)[:3], o, (key, i, why))
+
+    def test_the_us_vectors(self):
+        import make_vectors as mv
+        for i, o in mv.DR_US500:
+            self.assertEqual(R.to_us500(*i), o, i)
+            self.assertTrue(R.us500_allowed(*o))
+
+    def test_the_power_examples_of_section_3(self):
+        cap = lambda key, band, dev: R.dr_power_cap(key, band, dev)  # noqa: E731
+        self.assertEqual(cap("EU868", 4, "collar_wio"), (22, True))
+        self.assertEqual(cap("EU868", 4, "collar_mk3"), (27, True))
+        self.assertEqual(cap("EU868", 0, "collar_wio"), (15, True))
+        self.assertEqual(cap("EU868", 0, "collar_mk3"), (15, False))        # cap 15, floor 16
+        self.assertEqual(cap("EU868", 3, "spotter"), (14, True))
+        self.assertEqual(cap("JP920", 0, "collar_wio"), (13, True))
+        self.assertEqual(cap("KR920", 0, "collar_wio"), (13, True))
+        self.assertEqual(cap("RU868", 0, "collar_wio"), (21, True))
+        self.assertEqual(cap("SG920", 0, "collar_wio"), (21, True))
+        self.assertEqual(cap("AU915", 0, {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22}), (18, True))
+        # Mk III cannot go low enough in the EU 25 mW bands, Japan, Korea or Vietnam (section 5)
+        unusable = {(r["key"], i) for r in self.DR["rule_sets"] for i in range(len(r["bands"]))
+                    if not cap(r["id"], i, "collar_mk3")[1]}
+        self.assertEqual(unusable, {("EU868", 0), ("EU868", 1), ("EU868", 2), ("EU868", 3), ("EU868", 5),
+                                    ("JP920", 0), ("KR920", 0), ("VN920", 0)})
+
+    def test_wake_channels_of_section_9(self):
+        want = {"US915": (919000000, 500, 9, 12), "AU915": (919000000, 500, 9, 12), "BR915": (919000000, 500, 9, 12),
+                "LA915": (919000000, 500, 9, 12), "EU868": (869525000, 125, 7, 10), "IN865": (867000000, 125, 7, 10),
+                "JP920": (922000000, 125, 7, 10), "KR920": (923100000, 125, 7, 10), "SG920": (922000000, 125, 7, 10),
+                "MY919": (922000000, 125, 7, 10), "TH920": (922000000, 125, 7, 10), "VN920": (922000000, 125, 7, 10),
+                "ID920": (922000000, 125, 7, 10), "TW920": (923000000, 500, 9, 12), "RU868": (869100000, 125, 7, 10)}
+        for key, (hz, bw, sf, sfl) in want.items():
+            w, wl = R.dr_wake_channel(key), R.dr_wake_channel(key, True)
+            self.assertEqual((w["freq_hz"], w["bw_khz"], w["sf"], wl["sf"]), (hz, bw, sf, sfl), key)
+            for ch in (w, wl):          # every wake channel passes the check of its own rule set
+                self.assertEqual(R.dr_check(key, ch["sf"], ch["bw_khz"], ch["freq_hz"] // 1000), "OK", key)
+        self.assertIsNone(R.dr_wake_channel(0))
+
+    def test_defaults_of_section_10(self):
+        want = {"US915": (9, 500, 915000), "EU868": (9, 125, 869525), "AU915": (9, 500, 916000),
+                "BR915": (9, 500, 916000), "LA915": (9, 500, 916000), "IN865": (9, 125, 866000),
+                "JP920": (9, 125, 921000), "KR920": (9, 125, 922700), "SG920": (9, 125, 921000),
+                "MY919": (9, 125, 921000), "TH920": (9, 125, 921000), "VN920": (9, 125, 921000),
+                "ID920": (9, 125, 921000), "TW920": (9, 500, 921000), "RU868": (9, 125, 868900)}
+        for key, d in want.items():
+            self.assertEqual(R.dr_default_channel(key), d, key)
+            self.assertEqual(R.dr_check(key, *d), "OK", key)
+            for dev in ("collar_wio", "spotter"):
+                self.assertEqual(R.dr_check(key, *d, dev), "OK", (key, dev))
+        self.assertEqual(R.dr_default_channel(0), (9, 500, 915000))   # no region: today's (US)
+
+    def test_convert_lands_on_a_legal_channel_and_stays(self):
+        import make_vectors as mv
+        for r in self.DR["rule_sets"] + [mv.DR_SYNTHETIC]:
+            for f in mv._dr_sweep_freqs(r):
+                for bw in (125, 250, 500):
+                    for sf in range(7, 13):
+                        s, b, nf, how = R.dr_convert(r, sf, bw, f)
+                        self.assertIn(R.dr_check(r, s, b, nf), ("OK", "FRAME_TIME" if r is mv.DR_SYNTHETIC else "OK"))
+                        self.assertEqual(R.dr_convert(r, s, b, nf), (s, b, nf, "kept"))
+                        if how == "kept":
+                            self.assertEqual((s, b, nf), (sf, bw, f))
+                        self.assertEqual(how == "kept", R.dr_check(r, sf, bw, f) == "OK")
+
+    def test_time_on_air_is_the_beacon_reference(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("beacon_v2_ref", os.path.join(ROOT, "beacon", "beacon_v2.py"))
+        b = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(b)
+        for sf in range(7, 13):
+            for bw in (125, 250, 500):
+                for n in range(0, 256, 3):
+                    for p in (8, 12):
+                        self.assertEqual(R.dr_toa_us(sf, bw, n, p), b.lora_toa_us(sf, bw, n, p))
+        # the beacon reference's wake table and regions are this table's
+        for r in self.DR["rule_sets"]:
+            w = R.dr_wake_channel(r["id"])
+            ch = b.WAKE_TABLE[r["id"]]
+            self.assertEqual((ch.name, ch.frequency_hz, ch.bw_khz, ch.sf, ch.sf_long, ch.max_dbm),
+                             (r["key"], w["freq_hz"], w["bw_khz"], w["sf"], r["wake"]["sf_long"], w["max_dbm"]))
+            self.assertEqual(getattr(b, "DIRECT_REGION_" + r["key"]), r["id"])
+        self.assertEqual(sorted(b.WAKE_TABLE), [r["id"] for r in self.DR["rule_sets"]])
+        for setting in (0, 1, 2, 3, 4, 9, 15, 16, 255):
+            for lw in (None, 0, 1, 2, 3):
+                for mhz in (0, 433, 862, 863, 868, 870, 871, 901, 902, 915, 928, 929):
+                    self.assertEqual(b.direct_region_resolve(setting, lw, mhz),
+                                     R.dr_region_resolve(setting, lw, mhz * 1000), (setting, lw, mhz))
+
+    def test_the_air_account_waits_exactly_long_enough(self):
+        """On random sequences: after wait_s(...) seconds the send fits, one
+        second earlier it does not; used never counts a send older than 61
+        minutes, and always counts one younger than 60."""
+        import random
+        rnd = random.Random(20261117)
+        for trial in range(300):
+            key = rnd.choice(["EU868", "IN865", "SG920", "RU868"])
+            r = R.dr_rule_set(key)
+            band = rnd.randrange(len(r["bands"]))
+            if not r["bands"][band]["budget_ms_per_h"]:
+                continue
+            acct, sends, now = R.DrAirAccount(key), [], rnd.randrange(0, 10 ** 6)
+            limit_b = R.dr_air_limit_ms(key, band, "beacon")
+            for _ in range(rnd.randrange(1, 40)):
+                now += rnd.choice([1, 7, 59, 60, 61, 300, 1800, 3599, 3600, 3660, 7200])
+                ms = rnd.randrange(0, max(2, limit_b // 6))
+                acct.record(band, now, ms)
+                sends.append((now, ms))
+            t = now + rnd.randrange(0, 4000)
+            used = acct.used_ms(band, t)
+            lo = sum(ms for s, ms in sends if t - s < 3600)           # surely in: younger than 60 minutes
+            hi = sum(ms for s, ms in sends if t // 60 - s // 60 <= 60)  # the 61-minute window
+            self.assertTrue(lo <= used == hi, (trial, used, lo, hi))
+            for cls in ("normal", "beacon"):
+                limit = R.dr_air_limit_ms(key, band, cls)
+                ms = rnd.randrange(0, limit + 2)
+                w = acct.wait_s(band, t, ms, cls)
+                if ms > limit:
+                    self.assertIsNone(w)
+                    continue
+                self.assertLessEqual(acct.used_ms(band, t + w) + ms, limit, (trial, cls))
+                if w > 0:
+                    self.assertGreater(acct.used_ms(band, t + w - 1) + ms, limit, (trial, cls))
+
+    def test_frequency_fields(self):
+        self.assertEqual(R.dr_freq_to_fields(915000), (915, 0))
+        self.assertEqual(R.dr_freq_to_fields(869525), (870, 869525))
+        self.assertEqual(R.dr_freq_to_fields(868499), (868, 868499))
+        self.assertEqual(R.dr_freq_to_fields(869500), (870, 869500))      # a half up
+        for f in range(860000, 930001, 37):
+            self.assertEqual(R.dr_freq_from_fields(*R.dr_freq_to_fields(f)), f)
+
+    def test_the_vectors_carry_every_section(self):
+        with open(make_vectors.OUT) as fh:
+            v = json.load(fh)["direct_regions"]
+        self.assertEqual(v["table_sha256"], generate.dr_sha256(R.SPEC))
+        for k in ("contract_table", "us500", "check_sweep", "convert_sweep", "odd_inputs", "check_devices",
+                  "power_caps", "band_of", "toa", "max_len", "band_limits", "air", "schedule_need",
+                  "region_resolve", "wake_channels", "defaults", "freq_fields", "freq_read", "synthetic"):
+            self.assertIn(k, v)
+        self.assertEqual(len(v["contract_table"]), 15)
+        self.assertTrue(all(row["agrees"] for row in v["contract_table"]))
+        self.assertEqual(len(v["us500"]), 11)
+        # every rule set, SF7..12, 125/250/500, and every band edge +-1 kHz
+        rows = {(rs, bw, f) for rs, bw, f, _ in v["check_sweep"]["rows"]}
+        for r in self.DR["rule_sets"]:
+            for b in r["bands"]:
+                for f in (b["lo_khz"] - 1, b["lo_khz"], b["lo_khz"] + 1, b["hi_khz"] - 1, b["hi_khz"], b["hi_khz"] + 1):
+                    for bw in (125, 250, 500):
+                        self.assertIn((r["id"], bw, f), rows)
+        self.assertEqual({len(c) for _, _, _, c in v["check_sweep"]["rows"]}, {6})
+        self.assertEqual({len(c) for _, _, _, c in v["convert_sweep"]["rows"]}, {24})
+        reasons = {REASON for _, _, _, c in v["check_sweep"]["rows"] for REASON in c}
+        self.assertEqual(reasons, {0, 1, 2, 3})                    # the real table never misses power or time...
+        syn = {x for _, _, c, _ in v["synthetic"]["sweep"] for x in c}
+        self.assertEqual(syn, {0, 1, 2, 3, 5})                     # ...the synthetic one does (time)
+        self.assertIn("POWER_FLOOR", {c["reason"] for c in v["check_devices"]})
 
 
 if __name__ == "__main__":

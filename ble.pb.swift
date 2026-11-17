@@ -241,6 +241,17 @@ enum RadioCodingRate: SwiftProtobuf.Enum, Swift.CaseIterable {
 /// the cap. The numbers below are NOT those of the LoRaWAN region
 /// (RadioRegion above: US915 0, AU915 1, EU868 2); only EU868 has the same
 /// one, so one is never cast to the other.
+///
+/// Direct-radio regions (collarID_thread docs/CONTRACT_direct_regions.md,
+/// 2026-11-17; fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at merge, and
+/// Spotter v2.3.0). Each value is also a RULE SET: the channels (bands,
+/// bandwidths, grids), power caps, listen-before-talk, send-time limits and
+/// hourly air budgets the direct radio and the wake channel keep in the
+/// countries that map to it. 4..15 are new; 0..3 keep their meaning. The
+/// table, the wake channel of every value and the countries live in
+/// contracts/collarid_contracts.json (direct_regions), the C engine in
+/// beacon/c/direct_rules.[ch]. A saved setting that breaks its rule set is
+/// converted once and saved; a new one is refused and nothing changes.
 enum DirectRegion: SwiftProtobuf.Enum, Swift.CaseIterable {
   typealias RawValue = Int
 
@@ -250,14 +261,50 @@ enum DirectRegion: SwiftProtobuf.Enum, Swift.CaseIterable {
   /// else is no region, and a collar with no region does not listen.
   case auto // = 0
 
-  /// US and Canada
+  /// US, Canada, Mexico, Puerto Rico
   case us915 // = 1
 
-  /// EU
+  /// EU, EEA, Switzerland, UK, South Africa, Kenya
   case eu868 // = 2
 
-  /// Australia
+  /// Australia, New Zealand
   case au915 // = 3
+
+  /// Brazil
+  case br915 // = 4
+
+  /// Chile, Argentina, Colombia
+  case la915 // = 5
+
+  /// India
+  case in865 // = 6
+
+  /// Japan
+  case jp920 // = 7
+
+  /// South Korea
+  case kr920 // = 8
+
+  /// Singapore
+  case sg920 // = 9
+
+  /// Malaysia
+  case my919 // = 10
+
+  /// Thailand
+  case th920 // = 11
+
+  /// Vietnam
+  case vn920 // = 12
+
+  /// Indonesia
+  case id920 // = 13
+
+  /// Taiwan
+  case tw920 // = 14
+
+  /// Russia
+  case ru868 // = 15
   case UNRECOGNIZED(Int)
 
   init() {
@@ -270,6 +317,18 @@ enum DirectRegion: SwiftProtobuf.Enum, Swift.CaseIterable {
     case 1: self = .us915
     case 2: self = .eu868
     case 3: self = .au915
+    case 4: self = .br915
+    case 5: self = .la915
+    case 6: self = .in865
+    case 7: self = .jp920
+    case 8: self = .kr920
+    case 9: self = .sg920
+    case 10: self = .my919
+    case 11: self = .th920
+    case 12: self = .vn920
+    case 13: self = .id920
+    case 14: self = .tw920
+    case 15: self = .ru868
     default: self = .UNRECOGNIZED(rawValue)
     }
   }
@@ -280,6 +339,18 @@ enum DirectRegion: SwiftProtobuf.Enum, Swift.CaseIterable {
     case .us915: return 1
     case .eu868: return 2
     case .au915: return 3
+    case .br915: return 4
+    case .la915: return 5
+    case .in865: return 6
+    case .jp920: return 7
+    case .kr920: return 8
+    case .sg920: return 9
+    case .my919: return 10
+    case .th920: return 11
+    case .vn920: return 12
+    case .id920: return 13
+    case .tw920: return 14
+    case .ru868: return 15
     case .UNRECOGNIZED(let i): return i
     }
   }
@@ -290,6 +361,18 @@ enum DirectRegion: SwiftProtobuf.Enum, Swift.CaseIterable {
     .us915,
     .eu868,
     .au915,
+    .br915,
+    .la915,
+    .in865,
+    .jp920,
+    .kr920,
+    .sg920,
+    .my919,
+    .th920,
+    .vn920,
+    .id920,
+    .tw920,
+    .ru868,
   ]
 
 }
@@ -1183,8 +1266,10 @@ struct LoRaConfig: Sendable {
   /// radio's region, which picks the wake channel a listening collar and a
   /// Handheld Receiver meet on (DirectRegion above). 0 = AUTO, which is what
   /// every existing config decodes to; proto3 does not encode it, so those
-  /// configs are byte-identical. CONFIG.CSV key lora_region (0..3). A value
-  /// above 3 is no region: the collar does not listen.
+  /// configs are byte-identical. CONFIG.CSV key lora_region (0..15). A value
+  /// above 15 is no region: the collar does not listen (old, to 2026-11-17:
+  /// 0..3 and above 3). Since 2026-11-17 it is also the rule set the direct
+  /// radio keeps (CONTRACT_direct_regions.md).
   var region: DirectRegion = .auto
 
   /// The long-range wake setting: the wake channel runs at SF12 (US915,
@@ -1196,6 +1281,17 @@ struct LoRaConfig: Sendable {
   /// setting it was sent at (flag LONG) for the record only. proto3 default
   /// false = the standard setting. CONFIG.CSV key lora_wake_long_range (0/1).
   var wakeLongRange: Bool = false
+
+  /// Direct-radio regions (fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at
+  /// merge). The direct radio's frequency in kHz, for a channel that is not
+  /// a whole MHz (EU 869.525 MHz, Korea's 200 kHz grid). 0 = use frequency
+  /// (whole MHz), which is what every existing config decodes to; proto3
+  /// does not encode it, so those configs are byte-identical. Written only
+  /// when the frequency is not a whole MHz; frequency then holds it rounded
+  /// to the nearest MHz (a half up) for older readers. A reader takes this
+  /// when it is not 0, else frequency x 1000. CONFIG.CSV key
+  /// lora_frequency_khz, the same rule.
+  var frequencyKhz: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2272,6 +2368,18 @@ extension DirectRegion: SwiftProtobuf._ProtoNameProviding {
     1: .same(proto: "DIRECT_REGION_US915"),
     2: .same(proto: "DIRECT_REGION_EU868"),
     3: .same(proto: "DIRECT_REGION_AU915"),
+    4: .same(proto: "DIRECT_REGION_BR915"),
+    5: .same(proto: "DIRECT_REGION_LA915"),
+    6: .same(proto: "DIRECT_REGION_IN865"),
+    7: .same(proto: "DIRECT_REGION_JP920"),
+    8: .same(proto: "DIRECT_REGION_KR920"),
+    9: .same(proto: "DIRECT_REGION_SG920"),
+    10: .same(proto: "DIRECT_REGION_MY919"),
+    11: .same(proto: "DIRECT_REGION_TH920"),
+    12: .same(proto: "DIRECT_REGION_VN920"),
+    13: .same(proto: "DIRECT_REGION_ID920"),
+    14: .same(proto: "DIRECT_REGION_TW920"),
+    15: .same(proto: "DIRECT_REGION_RU868"),
   ]
 }
 
@@ -2792,6 +2900,7 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     7: .standard(proto: "rx_listen"),
     8: .same(proto: "region"),
     9: .standard(proto: "wake_long_range"),
+    10: .standard(proto: "frequency_khz"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -2809,6 +2918,7 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       case 7: try { try decoder.decodeSingularBoolField(value: &self.rxListen) }()
       case 8: try { try decoder.decodeSingularEnumField(value: &self.region) }()
       case 9: try { try decoder.decodeSingularBoolField(value: &self.wakeLongRange) }()
+      case 10: try { try decoder.decodeSingularUInt32Field(value: &self.frequencyKhz) }()
       default: break
       }
     }
@@ -2842,6 +2952,9 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if self.wakeLongRange != false {
       try visitor.visitSingularBoolField(value: self.wakeLongRange, fieldNumber: 9)
     }
+    if self.frequencyKhz != 0 {
+      try visitor.visitSingularUInt32Field(value: self.frequencyKhz, fieldNumber: 10)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2855,6 +2968,7 @@ extension LoRaConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if lhs.rxListen != rhs.rxListen {return false}
     if lhs.region != rhs.region {return false}
     if lhs.wakeLongRange != rhs.wakeLongRange {return false}
+    if lhs.frequencyKhz != rhs.frequencyKhz {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

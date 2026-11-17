@@ -5,10 +5,10 @@ test vectors every implementation runs. Added 2026-10-16.
 
 | File | What it is |
 |---|---|
-| `collarid_contracts.json` | The spec: the Bluetooth service and characteristics, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits, the CONFIG.CSV keys. |
-| `reference.py` | The reference implementation. When two repos disagree, this decides. |
+| `collarid_contracts.json` | The spec: the Bluetooth service and characteristics, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits, the CONFIG.CSV keys, the direct-radio regions (`direct_regions`: rule sets and their bands, countries, devices, constants). |
+| `reference.py` | The reference implementation. When two repos disagree, this decides. Direct-radio regions: the `dr_*` functions and `DrAirAccount`. |
 | `make_vectors.py` | Makes `../test_vectors/contracts_v1.json` from `reference.py`. |
-| `generate.py` | Makes `generated/`: the same constants as a C header, TypeScript, JavaScript (browser global `CollarIDContracts` or a node module) and Python. Each carries `CONTRACTS_SHA256`, the hash of the spec it came from. |
+| `generate.py` | Makes `generated/`: the same constants as a C header, TypeScript, JavaScript (browser global `CollarIDContracts` or a node module) and Python. Each carries `CONTRACTS_SHA256`, the hash of the spec it came from, and `DIRECT_REGIONS_SHA256`, the hash of the region table alone. Also makes `../beacon/c/direct_rules_table.c`, the table the C engine `../beacon/c/direct_rules.[ch]` links against (`dr_contracts_sha256`, `dr_table_sha256`); `--check` covers it. |
 | `sync.py` | Copies the spec, the vectors and the right generated file into each repo checked out beside this one. `--check` lists what is stale. |
 | `test_contracts.py` | Tests of the contracts themselves: the generated files and the vectors are current, the ErrorFlags bits are the ledger in `message.proto` (`reference/test_error_flags_contract.py`), the radio's `common/collar_bus.h` agrees when CollarID_BLE is beside this repo. |
 
@@ -58,6 +58,17 @@ None of these changes a byte on the air; each is recorded where it is tested.
 4. `python3 sync.py` (add `--root collarID_thread=/path/to/a/worktree` to write into a worktree)
 5. Run each repo's test; fix every one that fails. A failing repo is the point:
    it still implements the old contract.
+
+A change to `direct_regions` (a band's numbers, a country, a device) is a
+spec edit and these steps, with no code change: step 2 also rewrites
+`beacon/c/direct_rules_table.c`, `cd ../beacon && python3 -m unittest
+test_direct_rules_c` runs the C engine over the new vectors (as C99 and as
+C++), and the collar firmware and the Spotter copy
+`beacon/c/direct_rules.[ch]` and `direct_rules_table.c` as they copy
+`wake_frame.[ch]`. A new rule set is also a `ble.proto` `DirectRegion` value
+(`reference/test_direct_regions_contract.py` holds the two together); more
+than six bands in a rule set means raising `DR_MAX_BANDS` in
+`direct_rules.h` (generate.py refuses until then).
 
 A new ErrorFlags bit is also a `message.proto` ledger change
 (`reference/test_error_flags_contract.py` holds the two together).

@@ -343,11 +343,31 @@ the receiver, and picked by the direct radio's region setting
 | US915 (US and Canada) | 1 | 919.000 MHz | 500 kHz | 9 | 12 | 22 dBm |
 | EU868 (EU) | 2 | 869.525 MHz | 125 kHz | 7 | 10 | 22 dBm |
 | AU915 (Australia) | 3 | 919.000 MHz | 500 kHz | 9 | 12 | 22 dBm |
+| BR915, LA915 | 4, 5 | 919.000 MHz | 500 kHz | 9 | 12 | 22 dBm |
+| IN865 | 6 | 867.000 MHz | 125 kHz | 7 | 10 | 22 dBm |
+| JP920 | 7 | 922.000 MHz | 125 kHz | 7 | 10 | 13 dBm |
+| KR920 | 8 | 923.100 MHz | 125 kHz | 7 | 10 | 13 dBm |
+| SG920, MY919, TH920, VN920, ID920 | 9..13 | 922.000 MHz | 125 kHz | 7 | 10 | 21, 22, 22, 15, 19 dBm |
+| TW920 | 14 | 923.000 MHz | 500 kHz | 9 | 12 | 22 dBm |
+| RU868 | 15 | 869.100 MHz | 125 kHz | 7 | 10 | 21 dBm |
+
+Regions 4..15 and the table's source (2026-11-17, collarID_thread
+`docs/CONTRACT_direct_regions.md` section 9): the rule sets of
+`contracts/collarid_contracts.json` `direct_regions`, read by
+`c/wake_frame.c` through `c/direct_rules.[ch]` and its generated table. The
+power cap is that of the wake channel's band for a collar of unknown board;
+a device caps at `dr_power_cap` with its own antenna and radio (a collar on
+the Mk III amplifier board cannot go low enough for Japan or Korea at all).
+Japan, Korea and LA915 listen before every send there; Japan and Korea cut
+a wake train into segments under 4 s with a 50 ms pause and a fresh listen
+between them; in a band with an hourly air budget every send is counted
+(contract sections 7 and 8).
 
 `DirectRegion` 0 is AUTO: the LoRaWAN region when LoRaWAN is configured,
 otherwise from the direct radio's frequency (863 to 870 MHz is EU868, 902 to
 928 MHz is US915, never AU915). Anything else is no region, and a collar with
-no region does not listen. The numbers are not those of the LoRaWAN
+no region does not listen. A setting above 15 is no region (old, to
+2026-11-17: above 3). The numbers are not those of the LoRaWAN
 region enum (`RadioRegion`: US915 0, AU915 1, EU868 2). "Long range" is a
 setting of its own (`LoRaConfig.wake_long_range`), the same at both ends.
 

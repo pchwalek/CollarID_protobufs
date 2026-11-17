@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the per-language contract constants from collarid_contracts.json.
 
-    python3 generate.py          # write contracts/generated/*
+    python3 generate.py          # write contracts/generated/* and beacon/c/direct_rules_table.c
     python3 generate.py --check  # exit 1 if any generated file is stale
 
 Every file carries CONTRACTS_SHA256, the hash of the spec it came from
@@ -37,6 +37,13 @@ def body(spec):
 
 def sha256(spec):
     canon = json.dumps(body(spec), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canon.encode()).hexdigest()
+
+
+def dr_sha256(spec):
+    """The hash of the direct_regions section alone (DIRECT_REGIONS_SHA256,
+    dr_table_sha256): it moves only when the region table does."""
+    canon = json.dumps(spec.get("direct_regions"), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canon.encode()).hexdigest()
 
 
@@ -98,8 +105,137 @@ def c_header(spec):
         L += ["", "/* Low-battery hibernation thresholds, whole percent */"]
         for k, v in bt.items():
             L.append(f"#define CID_BATT_{_ident(k)} {v}u")
+    dr = spec.get("direct_regions")
+    if isinstance(dr, dict):
+        L += _c_header_direct_regions(spec, dr)
     L += ["", "#endif /* COLLARID_CONTRACTS_H */", ""]
     return "\n".join(L)
+
+
+def _c_int(v):
+    return f"({v})" if v < 0 else f"{v}"
+
+
+def _bw_mask(bws):
+    return sum({125: 1, 250: 2, 500: 4}[b] for b in bws)
+
+
+def _c_header_direct_regions(spec, dr):
+    """Direct-radio regions as defines and X-macros (the C engine reads
+    beacon/c/direct_rules_table.c; this is for code that only needs ids,
+    names or numbers)."""
+    L = ["", "/* Direct-radio regions (CONTRACT_direct_regions.md): ids are ble.proto DirectRegion */",
+         f'#define CID_DR_TABLE_SHA256 "{dr_sha256(spec)}"']
+    for r in dr["rule_sets"]:
+        L.append(f"#define CID_DR_RULE_SET_{_ident(r['key'])} {r['id']}u")
+    L.append(f"#define CID_DR_RULE_SET_COUNT {len(dr['rule_sets'])}u")
+    L.append(f"#define CID_DR_MAX_BANDS {max(len(r['bands']) for r in dr['rule_sets'])}u")
+    L.append(f"#define CID_DR_COUNTRY_COUNT {len(dr['countries'])}u")
+    for k, v in dr["constants"].items():
+        if isinstance(v, list):
+            continue
+        L.append(f"#define CID_DR_{_ident(k)} {v}u" if v >= 0 else f"#define CID_DR_{_ident(k)} ({v})")
+    for group, prefix in (("reasons", "REASON"), ("classes", "CLASS"), ("convert_how", "HOW"),
+                          ("fit_reasons", "FIT"), ("confidences", "CONFIDENCE")):
+        for i, name in enumerate(dr[group]):
+            L.append(f"#define CID_DR_{prefix}_{_ident(name)} {i}u")
+    for name, d in dr["devices"].items():
+        for k in ("gain_cdbi", "min_dbm", "max_dbm"):
+            L.append(f"#define CID_DR_DEVICE_{_ident(name)}_{_ident(k)} {_c_int(d[k])}")
+    L += ["/* X(id, \"key\", band_count, default_freq_khz, default_bw_khz, default_sf,",
+          "     wake_freq_hz, wake_bw_khz, wake_sf, wake_sf_long) */",
+          "#define CID_DR_RULE_SETS(X) \\"]
+    for r in dr["rule_sets"]:
+        d, w = r["default"], r["wake"]
+        L.append(f'    X({r["id"]}u, "{r["key"]}", {len(r["bands"])}u, {d["freq_khz"]}u, {d["bw_khz"]}u, {d["sf"]}u, '
+                 f'{w["freq_hz"]}u, {w["bw_khz"]}u, {w["sf"]}u, {w["sf_long"]}u) \\')
+    L += ["", "/* X(rule_set, band, \"name\", lo_khz, hi_khz, bw_mask (1 = 125, 2 = 250, 4 = 500),",
+          "     grid_base_khz, grid_step_khz (0 = no grid), eirp_cdbm, conducted_dbm, budget_ms_per_h,",
+          "     lbt_dbm, lbt_ms (0 = none), max_send_ms, pause_ms (0 = none)) */",
+          "#define CID_DR_BANDS(X) \\"]
+    for r in dr["rule_sets"]:
+        for i, b in enumerate(r["bands"]):
+            L.append(f'    X({r["id"]}u, {i}u, "{b["name"]}", {b["lo_khz"]}u, {b["hi_khz"]}u, 0x{_bw_mask(b["bw_khz"]):02X}u, '
+                     f'{b["grid_base_khz"] or 0}u, {b["grid_step_khz"] or 0}u, {_c_int(b["eirp_cdbm"])}, '
+                     f'{_c_int(b["conducted_dbm"])}, {b["budget_ms_per_h"]}u, {_c_int(b["lbt_dbm"] or 0)}, '
+                     f'{b["lbt_ms"] or 0}u, {b["max_send_ms"]}u, {b["pause_ms"]}u) \\')
+    L += ["", "/* X(\"iso\", \"name\", rule_set, confidence) */", "#define CID_DR_COUNTRIES(X) \\"]
+    conf = {c: i for i, c in enumerate(dr["confidences"])}
+    for c in dr["countries"]:
+        L.append(f'    X("{c["iso"]}", "{c["name"]}", {c["rule_set"]}u, {conf[c["confidence"]]}u) \\')
+    L.append("")
+    return L
+
+
+def c_table(spec):
+    """beacon/c/direct_rules_table.c: the table the C engine (direct_rules.c)
+    links against. Static const data, positional initializers (C99 and C++)."""
+    dr = spec["direct_regions"]
+    caps = _c_capacities()
+    nb = max(len(r["bands"]) for r in dr["rule_sets"])
+    if nb > caps["DR_MAX_BANDS"]:
+        raise SystemExit(f"direct_rules.h DR_MAX_BANDS {caps['DR_MAX_BANDS']} < {nb} bands: raise it")
+    if max(r["id"] for r in dr["rule_sets"]) > caps["DR_REGION_MAX"]:
+        raise SystemExit("a rule-set id above direct_rules.h DR_REGION_MAX")
+    if len(dr["countries"]) > 255 or len(dr["rule_sets"]) > 255:
+        raise SystemExit("dr_country_count / dr_rule_set_count are uint8_t")
+    conf = {c: i for i, c in enumerate(dr["confidences"])}
+    q = lambda s: json.dumps(s, ensure_ascii=True)  # noqa: E731  a C string literal (ASCII names)
+    L = [f"/* {BANNER} */",
+         "/*",
+         " * direct_rules_table.c: the direct-radio rule sets, countries and device",
+         " * profiles of collarid_contracts.json (direct_regions) for direct_rules.c.",
+         " * Copied byte for byte with direct_rules.[ch]; a repo's test compares",
+         " * dr_contracts_sha256 / dr_table_sha256 with its vendored spec.",
+         " */",
+         '#include "direct_rules.h"',
+         "",
+         "/* The capacities of direct_rules.h hold this table (C99: a negative size fails the build). */",
+         f"typedef char dr_table_fits_bands[({nb}u <= DR_MAX_BANDS) ? 1 : -1];",
+         f"typedef char dr_table_fits_ids[({max(r['id'] for r in dr['rule_sets'])}u <= DR_REGION_MAX) ? 1 : -1];",
+         "",
+         f'const char dr_contracts_sha256[65] = "{sha256(spec)}";',
+         f'const char dr_table_sha256[65] = "{dr_sha256(spec)}";',
+         ""]
+    for r in dr["rule_sets"]:
+        L.append(f"/* {r['id']} {r['key']}: {r['name']} */")
+        L.append(f"static const dr_band_t dr_bands_{r['key'].lower()}[{len(r['bands'])}] = {{")
+        L.append("\t/* name, lo_khz, hi_khz, grid_base_khz, grid_step_khz, budget_ms_per_h, eirp_cdbm, lbt_dbm,")
+        L.append("\t   max_send_ms, pause_ms, bw_mask, conducted_dbm, lbt_ms */")
+        for b in r["bands"]:
+            L.append(f'\t{{ {q(b["name"])}, {b["lo_khz"]}u, {b["hi_khz"]}u, {b["grid_base_khz"] or 0}u, '
+                     f'{b["grid_step_khz"] or 0}u, {b["budget_ms_per_h"]}u, {b["eirp_cdbm"]}, {b["lbt_dbm"] or 0}, '
+                     f'{b["max_send_ms"]}u, {b["pause_ms"]}u, 0x{_bw_mask(b["bw_khz"]):02X}u, {b["conducted_dbm"]}, '
+                     f'{b["lbt_ms"] or 0}u }},')
+        L += ["};", ""]
+    L.append(f"const dr_rule_set_t dr_rule_sets[{len(dr['rule_sets'])}] = {{")
+    L.append("\t/* id, key, name, band_count, bands, default { freq_khz, bw_khz, sf },")
+    L.append("\t   wake_freq_hz, wake_bw_khz, wake_sf, wake_sf_long */")
+    for r in dr["rule_sets"]:
+        d, w = r["default"], r["wake"]
+        L.append(f'\t{{ {r["id"]}u, {q(r["key"])}, {q(r["name"])}, {len(r["bands"])}u, dr_bands_{r["key"].lower()}, '
+                 f'{{ {d["freq_khz"]}u, {d["bw_khz"]}u, {d["sf"]}u }}, {w["freq_hz"]}u, {w["bw_khz"]}u, '
+                 f'{w["sf"]}u, {w["sf_long"]}u }},')
+    L += ["};", f"const uint8_t dr_rule_set_count = {len(dr['rule_sets'])}u;", ""]
+    L.append(f"const dr_country_t dr_countries[{len(dr['countries'])}] = {{")
+    L.append("\t/* iso, rule_set, confidence (0 primary, 1 cept, 2 low), name */")
+    for c in dr["countries"]:
+        L.append(f'\t{{ {q(c["iso"])}, {c["rule_set"]}u, {conf[c["confidence"]]}u, {q(c["name"])} }},')
+    L += ["};", f"const uint8_t dr_country_count = {len(dr['countries'])}u;", ""]
+    L.append("/* gain_cdbi, min_dbm, max_dbm */")
+    for name, d in dr["devices"].items():
+        L.append(f"const dr_device_t dr_device_{name} = {{ {d['gain_cdbi']}, {d['min_dbm']}, {d['max_dbm']} }};")
+    nd = dr["no_region_default"]
+    L += ["", f"const dr_setting_t dr_no_region_default = {{ {nd['freq_khz']}u, {nd['bw_khz']}u, {nd['sf']}u }};", ""]
+    return "\n".join(L)
+
+
+def _c_capacities():
+    """The capacities direct_rules.h declares (the table must fit them)."""
+    with open(DR_HEADER) as fh:
+        h = fh.read()
+    return {name: int(re.search(r"(?m)^#define %s\s+(\d+)u" % name, h).group(1))
+            for name in ("DR_MAX_BANDS", "DR_REGION_MAX")}
 
 
 def _js_literal(spec):
@@ -111,7 +247,9 @@ def ts_module(spec):
             "/* eslint-disable */\n"
             f"export const CONTRACTS_SHA256 = '{sha256(spec)}';\n"
             f"export const CONTRACTS = {_js_literal(spec)} as const;\n"
-            "export default CONTRACTS;\n")
+            + ("export const DIRECT_REGIONS = CONTRACTS.direct_regions;\n"
+               f"export const DIRECT_REGIONS_SHA256 = '{dr_sha256(spec)}';\n" if "direct_regions" in spec else "")
+            + "export default CONTRACTS;\n")
 
 
 def js_module(spec):
@@ -126,6 +264,7 @@ def js_module(spec):
             "  'use strict';\n"
             f"  const C = {_js_literal(spec)};\n"
             f"  C.CONTRACTS_SHA256 = '{sha256(spec)}';\n"
+            + (f"  C.DIRECT_REGIONS_SHA256 = '{dr_sha256(spec)}';\n" if "direct_regions" in spec else "") +
             "  return Object.freeze(C);\n"
             "});\n")
 
@@ -133,7 +272,9 @@ def js_module(spec):
 def py_module(spec):
     return (f'"""{BANNER}"""\n\n'
             f"CONTRACTS_SHA256 = {sha256(spec)!r}\n\n"
-            f"CONTRACTS = {pprint.pformat(body(spec), width=100, sort_dicts=False)}\n")
+            f"CONTRACTS = {pprint.pformat(body(spec), width=100, sort_dicts=False)}\n"
+            + ("\nDIRECT_REGIONS = CONTRACTS['direct_regions']\n"
+               f"DIRECT_REGIONS_SHA256 = {dr_sha256(spec)!r}\n" if "direct_regions" in spec else ""))
 
 
 FILES = {
@@ -142,23 +283,40 @@ FILES = {
     "collarid-contracts.js": js_module,
     "collarid_contracts.py": py_module,
 }
+# Generated outside generated/: the C engine's table, beside direct_rules.[ch].
+BEACON_C = os.path.join(os.path.dirname(HERE), "beacon", "c")
+DR_HEADER = os.path.join(BEACON_C, "direct_rules.h")
+TABLE_PATH = os.path.join(BEACON_C, "direct_rules_table.c")
 
 
 def render(spec=None):
+    """{name: text} of contracts/generated/ (FILES)."""
     spec = spec or load()
     return {name: fn(spec) for name, fn in FILES.items()}
+
+
+def render_all(spec=None):
+    """{absolute path: text} of every generated file: generated/ and the C table."""
+    spec = spec or load()
+    out = {os.path.join(OUT, name): text for name, text in render(spec).items()}
+    if "direct_regions" in spec:
+        out[TABLE_PATH] = c_table(spec)
+    return out
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args(argv)
-    out = render()
+    out = render_all()
     stale = []
     os.makedirs(OUT, exist_ok=True)
-    for name, text in out.items():
-        path = os.path.join(OUT, name)
-        old = open(path).read() if os.path.exists(path) else None
+    for path, text in out.items():
+        name = os.path.relpath(path, os.path.dirname(HERE))
+        old = None
+        if os.path.exists(path):
+            with open(path) as fh:
+                old = fh.read()
         if old != text:
             stale.append(name)
             if not a.check:

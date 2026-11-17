@@ -5,7 +5,8 @@
  * Python reference. Test code only: nothing here goes into a firmware.
  *
  *   cc -std=c11 -Wall -Wextra -Werror -I.. wake_frame_harness.c \
- *      ../wake_frame.c ../aead_ccm.c -o wake_frame_harness
+ *      ../wake_frame.c ../aead_ccm.c ../direct_rules.c ../direct_rules_table.c \
+ *      -o wake_frame_harness
  *
  * One command per line on stdin, one answer per line on stdout; numbers are
  * decimal, bytes lower-case hex, "-" stands for "none".

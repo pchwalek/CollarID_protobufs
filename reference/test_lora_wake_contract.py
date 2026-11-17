@@ -48,7 +48,12 @@ from test_mag_rate_contract import (c_fieldlist, c_struct, field_labels,
 SCHEDULE_FIELD = ("uint32", 13)
 TIMING_FIELD = ("uint32", 6)
 DIRECT_REGION = {"DIRECT_REGION_AUTO": 0, "DIRECT_REGION_US915": 1,
-                 "DIRECT_REGION_EU868": 2, "DIRECT_REGION_AU915": 3}
+                 "DIRECT_REGION_EU868": 2, "DIRECT_REGION_AU915": 3,
+                 # 4..15: direct-radio regions, 2026-11-17 (test_direct_regions_contract.py)
+                 "DIRECT_REGION_BR915": 4, "DIRECT_REGION_LA915": 5, "DIRECT_REGION_IN865": 6,
+                 "DIRECT_REGION_JP920": 7, "DIRECT_REGION_KR920": 8, "DIRECT_REGION_SG920": 9,
+                 "DIRECT_REGION_MY919": 10, "DIRECT_REGION_TH920": 11, "DIRECT_REGION_VN920": 12,
+                 "DIRECT_REGION_ID920": 13, "DIRECT_REGION_TW920": 14, "DIRECT_REGION_RU868": 15}
 RADIO_REGION = {"REGION_US915": 0, "REGION_AU915": 1, "REGION_EU868": 2}   # LoRaWAN's, for contrast
 LORA_CONFIG_FIELDS = {"radioSpreadingFactor": ("RadioSpreadingFactor", 1),
                       "radioBandwidth": ("RadioBandwidth", 2),
@@ -58,14 +63,16 @@ LORA_CONFIG_FIELDS = {"radioSpreadingFactor": ("RadioSpreadingFactor", 1),
                       "frequency": ("uint32", 6),
                       "rx_listen": ("bool", 7),
                       "region": ("DirectRegion", 8),
-                      "wake_long_range": ("bool", 9)}
+                      "wake_long_range": ("bool", 9),
+                      "frequency_khz": ("uint32", 10)}           # direct-radio regions, 2026-11-17
 RADIO_SETTINGS_FIELDS = {"spreading_factor": ("uint32", 1), "bandwidth": ("uint32", 2),
                          "coding_rate": ("uint32", 3), "tx_power_dbm": ("int32", 4),
                          "sync_word": ("uint32", 5), "frequency_mhz": ("uint32", 6),
                          "rx_listen": ("bool", 7), "lost_mode_enabled": ("bool", 8),
                          "lost_activation_epoch": ("uint32", 9), "lost_interval_min": ("uint32", 10),
                          "lost_tx_power_dbm": ("int32", 11),
-                         "direct_region": ("uint32", 12), "wake_long_range": ("bool", 13)}
+                         "direct_region": ("uint32", 12), "wake_long_range": ("bool", 13),
+                         "frequency_khz": ("uint32", 14)}        # direct-radio regions, 2026-11-17
 CMD_LOCATE_NOW = 28
 LOCATE_FIELD = ("LocateNow", 16)
 HEADER_FIELD = ("uint32", 17)
@@ -262,8 +269,10 @@ class GeneratedC(unittest.TestCase):
         for line in ("uint32_t wake_group;", "uint32_t wake_gen;", "beacon_key_report_wake_kcv_t wake_kcv;"):
             self.assertIn(line, body)
         # nanopb's bounds, each with the fields above at their largest.
-        for macro, size in (("SCHEDULE_CONFIG_SIZE", 186), ("LO_RA_CONFIG_SIZE", 35),
-                            ("RADIO_CONFIG_PACKET_SIZE", 185), ("BEACON_KEY_REPORT_SIZE", 38)):
+        # old: LO_RA_CONFIG_SIZE 35, RADIO_CONFIG_PACKET_SIZE 185 (to 2026-11-17;
+        # LoRaConfig.frequency_khz = 10 adds 6 B, test_direct_regions_contract.py)
+        for macro, size in (("SCHEDULE_CONFIG_SIZE", 186), ("LO_RA_CONFIG_SIZE", 41),
+                            ("RADIO_CONFIG_PACKET_SIZE", 191), ("BEACON_KEY_REPORT_SIZE", 38)):
             self.assertRegex(h, r"#define %s\s+%d\b" % (macro, size))
 
     def test_downlink_header(self):
@@ -293,8 +302,9 @@ class GeneratedC(unittest.TestCase):
         self.assertRegex(h, r"\bBEACON_KEY_SLOT_BEACON_KEY_SLOT_WAKE = %d\b" % SLOT_WAKE)
         self.assertRegex(h, r"#define BEACON_KEY_SET_GROUP_TAG\s+4\b")
         self.assertIn("uint32_t group;", c_struct("downlink.pb.h", "beacon_key_set"))
+        # old: RADIO_SETTINGS_SIZE 76 (to 2026-11-17; RadioSettings.frequency_khz = 14 adds 6 B)
         for macro, size in (("LOCATE_NOW_SIZE", 6), ("CONFIG_RADIO_TIMING_SIZE", 33),
-                            ("RADIO_SETTINGS_SIZE", 76), ("BEACON_KEY_SET_SIZE", 32)):
+                            ("RADIO_SETTINGS_SIZE", 82), ("BEACON_KEY_SET_SIZE", 32)):
             self.assertRegex(h, r"#define %s\s+%d\b" % (macro, size))
 
     def test_common_header(self):

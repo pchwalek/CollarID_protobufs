@@ -16,6 +16,8 @@
 
 #include <string.h>
 
+#include "direct_rules.h"   /* the region table: wake channels and regions (2026-11-17) */
+
 static void put_u16le(uint8_t *p, uint16_t v)
 {
 	p[0] = (uint8_t)(v & 0xFFu);
@@ -114,43 +116,44 @@ wake_verdict_t wake_frame_verdict(const wake_frame_t *f, uint32_t uid)
 uint8_t wake_region_resolve(uint32_t setting, bool lorawan_configured,
                             uint32_t lorawan_region, uint32_t frequency_mhz)
 {
-	if (setting == WAKE_REGION_US915 || setting == WAKE_REGION_EU868 || setting == WAKE_REGION_AU915) {
-		return (uint8_t)setting;
-	}
-	if (setting != 0u) return WAKE_REGION_NONE;          /* not AUTO, not a region */
-	if (lorawan_configured) {
-		switch (lorawan_region) {
-		case WAKE_LORAWAN_US915: return WAKE_REGION_US915;
-		case WAKE_LORAWAN_AU915: return WAKE_REGION_AU915;
-		case WAKE_LORAWAN_EU868: return WAKE_REGION_EU868;
-		default:                 return WAKE_REGION_NONE;
-		}
-	}
-	if (frequency_mhz >= 863u && frequency_mhz <= 870u) return WAKE_REGION_EU868;
-	if (frequency_mhz >= 902u && frequency_mhz <= 928u) return WAKE_REGION_US915;
-	return WAKE_REGION_NONE;
+	/* old (to 2026-11-17, CONTRACT_lora_wake.md section 1; a setting above 3 was no region):
+	 * if (setting == WAKE_REGION_US915 || setting == WAKE_REGION_EU868 || setting == WAKE_REGION_AU915) {
+	 * 	return (uint8_t)setting;
+	 * }
+	 * if (setting != 0u) return WAKE_REGION_NONE;
+	 * if (lorawan_configured) {
+	 * 	switch (lorawan_region) {
+	 * 	case WAKE_LORAWAN_US915: return WAKE_REGION_US915;
+	 * 	case WAKE_LORAWAN_AU915: return WAKE_REGION_AU915;
+	 * 	case WAKE_LORAWAN_EU868: return WAKE_REGION_EU868;
+	 * 	default:                 return WAKE_REGION_NONE;
+	 * 	}
+	 * }
+	 * if (frequency_mhz >= 863u && frequency_mhz <= 870u) return WAKE_REGION_EU868;
+	 * if (frequency_mhz >= 902u && frequency_mhz <= 928u) return WAKE_REGION_US915;
+	 * return WAKE_REGION_NONE;
+	 */
+	/* CONTRACT_direct_regions.md section 9: 1..15 is that region, AUTO as before. A
+	 * frequency past 32 bits of kHz is no frequency (0 resolves to none). */
+	const uint32_t khz = (frequency_mhz <= 0xFFFFFFFFu / 1000u) ? frequency_mhz * 1000u : 0u;
+	return dr_region_resolve(setting, lorawan_configured, lorawan_region, khz);
 }
 
 bool wake_channel(uint8_t region, bool long_range, wake_channel_t *out)
 {
+	dr_wake_t w;
+
 	if (!out) return false;
 	memset(out, 0, sizeof(*out));
-	switch (region) {
-	case WAKE_REGION_US915:
-	case WAKE_REGION_AU915:
-		out->frequency_hz = 919000000u;
-		out->bw_khz = 500u;
-		out->sf = long_range ? 12u : 9u;
-		break;
-	case WAKE_REGION_EU868:
-		out->frequency_hz = 869525000u;
-		out->bw_khz = 125u;
-		out->sf = long_range ? 10u : 7u;
-		break;
-	default:
-		return false;
-	}
-	out->max_dbm = 22;
+	/* old (to 2026-11-17): US915 and AU915 919 MHz / 500 kHz / SF9 (12), EU868
+	 * 869.525 MHz / 125 kHz / SF7 (10), max_dbm 22 for all three; anything else false.
+	 * Now the table of direct_rules_table.c, max_dbm the band's cap for the generic
+	 * device (22 for those three, as before). */
+	if (!dr_wake_channel(dr_rule_set(region), long_range, &w)) return false;
+	out->frequency_hz = w.freq_hz;
+	out->bw_khz = w.bw_khz;
+	out->sf = w.sf;
+	out->max_dbm = w.max_dbm;
 	return true;
 }
 

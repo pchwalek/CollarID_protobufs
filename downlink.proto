@@ -588,7 +588,7 @@ message RadioSettings {
   optional uint32 coding_rate           = 3;   // ble.proto RadioCodingRate value: 0 = 4/5 ... 3 = 4/8
   optional int32  tx_power_dbm          = 4;
   optional uint32 sync_word             = 5;
-  optional uint32 frequency_mhz         = 6;   // as LoRaConfig.frequency (whole MHz)
+  optional uint32 frequency_mhz         = 6;   // as LoRaConfig.frequency (whole MHz; frequency_khz below for kHz)
   optional bool   rx_listen             = 7;
   optional bool   lost_mode_enabled     = 8;
   optional uint32 lost_activation_epoch = 9;
@@ -606,11 +606,27 @@ message RadioSettings {
   // both settings all the same, and a collar that never set either reports
   // the radio_crc it reported before the fields existed: one rule for every
   // firmware build.
-  // The rails refuse a direct_region above 3 (rule 13, a value outside its
-  // range) and a change that leaves a listening slot with no region
-  // (rule 15, SCHED_RAIL_WAKE_NO_REGION). 4 B for the two in a fragment.
+  // The rails refuse a direct_region above 15 (rule 13, a value outside its
+  // range; old, to 2026-11-17: above 3), a setting that breaks the rule
+  // set for the collar's own board (rule 13, collarID_thread
+  // docs/CONTRACT_direct_regions.md section 4) and a change that leaves a
+  // listening slot with no region (rule 15, SCHED_RAIL_WAKE_NO_REGION).
+  // 4 B for the two in a fragment.
   optional uint32 direct_region         = 12;
   optional bool   wake_long_range       = 13;
+  // Direct-radio regions (fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at
+  // merge). The direct radio's frequency in kHz, as ble.proto
+  // LoRaConfig.frequency_khz: written only when the frequency is not a whole
+  // MHz, frequency_mhz then holding it rounded to the nearest MHz (a half
+  // up) for older readers; a reader takes it when present and not 0, else
+  // frequency_mhz x 1000. In a fragment: present (not 0) sets the frequency
+  // in kHz; frequency_mhz present without it sets that whole MHz and clears
+  // a kHz frequency the collar held; both absent keep the collar's
+  // frequency. In the encoding PacketHeader.radio_crc is taken over it is
+  // encoded ONLY WHEN THE FREQUENCY IS NOT A WHOLE MHz (as direct_region
+  // only when not 0), after field 13, so every collar on a whole MHz keeps
+  // its radio_crc. 6 B in a fragment.
+  optional uint32 frequency_khz         = 14;
 }
 
 message ConfigFragment {

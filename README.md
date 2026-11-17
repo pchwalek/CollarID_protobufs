@@ -152,6 +152,39 @@ worst status packet 135 B (140 B), the largest radio configuration 184 B
 merge; older firmware skips every field and answers 5 (unknown command) to
 `CMD_LOCATE_NOW`.
 
+## Direct-radio regions (`DirectRegion` 4..15, `frequency_khz`)
+
+Every country the direct radio serves, with its limits (collarID_thread
+`docs/CONTRACT_direct_regions.md`, 2026-11-17). `DirectRegion` is now also
+a rule set: 1 US915, 2 EU868 and 3 AU915 keep their meaning, 4..15 are
+BR915, LA915, IN865, JP920, KR920, SG920, MY919, TH920, VN920, ID920, TW920
+and RU868. The table (bands, bandwidths, grids, power, listen-before-talk,
+send-time limits, hourly air budgets, countries, device profiles, default
+and wake channels) is `contracts/collarid_contracts.json` `direct_regions`;
+the reference `contracts/reference.py` (`dr_*`); the C engine for the collar
+and the Spotter `beacon/c/direct_rules.[ch]` over the generated
+`beacon/c/direct_rules_table.c` (tests: `cd beacon && python3 -m unittest
+test_direct_rules_c`); the vectors `test_vectors/contracts_v1.json`
+`direct_regions`. `beacon/c/wake_frame.c` now reads its wake channels and
+regions from the table, so a build that has `wake_frame.c` also needs
+`direct_rules.c` and `direct_rules_table.c`.
+
+| Where | Addition |
+|---|---|
+| `ble.proto` `DirectRegion` | `DIRECT_REGION_BR915 = 4` ... `DIRECT_REGION_RU868 = 15`. A value above 15 is no region. |
+| `ble.proto` `LoRaConfig` | `frequency_khz = 10` (`uint32`): the direct radio's frequency in kHz, written only when it is not a whole MHz (`frequency` then holds the nearest MHz, a half up); 0 = use `frequency`. Never encoded for a whole MHz, so existing configurations keep their bytes. |
+| `downlink.proto` `RadioSettings` | `frequency_khz = 14` (`optional uint32`), the same rule. In the encoding `PacketHeader.radio_crc` is taken over it is present only when the frequency is not a whole MHz, after field 13, so every collar on a whole MHz keeps its `radio_crc`. In a fragment, `frequency_mhz` without it sets a whole MHz and clears a kHz frequency. |
+| `contracts/collarid_contracts.json` | `direct_regions`; CONFIG.CSV `lora_frequency_khz` (global, after `lora_wake_long_range`, conditional: written only when not a whole MHz); `lora_region` 0..15. |
+
+`reference/test_direct_regions_contract.py` pins the numbers, the generated
+files and the budgets: the largest radio configuration 188 B with a kHz
+frequency (200 B characteristic), a radio fragment with a kHz frequency
+25 B (33 B RX2 floor). nanopb bounds that moved: `LO_RA_CONFIG_SIZE` 41,
+`RADIO_CONFIG_PACKET_SIZE` 191, `RADIO_SETTINGS_SIZE` 82,
+`CONFIG_FRAGMENT_SIZE` 460, `DOWNLINK_PACKET_SIZE` 887, `CONFIG_REPORT_SIZE`
+487, `MESSAGE_PACKET_SIZE` 2565. Firmware gate:
+`DIRECT_REGIONS_MIN_FW_BUILD`, set at merge; Spotter v2.3.0.
+
 ## Magnetometer calibration (`CMD_MAG_CALIBRATE`, `CfgEchoPacket.mag_cal`)
 
 `CMD_MAG_CALIBRATE` (20) and `CMD_MAG_CALIBRATE_ABORT` (21) travel only

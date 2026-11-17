@@ -152,11 +152,13 @@ wake_verdict_t wake_frame_verdict(const wake_frame_t *f, uint32_t uid);
 /* ---- regions and the wake channel ---------------------------------------- */
 
 /* A resolved region: the DirectRegion numbers of ble.proto, with 0 (AUTO as
- * a setting) meaning "none": a device with no region does not listen. */
+ * a setting) meaning "none": a device with no region does not listen. 4..15
+ * are the other rule sets of direct_rules.h (DR_REGION_*, 2026-11-17). */
 #define WAKE_REGION_NONE    0u
 #define WAKE_REGION_US915   1u
 #define WAKE_REGION_EU868   2u
 #define WAKE_REGION_AU915   3u
+#define WAKE_REGION_MAX     15u   /* a setting above this is no region */
 /* ble.proto RadioRegion, the LoRaWAN region: NOT the numbers above. */
 #define WAKE_LORAWAN_US915  0u
 #define WAKE_LORAWAN_AU915  1u
@@ -173,19 +175,24 @@ typedef struct {
 	uint32_t frequency_hz;
 	uint16_t bw_khz;
 	uint8_t  sf;
-	int8_t   max_dbm;      /* transmit at the direct radio's power, held to this */
+	int8_t   max_dbm;      /* the band's cap for the generic device (direct_rules.h
+	                          dr_wake_channel); a device sends at its direct-radio
+	                          power held to dr_power_cap with its own profile */
 } wake_channel_t;
 
-/* The region a device runs. setting is the DirectRegion value: 1..3 is that
- * region; 0 (AUTO) takes the LoRaWAN region when LoRaWAN is configured
- * (lorawan_region, a RadioRegion value), else reads the direct radio's
- * frequency in whole MHz: 863..870 is EU868, 902..928 is US915, never
- * AU915. Everything else, a setting above 3 included, is WAKE_REGION_NONE. */
+/* The region a device runs. setting is the DirectRegion value: 1..15 is that
+ * region (old, to 2026-11-17: 1..3); 0 (AUTO) takes the LoRaWAN region when
+ * LoRaWAN is configured (lorawan_region, a RadioRegion value), else reads
+ * the direct radio's frequency in whole MHz: 863..870 is EU868, 902..928 is
+ * US915, never AU915. Everything else, a setting above 15 included, is
+ * WAKE_REGION_NONE. direct_rules.h dr_region_resolve takes kHz. */
 uint8_t wake_region_resolve(uint32_t setting, bool lorawan_configured,
                             uint32_t lorawan_region, uint32_t frequency_mhz);
 
-/* The wake channel of a resolved region, standard or long range. false
- * (with *out zeroed) for WAKE_REGION_NONE or an unknown region. */
+/* The wake channel of a resolved region (1..15), standard or long range,
+ * from the table of direct_rules_table.c (CONTRACT_direct_regions.md
+ * section 9). false (with *out zeroed) for WAKE_REGION_NONE or an unknown
+ * region. Needs direct_rules.c and direct_rules_table.c in the build. */
 bool wake_channel(uint8_t region, bool long_range, wake_channel_t *out);
 
 /* ---- timing --------------------------------------------------------------- */

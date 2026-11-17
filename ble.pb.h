@@ -61,16 +61,39 @@ typedef enum radio_coding_rate {
  CRC on and sync word 0x57, at the direct radio's transmit power held to
  the cap. The numbers below are NOT those of the LoRaWAN region
  (RadioRegion above: US915 0, AU915 1, EU868 2); only EU868 has the same
- one, so one is never cast to the other. */
+ one, so one is never cast to the other.
+
+ Direct-radio regions (collarID_thread docs/CONTRACT_direct_regions.md,
+ 2026-11-17; fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at merge, and
+ Spotter v2.3.0). Each value is also a RULE SET: the channels (bands,
+ bandwidths, grids), power caps, listen-before-talk, send-time limits and
+ hourly air budgets the direct radio and the wake channel keep in the
+ countries that map to it. 4..15 are new; 0..3 keep their meaning. The
+ table, the wake channel of every value and the countries live in
+ contracts/collarid_contracts.json (direct_regions), the C engine in
+ beacon/c/direct_rules.[ch]. A saved setting that breaks its rule set is
+ converted once and saved; a new one is refused and nothing changes. */
 typedef enum direct_region {
     /* The LoRaWAN region when LoRaWAN is configured; otherwise from the
  direct radio's frequency: 863 to 870 MHz is EU868, 902 to 928 MHz is
  US915 (never AU915: the frequency cannot tell the two apart). Anything
  else is no region, and a collar with no region does not listen. */
     DIRECT_REGION_DIRECT_REGION_AUTO = 0,
-    DIRECT_REGION_DIRECT_REGION_US915 = 1, /* US and Canada */
-    DIRECT_REGION_DIRECT_REGION_EU868 = 2, /* EU */
-    DIRECT_REGION_DIRECT_REGION_AU915 = 3 /* Australia */
+    DIRECT_REGION_DIRECT_REGION_US915 = 1, /* US, Canada, Mexico, Puerto Rico */
+    DIRECT_REGION_DIRECT_REGION_EU868 = 2, /* EU, EEA, Switzerland, UK, South Africa, Kenya */
+    DIRECT_REGION_DIRECT_REGION_AU915 = 3, /* Australia, New Zealand */
+    DIRECT_REGION_DIRECT_REGION_BR915 = 4, /* Brazil */
+    DIRECT_REGION_DIRECT_REGION_LA915 = 5, /* Chile, Argentina, Colombia */
+    DIRECT_REGION_DIRECT_REGION_IN865 = 6, /* India */
+    DIRECT_REGION_DIRECT_REGION_JP920 = 7, /* Japan */
+    DIRECT_REGION_DIRECT_REGION_KR920 = 8, /* South Korea */
+    DIRECT_REGION_DIRECT_REGION_SG920 = 9, /* Singapore */
+    DIRECT_REGION_DIRECT_REGION_MY919 = 10, /* Malaysia */
+    DIRECT_REGION_DIRECT_REGION_TH920 = 11, /* Thailand */
+    DIRECT_REGION_DIRECT_REGION_VN920 = 12, /* Vietnam */
+    DIRECT_REGION_DIRECT_REGION_ID920 = 13, /* Indonesia */
+    DIRECT_REGION_DIRECT_REGION_TW920 = 14, /* Taiwan */
+    DIRECT_REGION_DIRECT_REGION_RU868 = 15 /* Russia */
 } direct_region_t;
 
 /* Microphone acquisition format.
@@ -298,8 +321,10 @@ typedef struct lo_ra_config {
  radio's region, which picks the wake channel a listening collar and a
  Handheld Receiver meet on (DirectRegion above). 0 = AUTO, which is what
  every existing config decodes to; proto3 does not encode it, so those
- configs are byte-identical. CONFIG.CSV key lora_region (0..3). A value
- above 3 is no region: the collar does not listen. */
+ configs are byte-identical. CONFIG.CSV key lora_region (0..15). A value
+ above 15 is no region: the collar does not listen (old, to 2026-11-17:
+ 0..3 and above 3). Since 2026-11-17 it is also the rule set the direct
+ radio keeps (CONTRACT_direct_regions.md). */
     direct_region_t region;
     /* The long-range wake setting: the wake channel runs at SF12 (US915,
  AU915) or SF10 (EU868) instead of SF9 or SF7. A wake frame is then
@@ -310,6 +335,16 @@ typedef struct lo_ra_config {
  setting it was sent at (flag LONG) for the record only. proto3 default
  false = the standard setting. CONFIG.CSV key lora_wake_long_range (0/1). */
     bool wake_long_range;
+    /* Direct-radio regions (fw gate: DIRECT_REGIONS_MIN_FW_BUILD, set at
+ merge). The direct radio's frequency in kHz, for a channel that is not
+ a whole MHz (EU 869.525 MHz, Korea's 200 kHz grid). 0 = use frequency
+ (whole MHz), which is what every existing config decodes to; proto3
+ does not encode it, so those configs are byte-identical. Written only
+ when the frequency is not a whole MHz; frequency then holds it rounded
+ to the nearest MHz (a half up) for older readers. A reader takes this
+ when it is not 0, else frequency x 1000. CONFIG.CSV key
+ lora_frequency_khz, the same rule. */
+    uint32_t frequency_khz;
 } lo_ra_config_t;
 
 typedef struct lost_mode_config {
@@ -807,8 +842,8 @@ extern "C" {
 #define _RADIO_CODING_RATE_ARRAYSIZE ((radio_coding_rate_t)(RADIO_CODING_RATE_CR_4_8+1))
 
 #define _DIRECT_REGION_MIN DIRECT_REGION_DIRECT_REGION_AUTO
-#define _DIRECT_REGION_MAX DIRECT_REGION_DIRECT_REGION_AU915
-#define _DIRECT_REGION_ARRAYSIZE ((direct_region_t)(DIRECT_REGION_DIRECT_REGION_AU915+1))
+#define _DIRECT_REGION_MAX DIRECT_REGION_DIRECT_REGION_RU868
+#define _DIRECT_REGION_ARRAYSIZE ((direct_region_t)(DIRECT_REGION_DIRECT_REGION_RU868+1))
 
 #define _MIC_SAMPLE_RATE_MIN MIC_SAMPLE_RATE_MIC_RATE_16_KHZ
 #define _MIC_SAMPLE_RATE_MAX MIC_SAMPLE_RATE_MIC_RATE_192_KHZ
@@ -920,7 +955,7 @@ extern "C" {
 #define RADIO_OTAA_INIT_DEFAULT                  {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_DEFAULT                   {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_DEFAULT            {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_DEFAULT}, 0, 0, 0}
-#define LO_RA_CONFIG_INIT_DEFAULT                {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0, _DIRECT_REGION_MIN, 0}
+#define LO_RA_CONFIG_INIT_DEFAULT                {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0, _DIRECT_REGION_MIN, 0, 0}
 #define LOST_MODE_CONFIG_INIT_DEFAULT            {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_DEFAULT            {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_DEFAULT         {false, LO_RA_WAN_CONFIG_INIT_DEFAULT, false, LO_RA_CONFIG_INIT_DEFAULT, 0, false, LOST_MODE_CONFIG_INIT_DEFAULT, 0, false, MORTALITY_CONFIG_INIT_DEFAULT}
@@ -945,7 +980,7 @@ extern "C" {
 #define RADIO_OTAA_INIT_ZERO                     {{0}, {0}, {0}, {0}}
 #define RADIO_ABP_INIT_ZERO                      {{0}, {0}, {0}, {0}, {0}}
 #define LO_RA_WAN_CONFIG_INIT_ZERO               {_RADIO_REGION_MIN, _RADIO_AUTH_MIN, 0, {RADIO_OTAA_INIT_ZERO}, 0, 0, 0}
-#define LO_RA_CONFIG_INIT_ZERO                   {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0, _DIRECT_REGION_MIN, 0}
+#define LO_RA_CONFIG_INIT_ZERO                   {_RADIO_SPREADING_FACTOR_MIN, _RADIO_BANDWIDTH_MIN, _RADIO_CODING_RATE_MIN, 0, 0, 0, 0, _DIRECT_REGION_MIN, 0, 0}
 #define LOST_MODE_CONFIG_INIT_ZERO               {0, 0, 0}
 #define MORTALITY_CONFIG_INIT_ZERO               {0, 0}
 #define RADIO_CONFIG_PACKET_INIT_ZERO            {false, LO_RA_WAN_CONFIG_INIT_ZERO, false, LO_RA_CONFIG_INIT_ZERO, 0, false, LOST_MODE_CONFIG_INIT_ZERO, 0, false, MORTALITY_CONFIG_INIT_ZERO}
@@ -1008,6 +1043,7 @@ extern "C" {
 #define LO_RA_CONFIG_RX_LISTEN_TAG               7
 #define LO_RA_CONFIG_REGION_TAG                  8
 #define LO_RA_CONFIG_WAKE_LONG_RANGE_TAG         9
+#define LO_RA_CONFIG_FREQUENCY_KHZ_TAG           10
 #define LOST_MODE_CONFIG_ACTIVATION_EPOCH_TAG    1
 #define LOST_MODE_CONFIG_TRANSMIT_INTERVAL_MIN_TAG 2
 #define LOST_MODE_CONFIG_TX_POWER_DBM_TAG        3
@@ -1196,7 +1232,8 @@ X(a, STATIC,   SINGULAR, UINT32,   sync_word,         5) \
 X(a, STATIC,   SINGULAR, UINT32,   frequency,         6) \
 X(a, STATIC,   SINGULAR, BOOL,     rx_listen,         7) \
 X(a, STATIC,   SINGULAR, UENUM,    region,            8) \
-X(a, STATIC,   SINGULAR, BOOL,     wake_long_range,   9)
+X(a, STATIC,   SINGULAR, BOOL,     wake_long_range,   9) \
+X(a, STATIC,   SINGULAR, UINT32,   frequency_khz,    10)
 #define LO_RA_CONFIG_CALLBACK NULL
 #define LO_RA_CONFIG_DEFAULT NULL
 
@@ -1482,7 +1519,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define CFG_ECHO_PACKET_SIZE                     375
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
-#define LO_RA_CONFIG_SIZE                        35
+#define LO_RA_CONFIG_SIZE                        41
 #define LO_RA_WAN_CONFIG_SIZE                    103
 #define MAGNETOMETER_CONFIG_SIZE                 14
 #define MAG_CAL_REPORT_SIZE                      36
@@ -1490,7 +1527,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define MORTALITY_CONFIG_SIZE                    12
 #define PERIPHERAL_PACKET_SIZE                   10
 #define RADIO_ABP_SIZE                           78
-#define RADIO_CONFIG_PACKET_SIZE                 185
+#define RADIO_CONFIG_PACKET_SIZE                 191
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
 #define SCHEDULE_CONFIG_PACKET_SIZE              1441

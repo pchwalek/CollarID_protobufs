@@ -3,7 +3,7 @@
 #define COLLARID_CONTRACTS_H
 
 #define CID_CONTRACTS_VERSION 1u
-#define CID_CONTRACTS_SHA256 "8dd45127470eb4575a0620563475c51f1f0793ec1fe0ba618edcceb863d17924"
+#define CID_CONTRACTS_SHA256 "49ed5451c9e55e185dc5bd0292d3581b691bb42220d4490e5152b47555e69ea4"
 
 /* Bluetooth service and characteristics */
 #define CID_GATT_SERVICE "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7"
@@ -108,6 +108,7 @@
     X("lora_rx_listen") \
     X("lora_region") \
     X("lora_wake_long_range") \
+    X("lora_frequency_khz") \
     X("lost_mode_enabled") \
     X("lost_mode_activation_epoch") \
     X("lost_mode_transmit_interval_min") \
@@ -124,7 +125,7 @@
     X("lorawan_f_nwk_s_int_key") \
     X("lorawan_s_nwk_s_int_key") \
 
-#define CID_CONFIG_CSV_GLOBAL_COUNT 44u
+#define CID_CONFIG_CSV_GLOBAL_COUNT 45u
 #define CID_CONFIG_CSV_SCHEDULE_KEYS(X) \
     X("start_hour") \
     X("end_hour") \
@@ -179,6 +180,7 @@
     X("lorawan_app_s_key") \
     X("lorawan_f_nwk_s_int_key") \
     X("lorawan_s_nwk_s_int_key") \
+    X("lora_frequency_khz") \
 
 #define CID_CONFIG_CSV_FIRMWARE_ONLY_KEYS(X) \
     X("lorawan_identity_uid") \
@@ -192,5 +194,172 @@
 #define CID_BATT_RESUME_MIN 10u
 #define CID_BATT_RESUME_MAX 60u
 #define CID_BATT_MIN_GAP 5u
+
+/* Direct-radio regions (CONTRACT_direct_regions.md): ids are ble.proto DirectRegion */
+#define CID_DR_TABLE_SHA256 "00ce148fac7e3a38bc0330f675fa237b5a7e6fa737531041aa91e2af4d94c4a5"
+#define CID_DR_RULE_SET_US915 1u
+#define CID_DR_RULE_SET_EU868 2u
+#define CID_DR_RULE_SET_AU915 3u
+#define CID_DR_RULE_SET_BR915 4u
+#define CID_DR_RULE_SET_LA915 5u
+#define CID_DR_RULE_SET_IN865 6u
+#define CID_DR_RULE_SET_JP920 7u
+#define CID_DR_RULE_SET_KR920 8u
+#define CID_DR_RULE_SET_SG920 9u
+#define CID_DR_RULE_SET_MY919 10u
+#define CID_DR_RULE_SET_TH920 11u
+#define CID_DR_RULE_SET_VN920 12u
+#define CID_DR_RULE_SET_ID920 13u
+#define CID_DR_RULE_SET_TW920 14u
+#define CID_DR_RULE_SET_RU868 15u
+#define CID_DR_RULE_SET_COUNT 15u
+#define CID_DR_MAX_BANDS 6u
+#define CID_DR_COUNTRY_COUNT 54u
+#define CID_DR_REGION_MAX 15u
+#define CID_DR_SF_MIN 7u
+#define CID_DR_SF_MAX 12u
+#define CID_DR_NORMAL_SHARE_PCT 75u
+#define CID_DR_BASE_FRAME_BYTES 64u
+#define CID_DR_PREAMBLE_SYMBOLS 8u
+#define CID_DR_LBT_SAMPLE_MAX_MS 1u
+#define CID_DR_LBT_BACKOFF_MIN_MS 20u
+#define CID_DR_LBT_BACKOFF_MAX_MS 200u
+#define CID_DR_LBT_GIVE_UP_S 20u
+#define CID_DR_BUCKET_S 60u
+#define CID_DR_BUCKETS 60u
+#define CID_DR_DEFAULT_CODING_RATE 0u
+#define CID_DR_DEFAULT_SYNC_WORD 18u
+#define CID_DR_REASON_OK 0u
+#define CID_DR_REASON_NO_BAND 1u
+#define CID_DR_REASON_BANDWIDTH 2u
+#define CID_DR_REASON_GRID 3u
+#define CID_DR_REASON_POWER_FLOOR 4u
+#define CID_DR_REASON_FRAME_TIME 5u
+#define CID_DR_CLASS_NORMAL 0u
+#define CID_DR_CLASS_BEACON 1u
+#define CID_DR_HOW_KEPT 0u
+#define CID_DR_HOW_MOVED 1u
+#define CID_DR_HOW_DEFAULT 2u
+#define CID_DR_FIT_FITS 0u
+#define CID_DR_FIT_NO_BUDGET 1u
+#define CID_DR_FIT_NORMAL_OVER 2u
+#define CID_DR_FIT_TOTAL_OVER 3u
+#define CID_DR_CONFIDENCE_PRIMARY 0u
+#define CID_DR_CONFIDENCE_CEPT 1u
+#define CID_DR_CONFIDENCE_LOW 2u
+#define CID_DR_DEVICE_COLLAR_WIO_GAIN_CDBI 90
+#define CID_DR_DEVICE_COLLAR_WIO_MIN_DBM (-9)
+#define CID_DR_DEVICE_COLLAR_WIO_MAX_DBM 22
+#define CID_DR_DEVICE_COLLAR_MK3_GAIN_CDBI 90
+#define CID_DR_DEVICE_COLLAR_MK3_MIN_DBM 16
+#define CID_DR_DEVICE_COLLAR_MK3_MAX_DBM 27
+#define CID_DR_DEVICE_SPOTTER_GAIN_CDBI 200
+#define CID_DR_DEVICE_SPOTTER_MIN_DBM (-9)
+#define CID_DR_DEVICE_SPOTTER_MAX_DBM 22
+#define CID_DR_DEVICE_GENERIC_GAIN_CDBI 90
+#define CID_DR_DEVICE_GENERIC_MIN_DBM (-9)
+#define CID_DR_DEVICE_GENERIC_MAX_DBM 22
+/* X(id, "key", band_count, default_freq_khz, default_bw_khz, default_sf,
+     wake_freq_hz, wake_bw_khz, wake_sf, wake_sf_long) */
+#define CID_DR_RULE_SETS(X) \
+    X(1u, "US915", 1u, 915000u, 500u, 9u, 919000000u, 500u, 9u, 12u) \
+    X(2u, "EU868", 6u, 869525u, 125u, 9u, 869525000u, 125u, 7u, 10u) \
+    X(3u, "AU915", 1u, 916000u, 500u, 9u, 919000000u, 500u, 9u, 12u) \
+    X(4u, "BR915", 2u, 916000u, 500u, 9u, 919000000u, 500u, 9u, 12u) \
+    X(5u, "LA915", 1u, 916000u, 500u, 9u, 919000000u, 500u, 9u, 12u) \
+    X(6u, "IN865", 1u, 866000u, 125u, 9u, 867000000u, 125u, 7u, 10u) \
+    X(7u, "JP920", 1u, 921000u, 125u, 9u, 922000000u, 125u, 7u, 10u) \
+    X(8u, "KR920", 1u, 922700u, 125u, 9u, 923100000u, 125u, 7u, 10u) \
+    X(9u, "SG920", 1u, 921000u, 125u, 9u, 922000000u, 125u, 7u, 10u) \
+    X(10u, "MY919", 1u, 921000u, 125u, 9u, 922000000u, 125u, 7u, 10u) \
+    X(11u, "TH920", 1u, 921000u, 125u, 9u, 922000000u, 125u, 7u, 10u) \
+    X(12u, "VN920", 1u, 921000u, 125u, 9u, 922000000u, 125u, 7u, 10u) \
+    X(13u, "ID920", 1u, 921000u, 125u, 9u, 922000000u, 125u, 7u, 10u) \
+    X(14u, "TW920", 1u, 921000u, 500u, 9u, 923000000u, 500u, 9u, 12u) \
+    X(15u, "RU868", 1u, 868900u, 125u, 9u, 869100000u, 125u, 7u, 10u) \
+
+/* X(rule_set, band, "name", lo_khz, hi_khz, bw_mask (1 = 125, 2 = 250, 4 = 500),
+     grid_base_khz, grid_step_khz (0 = no grid), eirp_cdbm, conducted_dbm, budget_ms_per_h,
+     lbt_dbm, lbt_ms (0 = none), max_send_ms, pause_ms (0 = none)) */
+#define CID_DR_BANDS(X) \
+    X(1u, 0u, "902-928", 902000u, 928000u, 0x04u, 0u, 0u, 3600, 30, 0u, 0, 0u, 0u, 0u) \
+    X(2u, 0u, "K", 863000u, 865000u, 0x07u, 0u, 0u, 1615, 30, 3600u, 0, 0u, 0u, 0u) \
+    X(2u, 1u, "L", 865000u, 868000u, 0x07u, 0u, 0u, 1615, 30, 36000u, 0, 0u, 0u, 0u) \
+    X(2u, 2u, "M", 868000u, 868600u, 0x07u, 868100u, 100u, 1615, 30, 36000u, 0, 0u, 0u, 0u) \
+    X(2u, 3u, "N", 868700u, 869200u, 0x03u, 868800u, 100u, 1615, 30, 3600u, 0, 0u, 0u, 0u) \
+    X(2u, 4u, "O", 869400u, 869650u, 0x01u, 869525u, 125u, 2915, 30, 360000u, 0, 0u, 0u, 0u) \
+    X(2u, 5u, "Q", 869700u, 870000u, 0x03u, 869800u, 50u, 1615, 30, 36000u, 0, 0u, 0u, 0u) \
+    X(3u, 0u, "915-928", 915000u, 928000u, 0x07u, 0u, 0u, 3000, 30, 0u, 0, 0u, 0u, 0u) \
+    X(4u, 0u, "902-907.5", 902000u, 907500u, 0x04u, 0u, 0u, 3600, 30, 0u, 0, 0u, 0u, 0u) \
+    X(4u, 1u, "915-928", 915000u, 928000u, 0x04u, 0u, 0u, 3600, 30, 0u, 0, 0u, 0u, 0u) \
+    X(5u, 0u, "915-928", 915000u, 928000u, 0x04u, 0u, 0u, 2700, 30, 0u, (-80), 5u, 0u, 0u) \
+    X(6u, 0u, "865-868", 865000u, 868000u, 0x01u, 0u, 0u, 2915, 30, 90000u, 0, 0u, 0u, 0u) \
+    X(7u, 0u, "920.5-923.5", 920500u, 923500u, 0x05u, 920600u, 200u, 1600, 13, 0u, (-80), 5u, 4000u, 50u) \
+    X(8u, 0u, "922-923.4", 922000u, 923400u, 0x01u, 922100u, 200u, 1400, 30, 0u, (-65), 5u, 4000u, 50u) \
+    X(9u, 0u, "917-925", 917000u, 925000u, 0x07u, 0u, 0u, 2215, 30, 36000u, 0, 0u, 0u, 0u) \
+    X(10u, 0u, "919-923", 919000u, 923000u, 0x07u, 0u, 0u, 2700, 30, 0u, 0, 0u, 0u, 0u) \
+    X(11u, 0u, "920-925", 920000u, 925000u, 0x07u, 0u, 0u, 3600, 30, 360000u, 0, 0u, 0u, 0u) \
+    X(12u, 0u, "920-923", 920000u, 923000u, 0x07u, 0u, 0u, 1615, 30, 36000u, 0, 0u, 0u, 0u) \
+    X(13u, 0u, "920-923", 920000u, 923000u, 0x03u, 0u, 0u, 2000, 30, 36000u, 0, 0u, 0u, 0u) \
+    X(14u, 0u, "920-925", 920000u, 925000u, 0x04u, 0u, 0u, 3300, 27, 0u, 0, 0u, 0u, 0u) \
+    X(15u, 0u, "868.7-869.2", 868700u, 869200u, 0x03u, 868800u, 100u, 2215, 30, 360000u, 0, 0u, 0u, 0u) \
+
+/* X("iso", "name", rule_set, confidence) */
+#define CID_DR_COUNTRIES(X) \
+    X("US", "United States", 1u, 0u) \
+    X("CA", "Canada", 1u, 0u) \
+    X("MX", "Mexico", 1u, 0u) \
+    X("PR", "Puerto Rico", 1u, 0u) \
+    X("AT", "Austria", 2u, 0u) \
+    X("BE", "Belgium", 2u, 0u) \
+    X("BG", "Bulgaria", 2u, 0u) \
+    X("HR", "Croatia", 2u, 0u) \
+    X("CY", "Cyprus", 2u, 0u) \
+    X("CZ", "Czechia", 2u, 0u) \
+    X("DK", "Denmark", 2u, 0u) \
+    X("EE", "Estonia", 2u, 0u) \
+    X("FI", "Finland", 2u, 0u) \
+    X("FR", "France", 2u, 0u) \
+    X("DE", "Germany", 2u, 0u) \
+    X("GR", "Greece", 2u, 0u) \
+    X("HU", "Hungary", 2u, 0u) \
+    X("IE", "Ireland", 2u, 0u) \
+    X("IT", "Italy", 2u, 0u) \
+    X("LV", "Latvia", 2u, 0u) \
+    X("LT", "Lithuania", 2u, 0u) \
+    X("LU", "Luxembourg", 2u, 0u) \
+    X("MT", "Malta", 2u, 0u) \
+    X("NL", "Netherlands", 2u, 0u) \
+    X("PL", "Poland", 2u, 0u) \
+    X("PT", "Portugal", 2u, 0u) \
+    X("RO", "Romania", 2u, 0u) \
+    X("SK", "Slovakia", 2u, 0u) \
+    X("SI", "Slovenia", 2u, 0u) \
+    X("ES", "Spain", 2u, 0u) \
+    X("SE", "Sweden", 2u, 0u) \
+    X("IS", "Iceland", 2u, 1u) \
+    X("LI", "Liechtenstein", 2u, 1u) \
+    X("NO", "Norway", 2u, 1u) \
+    X("CH", "Switzerland", 2u, 1u) \
+    X("GB", "United Kingdom", 2u, 0u) \
+    X("ZA", "South Africa", 2u, 0u) \
+    X("KE", "Kenya", 2u, 0u) \
+    X("AU", "Australia", 3u, 0u) \
+    X("NZ", "New Zealand", 3u, 0u) \
+    X("BR", "Brazil", 4u, 0u) \
+    X("CL", "Chile", 5u, 0u) \
+    X("AR", "Argentina", 5u, 2u) \
+    X("CO", "Colombia", 5u, 2u) \
+    X("IN", "India", 6u, 0u) \
+    X("JP", "Japan", 7u, 0u) \
+    X("KR", "South Korea", 8u, 0u) \
+    X("SG", "Singapore", 9u, 0u) \
+    X("MY", "Malaysia", 10u, 2u) \
+    X("TH", "Thailand", 11u, 0u) \
+    X("VN", "Vietnam", 12u, 0u) \
+    X("ID", "Indonesia", 13u, 0u) \
+    X("TW", "Taiwan", 14u, 0u) \
+    X("RU", "Russia", 15u, 2u) \
+
 
 #endif /* COLLARID_CONTRACTS_H */

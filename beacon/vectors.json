@@ -1858,8 +1858,22 @@
     "region": 0
    },
    {
-    "name": "a setting above 3 is no region",
+    "name": "set to BR915 (4..15 are regions since 2026-11-17)",
     "setting": 4,
+    "lorawan_region": 0,
+    "frequency_mhz": 915,
+    "region": 4
+   },
+   {
+    "name": "set to RU868, the last region",
+    "setting": 15,
+    "lorawan_region": null,
+    "frequency_mhz": 868,
+    "region": 15
+   },
+   {
+    "name": "a setting above 15 is no region",
+    "setting": 16,
     "lorawan_region": 0,
     "frequency_mhz": 915,
     "region": 0

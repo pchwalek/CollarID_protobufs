@@ -34,7 +34,10 @@ CC = os.environ.get("CC") or shutil.which("cc") or shutil.which("gcc") or shutil
 C_DIR = os.path.join(HERE, "c")
 SOURCES = [os.path.join(C_DIR, "test", "wake_frame_harness.c"),
            os.path.join(C_DIR, "wake_frame.c"),
-           os.path.join(C_DIR, "aead_ccm.c")]
+           os.path.join(C_DIR, "aead_ccm.c"),
+           # wake_channel() and wake_region_resolve() read the region table (2026-11-17)
+           os.path.join(C_DIR, "direct_rules.c"),
+           os.path.join(C_DIR, "direct_rules_table.c")]
 
 # wake_frame.h's enums, by the names the vectors use.
 PARSE_CODES = {name: i + 1 for i, name in enumerate(b.WAKE_REFUSALS)}
@@ -118,8 +121,11 @@ class WakeFrameC(unittest.TestCase):
             lines += ["channel %d 0" % r["region"], "channel %d 1" % r["region"]]
             want += ["%d %d %d %d" % (r["frequency_hz"], r["bw_khz"], r["sf"], r["max_dbm"]),
                      "%d %d %d %d" % (r["frequency_hz"], r["bw_khz"], r["sf_long"], r["max_dbm"])]
-        lines += ["channel 0 0", "channel 4 1"]
-        want += ["none", "none"]
+        # old: lines += ["channel 0 0", "channel 4 1"]; want += ["none", "none"]
+        # (to 2026-11-17: 4 was no region; every region 1..15 is in
+        # test_direct_rules_c.py, against contracts_v1.json direct_regions)
+        lines += ["channel 0 0", "channel 16 1", "channel 255 0"]
+        want += ["none", "none", "none"]
         self.assertEqual(self.ask(lines), want)
 
     def test_timing_table(self):
