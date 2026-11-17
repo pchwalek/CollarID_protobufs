@@ -56,10 +56,14 @@ DEVICES = {"generic": "gen", "collar_wio": "wio", "collar_mk3": "mk3", "spotter"
 REASONS = list(VEC["reasons"])
 HOWS = list(VEC["convert_how"])
 FITS = list(VEC["fit_reasons"])
+BELOW_FLOOR = list(R.DR["below_floor"])
 
 
 def dev(d):
-    return DEVICES[d] if isinstance(d, str) else "%d:%d:%d" % (d["gain_cdbi"], d["min_dbm"], d["max_dbm"])
+    if isinstance(d, str):
+        return DEVICES[d]
+    bf = BELOW_FLOOR.index(d.get("below_floor") or "unusable")
+    return "%d:%d:%d:%d" % (d["gain_cdbi"], d["min_dbm"], d["max_dbm"], bf)
 
 
 def build(tmp, cxx):
@@ -174,7 +178,8 @@ class _DirectRules:
         want += ["none"] * 3
         for name, d in dr["devices"].items():
             lines.append("device %s" % DEVICES[name])
-            want.append("%d %d %d" % (d["gain_cdbi"], d["min_dbm"], d["max_dbm"]))
+            want.append("%d %d %d %d" % (d["gain_cdbi"], d["min_dbm"], d["max_dbm"],
+                                         BELOW_FLOOR.index(d.get("below_floor") or "unusable")))
         self.assertEqual(self.ask(lines), want)
 
     def test_the_table_file_is_current(self):
@@ -221,8 +226,15 @@ class _DirectRules:
             lines.append("check %d %d %d %d %s" % (v["rule_set"], v["sf"], v["bw_khz"], v["freq_khz"], dev(v["device"])))
             want.append(str(REASONS.index(v["reason"])))
         for v in VEC["power_caps"]:
-            lines.append("cap %d %d %s" % (v["rule_set"], v["band"], dev(v["device"])))
-            want.append("%d %d" % (v["cap_dbm"], 1 if v["usable"] else 0))
+            lines += ["cap %d %d %s" % (v["rule_set"], v["band"], dev(v["device"])),
+                      "allowed %d %d %s" % (v["rule_set"], v["band"], dev(v["device"]))]
+            want += ["%d %d" % (v["cap_dbm"], 1 if v["usable"] else 0), str(v["allowed_dbm"])]
+        for v in VEC["below_floor"]:
+            lines += ["cap %d %d %s" % (v["rule_set"], v["band"], dev(v["device"])),
+                      "allowed %d %d %s" % (v["rule_set"], v["band"], dev(v["device"])),
+                      "check %d %d %d %d %s" % (v["rule_set"], v["sf"], v["bw_khz"], v["freq_khz"], dev(v["device"]))]
+            want += ["%d %d" % (v["cap_dbm"], 1 if v["usable"] else 0), str(v["allowed_dbm"]),
+                     str(REASONS.index(v["reason"]))]
         for v in VEC["band_of"]:
             lines.append("bandof %d %d %d" % (v["rule_set"], v["freq_khz"], v["bw_khz"]))
             want.append(str(v["band"]))
@@ -344,8 +356,8 @@ class _DirectRules:
                 lines += ["check 99 %d %d %d gen" % (sf, bw, f), "convert 99 %d %d %d" % (sf, bw, f)]
                 want += [str(codes[i]), "%d %d %d %d" % tuple(outs[4 * i:4 * i + 4])]
         for v in S["power_caps"]:
-            lines.append("cap 99 %d %s" % (v["band"], dev(v["device"])))
-            want.append("%d %d" % (v["cap_dbm"], 1 if v["usable"] else 0))
+            lines += ["cap 99 %d %s" % (v["band"], dev(v["device"])), "allowed 99 %d %s" % (v["band"], dev(v["device"]))]
+            want += ["%d %d" % (v["cap_dbm"], 1 if v["usable"] else 0), str(v["allowed_dbm"])]
         for v in S["band_limits"]:
             lines += ["lbt 99 %d" % v["band"], "limit 99 %d" % v["band"]]
             want += ["%d %d" % tuple(v["lbt"]) if v["lbt"] else "none",

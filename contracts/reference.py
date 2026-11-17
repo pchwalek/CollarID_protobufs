@@ -316,10 +316,17 @@ def dr_rule_set(rs):
 
 def dr_device(dev="generic"):
     """A device: one of the spec's named profiles (collar_wio, collar_mk3,
-    spotter, generic) or a dict {gain_cdbi, min_dbm, max_dbm}."""
+    spotter, generic) or a dict {gain_cdbi, min_dbm, max_dbm[, below_floor]}."""
     if dev is None:
         dev = "generic"
     return dev if isinstance(dev, dict) else DR["devices"][dev]
+
+
+def dr_below_floor(device="generic"):
+    """What a device does in a band whose cap is below its minimum: "unusable"
+    (it does not send there) or "send_at_floor" (it sends at its minimum: Mk
+    III, Patrick 2026-11-17). A profile without the field is "unusable"."""
+    return dr_device(device).get("below_floor") or "unusable"
 
 
 def dr_half_khz(bw_khz):
@@ -357,16 +364,35 @@ def dr_band_of(rs, freq_khz, bw_khz):
     return -1
 
 
+def dr_power_allowed(rs, band, device="generic"):
+    """The rule's own figure for a device's antenna, whole dBm: min(band
+    conducted, floor((band e.i.r.p. - antenna gain) / 100)), without the
+    device's max and min (a page says "the most allowed here is +15 dBm").
+    No rule set or no band: the device's max, as dr_power_cap."""
+    d = dr_device(device)
+    b = _dr_band(dr_rule_set(rs), band)
+    if b is None:
+        return d["max_dbm"]
+    return min(b["conducted_dbm"], (b["eirp_cdbm"] - d["gain_cdbi"]) // 100)
+
+
 def dr_power_cap(rs, band, device="generic"):
-    """(cap_dbm, usable): min(band conducted, floor((band e.i.r.p. - antenna
-    gain) / 100), device max); usable when the cap is at least the device's
-    minimum. No rule set or no band: (device max, True)."""
+    """(cap_dbm, usable): what the device sends at most in a band.
+    min(dr_power_allowed, device max); when that is below the device's
+    minimum, the profile's below_floor decides: "send_at_floor" (Mk III,
+    2026-11-17) gives (device min, True), it sends at its floor; "unusable"
+    gives (the cap, False), it does not send there. No rule set or no band:
+    (device max, True)."""
     d = dr_device(device)
     b = _dr_band(dr_rule_set(rs), band)
     if b is None:
         return d["max_dbm"], True
-    cap = min(b["conducted_dbm"], (b["eirp_cdbm"] - d["gain_cdbi"]) // 100, d["max_dbm"])
-    return cap, cap >= d["min_dbm"]
+    cap = min(dr_power_allowed(rs, band, d), d["max_dbm"])
+    if cap >= d["min_dbm"]:
+        return cap, True
+    if dr_below_floor(d) == "send_at_floor":
+        return d["min_dbm"], True
+    return cap, False      # old (until 2026-11-17 evening): every device; now only an "unusable" profile
 
 
 def dr_toa_us(sf, bw_khz, n, preamble=None):
@@ -432,7 +458,9 @@ def dr_check(rs, sf, bw_khz, freq_khz, device="generic"):
     64-byte frame at (sf, bw) is shorter than its send limit. The answer is
     "OK" when one band passes all five, else the reason of the band that got
     furthest (NO_BAND < BANDWIDTH < GRID < POWER_FLOOR < FRAME_TIME). Power
-    is never a reason: a send above the cap goes out at the cap."""
+    is never a reason: a send above the cap goes out at the cap. POWER_FLOOR
+    comes only from a profile whose below_floor is "unusable" (a Mk III sends
+    at its floor since 2026-11-17)."""
     r = dr_rule_set(rs)
     if r is None:
         return DR_REASONS[0]

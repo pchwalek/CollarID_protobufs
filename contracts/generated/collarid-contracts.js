@@ -1298,27 +1298,35 @@
         "name": "Collar, Wio board",
         "gain_cdbi": 90,
         "min_dbm": -9,
-        "max_dbm": 22
+        "max_dbm": 22,
+        "below_floor": "unusable"
       },
       "collar_mk3": {
         "name": "Collar, Mk III amplifier board",
         "gain_cdbi": 90,
-        "min_dbm": 16,
-        "max_dbm": 27
+        "min_dbm": 9,
+        "max_dbm": 28,
+        "below_floor": "send_at_floor"
       },
       "spotter": {
         "name": "Spotter, stub antenna (a Spotter uses its current antenna profile's gain)",
         "gain_cdbi": 200,
         "min_dbm": -9,
-        "max_dbm": 22
+        "max_dbm": 22,
+        "below_floor": "unusable"
       },
       "generic": {
         "name": "Website and app (a collar, board unknown); convert() checks with it",
         "gain_cdbi": 90,
         "min_dbm": -9,
-        "max_dbm": 22
+        "max_dbm": 22,
+        "below_floor": "unusable"
       }
     },
+    "below_floor": [
+      "unusable",
+      "send_at_floor"
+    ],
     "auto": {
       "lorawan": [
         [
@@ -1393,7 +1401,7 @@
     }
   }
 };
-  C.CONTRACTS_SHA256 = '49ed5451c9e55e185dc5bd0292d3581b691bb42220d4490e5152b47555e69ea4';
-  C.DIRECT_REGIONS_SHA256 = '00ce148fac7e3a38bc0330f675fa237b5a7e6fa737531041aa91e2af4d94c4a5';
+  C.CONTRACTS_SHA256 = 'aa4c97d6ae8f3c96eecf6ba16276fea2ffc28ec19fb77ed73890a5b5dfd1be07';
+  C.DIRECT_REGIONS_SHA256 = '33fd72a67a1d226db24fdcdf93538ae7bd30dcadb28b22d72b5e7277eeb686a1';
   return Object.freeze(C);
 });

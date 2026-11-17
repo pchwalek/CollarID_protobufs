@@ -288,9 +288,10 @@ class DirectRegions(unittest.TestCase):
 
     def test_devices_and_constants(self):
         d = self.DR["devices"]
-        self.assertEqual({k: (v["gain_cdbi"], v["min_dbm"], v["max_dbm"]) for k, v in d.items()},
-                         {"collar_wio": (90, -9, 22), "collar_mk3": (90, 16, 27), "spotter": (200, -9, 22),
-                          "generic": (90, -9, 22)})
+        self.assertEqual({k: (v["gain_cdbi"], v["min_dbm"], v["max_dbm"], v["below_floor"]) for k, v in d.items()},
+                         {"collar_wio": (90, -9, 22, "unusable"), "collar_mk3": (90, 9, 28, "send_at_floor"),
+                          "spotter": (200, -9, 22, "unusable"), "generic": (90, -9, 22, "unusable")})
+        self.assertEqual(self.DR["below_floor"], ["unusable", "send_at_floor"])   # direct_rules.h DR_BELOW_FLOOR_*
         with open(os.path.join(ROOT, "beacon", "c", "direct_rules.h")) as fh:
             h = fh.read()
         c = self.DR["constants"]
@@ -327,7 +328,7 @@ class DirectRegions(unittest.TestCase):
         self.assertIn('X(7u, 0u, "920.5-923.5", 920500u, 923500u, 0x05u, 920600u, 200u, 1600, 13, 0u, (-80), 5u, '
                       '4000u, 50u)', h)
         self.assertIn('X("JP", "Japan", 7u, 0u)', h)
-        self.assertIn("#define CID_DR_DEVICE_COLLAR_MK3_MIN_DBM 16", h)
+        self.assertIn("#define CID_DR_DEVICE_COLLAR_MK3_MIN_DBM 9", h)          # old: 16 (until 2026-11-17)
         self.assertIn("DIRECT_REGIONS = CONTRACTS['direct_regions']", files["collarid_contracts.py"])
         self.assertIn("export const DIRECT_REGIONS = CONTRACTS.direct_regions;", files["collaridContracts.ts"])
         self.assertIn("C.DIRECT_REGIONS_SHA256 = ", files["collarid-contracts.js"])
@@ -349,20 +350,44 @@ class DirectRegions(unittest.TestCase):
     def test_the_power_examples_of_section_3(self):
         cap = lambda key, band, dev: R.dr_power_cap(key, band, dev)  # noqa: E731
         self.assertEqual(cap("EU868", 4, "collar_wio"), (22, True))
-        self.assertEqual(cap("EU868", 4, "collar_mk3"), (27, True))
+        self.assertEqual(cap("EU868", 4, "collar_mk3"), (28, True))        # +2 at the chip, 26 dB (2026-11-17)
         self.assertEqual(cap("EU868", 0, "collar_wio"), (15, True))
-        self.assertEqual(cap("EU868", 0, "collar_mk3"), (15, False))        # cap 15, floor 16
+        self.assertEqual(cap("EU868", 0, "collar_mk3"), (15, True))         # +9..+28: the band's own +15
+        # old (2026-11-17 noon): (15, False), the band unusable on Mk III (+16..+27);
+        # old (2026-11-17 afternoon): (16, True), it sent at its +16 floor
         self.assertEqual(cap("EU868", 3, "spotter"), (14, True))
         self.assertEqual(cap("JP920", 0, "collar_wio"), (13, True))
         self.assertEqual(cap("KR920", 0, "collar_wio"), (13, True))
         self.assertEqual(cap("RU868", 0, "collar_wio"), (21, True))
         self.assertEqual(cap("SG920", 0, "collar_wio"), (21, True))
         self.assertEqual(cap("AU915", 0, {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22}), (18, True))
-        # Mk III cannot go low enough in the EU 25 mW bands, Japan, Korea or Vietnam (section 5)
-        unusable = {(r["key"], i) for r in self.DR["rule_sets"] for i in range(len(r["bands"]))
-                    if not cap(r["id"], i, "collar_mk3")[1]}
-        self.assertEqual(unusable, {("EU868", 0), ("EU868", 1), ("EU868", 2), ("EU868", 3), ("EU868", 5),
-                                    ("JP920", 0), ("KR920", 0), ("VN920", 0)})
+        # A +16 floor is above what the EU 25 mW bands, Japan, Korea and
+        # Vietnam allow; a send_at_floor profile sends at it there (section 3,
+        # Patrick 2026-11-17)
+        floor16 = {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"}
+        below = {(r["key"], i): R.dr_power_allowed(r["id"], i, floor16) for r in self.DR["rule_sets"]
+                 for i in range(len(r["bands"])) if R.dr_power_allowed(r["id"], i, floor16) < 16}
+        self.assertEqual(below, {("EU868", 0): 15, ("EU868", 1): 15, ("EU868", 2): 15, ("EU868", 3): 15,
+                                 ("EU868", 5): 15, ("JP920", 0): 13, ("KR920", 0): 13, ("VN920", 0): 15})
+        for (key, i) in below:
+            self.assertEqual(cap(key, i, floor16), (16, True), key)
+        # The Mk III (+9..+28 since the reduced PA configuration) is at or
+        # above its floor in every band of the table: the band's own figure
+        for r in self.DR["rule_sets"]:
+            for i in range(len(r["bands"])):
+                allowed = R.dr_power_allowed(r["id"], i, "collar_mk3")
+                self.assertGreaterEqual(allowed, 9, (r["key"], i))
+                self.assertEqual(cap(r["id"], i, "collar_mk3"), (min(allowed, 28), True), (r["key"], i))
+        # an "unusable" profile (none of the named ones today) still does not send there
+        old_mk3 = {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"}
+        self.assertEqual({(r["key"], i) for r in self.DR["rule_sets"] for i in range(len(r["bands"]))
+                          if not cap(r["id"], i, old_mk3)[1]}, set(below))
+        self.assertEqual(cap("EU868", 2, {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27}), (15, False))
+        self.assertEqual(R.dr_check("JP920", 9, 125, 922000, "collar_mk3"), "OK")
+        self.assertEqual(R.dr_check("JP920", 9, 125, 922000, floor16), "OK")
+        self.assertEqual(R.dr_check("JP920", 9, 125, 922000, old_mk3), "POWER_FLOOR")
+        self.assertEqual(R.dr_power_allowed("EU868", 4, floor16), 28)          # above the device's max: not held
+        self.assertEqual(R.dr_power_allowed(0, 0, "collar_mk3"), 28)           # no region: the device's max
 
     def test_wake_channels_of_section_9(self):
         want = {"US915": (919000000, 500, 9, 12), "AU915": (919000000, 500, 9, 12), "BR915": (919000000, 500, 9, 12),
@@ -475,7 +500,7 @@ class DirectRegions(unittest.TestCase):
             v = json.load(fh)["direct_regions"]
         self.assertEqual(v["table_sha256"], generate.dr_sha256(R.SPEC))
         for k in ("contract_table", "us500", "check_sweep", "convert_sweep", "odd_inputs", "check_devices",
-                  "power_caps", "band_of", "toa", "max_len", "band_limits", "air", "schedule_need",
+                  "power_caps", "below_floor", "band_of", "toa", "max_len", "band_limits", "air", "schedule_need",
                   "region_resolve", "wake_channels", "defaults", "freq_fields", "freq_read", "synthetic"):
             self.assertIn(k, v)
         self.assertEqual(len(v["contract_table"]), 15)

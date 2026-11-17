@@ -1,6 +1,6 @@
 {
  "version": 1,
- "contracts_sha256": "49ed5451c9e55e185dc5bd0292d3581b691bb42220d4490e5152b47555e69ea4",
+ "contracts_sha256": "aa4c97d6ae8f3c96eecf6ba16276fea2ffc28ec19fb77ed73890a5b5dfd1be07",
  "about": "Made by contracts/make_vectors.py from contracts/reference.py. Do not edit by hand.",
  "special_mode": [
   {
@@ -823,8 +823,8 @@
   }
  ],
  "direct_regions": {
-  "about": "Direct-radio regions (CONTRACT_direct_regions.md). rule_set is the DirectRegion id; 0 is no region. Reasons, how-codes and classes are names, or (in sweep rows) indexes into direct_regions.reasons / convert_how. 'device' names a profile of direct_regions.devices or is {gain_cdbi, min_dbm, max_dbm}. The synthetic section's rule set exists only here.",
-  "table_sha256": "00ce148fac7e3a38bc0330f675fa237b5a7e6fa737531041aa91e2af4d94c4a5",
+  "about": "Direct-radio regions (CONTRACT_direct_regions.md). rule_set is the DirectRegion id; 0 is no region. Reasons, how-codes and classes are names, or (in sweep rows) indexes into direct_regions.reasons / convert_how. 'device' names a profile of direct_regions.devices or is {gain_cdbi, min_dbm, max_dbm[, below_floor]} (no below_floor = unusable). allowed_dbm is dr_power_allowed. The synthetic section's rule set exists only here.",
+  "table_sha256": "33fd72a67a1d226db24fdcdf93538ae7bd30dcadb28b22d72b5e7277eeb686a1",
   "reasons": ["OK","NO_BAND","BANDWIDTH","GRID","POWER_FLOOR","FRAME_TIME"],
   "convert_how": ["kept","moved","default"],
   "classes": ["normal","beacon"],
@@ -4645,8 +4645,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 1,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 915000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 1,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 915000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 2, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 864000, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 2, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 864000, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 2, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 864000, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 2, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 864000, "device": "spotter", "reason": "OK"},
    {"rule_set": 2, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 864000, "device": "generic", "reason": "OK"},
    {
@@ -4658,8 +4676,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 2,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 864000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 2,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 864000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 2, "band": 1, "sf": 9, "bw_khz": 125, "freq_khz": 866500, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 2, "band": 1, "sf": 9, "bw_khz": 125, "freq_khz": 866500, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 2, "band": 1, "sf": 9, "bw_khz": 125, "freq_khz": 866500, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 2, "band": 1, "sf": 9, "bw_khz": 125, "freq_khz": 866500, "device": "spotter", "reason": "OK"},
    {"rule_set": 2, "band": 1, "sf": 9, "bw_khz": 125, "freq_khz": 866500, "device": "generic", "reason": "OK"},
    {
@@ -4671,8 +4707,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 2,
+    "band": 1,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 866500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 2,
+    "band": 1,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 866500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 2, "band": 2, "sf": 9, "bw_khz": 125, "freq_khz": 868300, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 2, "band": 2, "sf": 9, "bw_khz": 125, "freq_khz": 868300, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 2, "band": 2, "sf": 9, "bw_khz": 125, "freq_khz": 868300, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 2, "band": 2, "sf": 9, "bw_khz": 125, "freq_khz": 868300, "device": "spotter", "reason": "OK"},
    {"rule_set": 2, "band": 2, "sf": 9, "bw_khz": 125, "freq_khz": 868300, "device": "generic", "reason": "OK"},
    {
@@ -4684,8 +4738,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 2,
+    "band": 2,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868300,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 2,
+    "band": 2,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868300,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 2, "band": 3, "sf": 9, "bw_khz": 125, "freq_khz": 868900, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 2, "band": 3, "sf": 9, "bw_khz": 125, "freq_khz": 868900, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 2, "band": 3, "sf": 9, "bw_khz": 125, "freq_khz": 868900, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 2, "band": 3, "sf": 9, "bw_khz": 125, "freq_khz": 868900, "device": "spotter", "reason": "OK"},
    {"rule_set": 2, "band": 3, "sf": 9, "bw_khz": 125, "freq_khz": 868900, "device": "generic", "reason": "OK"},
    {
@@ -4695,6 +4767,24 @@
     "bw_khz": 125,
     "freq_khz": 868900,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 2,
+    "band": 3,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868900,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 2,
+    "band": 3,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868900,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 2, "band": 4, "sf": 9, "bw_khz": 125, "freq_khz": 869525, "device": "collar_wio", "reason": "OK"},
@@ -4710,8 +4800,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 2,
+    "band": 4,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 869525,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 2,
+    "band": 4,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 869525,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 2, "band": 5, "sf": 9, "bw_khz": 125, "freq_khz": 869850, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 2, "band": 5, "sf": 9, "bw_khz": 125, "freq_khz": 869850, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 2, "band": 5, "sf": 9, "bw_khz": 125, "freq_khz": 869850, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 2, "band": 5, "sf": 9, "bw_khz": 125, "freq_khz": 869850, "device": "spotter", "reason": "OK"},
    {"rule_set": 2, "band": 5, "sf": 9, "bw_khz": 125, "freq_khz": 869850, "device": "generic", "reason": "OK"},
    {
@@ -4721,6 +4829,24 @@
     "bw_khz": 125,
     "freq_khz": 869850,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 2,
+    "band": 5,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 869850,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 2,
+    "band": 5,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 869850,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 3, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921500, "device": "collar_wio", "reason": "OK"},
@@ -4736,6 +4862,24 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 3,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 3,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 4, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 904750, "device": "collar_wio", "reason": "OK"},
    {"rule_set": 4, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 904750, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 4, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 904750, "device": "spotter", "reason": "OK"},
@@ -4747,6 +4891,24 @@
     "bw_khz": 500,
     "freq_khz": 904750,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 4,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 904750,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 4,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 904750,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 4, "band": 1, "sf": 9, "bw_khz": 500, "freq_khz": 921500, "device": "collar_wio", "reason": "OK"},
@@ -4762,6 +4924,24 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 4,
+    "band": 1,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 4,
+    "band": 1,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 5, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 921500, "device": "collar_wio", "reason": "OK"},
    {"rule_set": 5, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 921500, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 5, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 921500, "device": "spotter", "reason": "OK"},
@@ -4773,6 +4953,24 @@
     "bw_khz": 500,
     "freq_khz": 921500,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 5,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 5,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 6, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 866500, "device": "collar_wio", "reason": "OK"},
@@ -4788,8 +4986,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 6,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 866500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 6,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 866500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 7, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922000, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 7, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922000, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 7, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922000, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 7, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922000, "device": "spotter", "reason": "OK"},
    {"rule_set": 7, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922000, "device": "generic", "reason": "OK"},
    {
@@ -4801,8 +5017,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 7,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 7,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 8, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922700, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 8, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922700, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 8, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922700, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 8, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922700, "device": "spotter", "reason": "OK"},
    {"rule_set": 8, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922700, "device": "generic", "reason": "OK"},
    {
@@ -4812,6 +5046,24 @@
     "bw_khz": 125,
     "freq_khz": 922700,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 8,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922700,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 8,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922700,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 9, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921000, "device": "collar_wio", "reason": "OK"},
@@ -4827,6 +5079,24 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 9,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 9,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 10, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921000, "device": "collar_wio", "reason": "OK"},
    {"rule_set": 10, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921000, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 10, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921000, "device": "spotter", "reason": "OK"},
@@ -4838,6 +5108,24 @@
     "bw_khz": 125,
     "freq_khz": 921000,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 10,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 10,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921000,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 11, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 922500, "device": "collar_wio", "reason": "OK"},
@@ -4853,8 +5141,26 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 11,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 11,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 12, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921500, "device": "collar_wio", "reason": "OK"},
-   {"rule_set": 12, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921500, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+   {"rule_set": 12, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921500, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 12, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921500, "device": "spotter", "reason": "OK"},
    {"rule_set": 12, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921500, "device": "generic", "reason": "OK"},
    {
@@ -4864,6 +5170,24 @@
     "bw_khz": 125,
     "freq_khz": 921500,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 12,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "POWER_FLOOR"
+   },
+   {
+    "rule_set": 12,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 13, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 921500, "device": "collar_wio", "reason": "OK"},
@@ -4879,6 +5203,24 @@
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
    },
+   {
+    "rule_set": 13,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 13,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
+   },
    {"rule_set": 14, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 922500, "device": "collar_wio", "reason": "OK"},
    {"rule_set": 14, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 922500, "device": "collar_mk3", "reason": "OK"},
    {"rule_set": 14, "band": 0, "sf": 9, "bw_khz": 500, "freq_khz": 922500, "device": "spotter", "reason": "OK"},
@@ -4890,6 +5232,24 @@
     "bw_khz": 500,
     "freq_khz": 922500,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 14,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 922500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 14,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 500,
+    "freq_khz": 922500,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
     "reason": "OK"
    },
    {"rule_set": 15, "band": 0, "sf": 9, "bw_khz": 125, "freq_khz": 868900, "device": "collar_wio", "reason": "OK"},
@@ -4904,685 +5264,1464 @@
     "freq_khz": 868900,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "reason": "OK"
+   },
+   {
+    "rule_set": 15,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868900,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "reason": "OK"
+   },
+   {
+    "rule_set": 15,
+    "band": 0,
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868900,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "reason": "OK"
    }
   ],
   "power_caps": [
-   {"rule_set": 1, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 1, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 1, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 1, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {"rule_set": 1, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 1, "band": 0, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 1, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 1, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
    {
     "rule_set": 1,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 24
+   },
+   {
+    "rule_set": 1,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
+   },
+   {
+    "rule_set": 1,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 1,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 30,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 1,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 1,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 23
    },
-   {"rule_set": 2, "band": 0, "device": "collar_wio", "cap_dbm": 15, "usable": true},
-   {"rule_set": 2, "band": 0, "device": "collar_mk3", "cap_dbm": 15, "usable": false},
-   {"rule_set": 2, "band": 0, "device": "spotter", "cap_dbm": 14, "usable": true},
-   {"rule_set": 2, "band": 0, "device": "generic", "cap_dbm": 15, "usable": true},
+   {
+    "rule_set": 1,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 22,
+    "usable": true,
+    "allowed_dbm": 23
+   },
+   {"rule_set": 2, "band": 0, "device": "collar_wio", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 0, "device": "collar_mk3", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 0, "device": "spotter", "cap_dbm": 14, "usable": true, "allowed_dbm": 14},
+   {"rule_set": 2, "band": 0, "device": "generic", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
    {
     "rule_set": 2,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {
+    "rule_set": 2,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 15,
+    "usable": false,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 2,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15
    },
    {
     "rule_set": 2,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 16,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 16
    },
    {
     "rule_set": 2,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 19,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 19
    },
    {
     "rule_set": 2,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
    },
-   {"rule_set": 2, "band": 1, "device": "collar_wio", "cap_dbm": 15, "usable": true},
-   {"rule_set": 2, "band": 1, "device": "collar_mk3", "cap_dbm": 15, "usable": false},
-   {"rule_set": 2, "band": 1, "device": "spotter", "cap_dbm": 14, "usable": true},
-   {"rule_set": 2, "band": 1, "device": "generic", "cap_dbm": 15, "usable": true},
+   {
+    "rule_set": 2,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 4,
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {"rule_set": 2, "band": 1, "device": "collar_wio", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 1, "device": "collar_mk3", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 1, "device": "spotter", "cap_dbm": 14, "usable": true, "allowed_dbm": 14},
+   {"rule_set": 2, "band": 1, "device": "generic", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
    {
     "rule_set": 2,
     "band": 1,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {
+    "rule_set": 2,
+    "band": 1,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 15,
+    "usable": false,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 2,
+    "band": 1,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15
    },
    {
     "rule_set": 2,
     "band": 1,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 16,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 16
    },
    {
     "rule_set": 2,
     "band": 1,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 19,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 19
    },
    {
     "rule_set": 2,
     "band": 1,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
    },
-   {"rule_set": 2, "band": 2, "device": "collar_wio", "cap_dbm": 15, "usable": true},
-   {"rule_set": 2, "band": 2, "device": "collar_mk3", "cap_dbm": 15, "usable": false},
-   {"rule_set": 2, "band": 2, "device": "spotter", "cap_dbm": 14, "usable": true},
-   {"rule_set": 2, "band": 2, "device": "generic", "cap_dbm": 15, "usable": true},
+   {
+    "rule_set": 2,
+    "band": 1,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 4,
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {"rule_set": 2, "band": 2, "device": "collar_wio", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 2, "device": "collar_mk3", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 2, "device": "spotter", "cap_dbm": 14, "usable": true, "allowed_dbm": 14},
+   {"rule_set": 2, "band": 2, "device": "generic", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
    {
     "rule_set": 2,
     "band": 2,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {
+    "rule_set": 2,
+    "band": 2,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 15,
+    "usable": false,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 2,
+    "band": 2,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15
    },
    {
     "rule_set": 2,
     "band": 2,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 16,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 16
    },
    {
     "rule_set": 2,
     "band": 2,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 19,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 19
    },
    {
     "rule_set": 2,
     "band": 2,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
    },
-   {"rule_set": 2, "band": 3, "device": "collar_wio", "cap_dbm": 15, "usable": true},
-   {"rule_set": 2, "band": 3, "device": "collar_mk3", "cap_dbm": 15, "usable": false},
-   {"rule_set": 2, "band": 3, "device": "spotter", "cap_dbm": 14, "usable": true},
-   {"rule_set": 2, "band": 3, "device": "generic", "cap_dbm": 15, "usable": true},
+   {
+    "rule_set": 2,
+    "band": 2,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 4,
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {"rule_set": 2, "band": 3, "device": "collar_wio", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 3, "device": "collar_mk3", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 3, "device": "spotter", "cap_dbm": 14, "usable": true, "allowed_dbm": 14},
+   {"rule_set": 2, "band": 3, "device": "generic", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
    {
     "rule_set": 2,
     "band": 3,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {
+    "rule_set": 2,
+    "band": 3,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 15,
+    "usable": false,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 2,
+    "band": 3,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15
    },
    {
     "rule_set": 2,
     "band": 3,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 16,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 16
    },
    {
     "rule_set": 2,
     "band": 3,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 19,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 19
    },
    {
     "rule_set": 2,
     "band": 3,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
    },
-   {"rule_set": 2, "band": 4, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 2, "band": 4, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 2, "band": 4, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 2, "band": 4, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 2,
+    "band": 3,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 4,
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {"rule_set": 2, "band": 4, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 2, "band": 4, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 2, "band": 4, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 27},
+   {"rule_set": 2, "band": 4, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 28},
    {
     "rule_set": 2,
     "band": 4,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 17,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 17
+   },
+   {
+    "rule_set": 2,
+    "band": 4,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 28
+   },
+   {
+    "rule_set": 2,
+    "band": 4,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 28
    },
    {
     "rule_set": 2,
     "band": 4,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 29,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 29
    },
    {
     "rule_set": 2,
     "band": 4,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 2,
     "band": 4,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 17,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 17
    },
-   {"rule_set": 2, "band": 5, "device": "collar_wio", "cap_dbm": 15, "usable": true},
-   {"rule_set": 2, "band": 5, "device": "collar_mk3", "cap_dbm": 15, "usable": false},
-   {"rule_set": 2, "band": 5, "device": "spotter", "cap_dbm": 14, "usable": true},
-   {"rule_set": 2, "band": 5, "device": "generic", "cap_dbm": 15, "usable": true},
+   {
+    "rule_set": 2,
+    "band": 4,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 17,
+    "usable": true,
+    "allowed_dbm": 17
+   },
+   {"rule_set": 2, "band": 5, "device": "collar_wio", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 5, "device": "collar_mk3", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 2, "band": 5, "device": "spotter", "cap_dbm": 14, "usable": true, "allowed_dbm": 14},
+   {"rule_set": 2, "band": 5, "device": "generic", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
    {
     "rule_set": 2,
     "band": 5,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {
+    "rule_set": 2,
+    "band": 5,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 15,
+    "usable": false,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 2,
+    "band": 5,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15
    },
    {
     "rule_set": 2,
     "band": 5,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 16,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 16
    },
    {
     "rule_set": 2,
     "band": 5,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 19,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 19
    },
    {
     "rule_set": 2,
     "band": 5,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
    },
-   {"rule_set": 3, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 3, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 3, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 3, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 2,
+    "band": 5,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 4,
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {"rule_set": 3, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 29},
+   {"rule_set": 3, "band": 0, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 29},
+   {"rule_set": 3, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 3, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 29},
    {
     "rule_set": 3,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 18,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 18
+   },
+   {
+    "rule_set": 3,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 29
+   },
+   {
+    "rule_set": 3,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 29
    },
    {
     "rule_set": 3,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 30,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 3,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 3,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 17,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 17
    },
-   {"rule_set": 4, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 4, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 4, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 4, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 3,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 17,
+    "usable": true,
+    "allowed_dbm": 17
+   },
+   {"rule_set": 4, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 4, "band": 0, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 4, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 4, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
    {
     "rule_set": 4,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 24
+   },
+   {
+    "rule_set": 4,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
+   },
+   {
+    "rule_set": 4,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 4,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 30,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 4,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 4,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 23
    },
-   {"rule_set": 4, "band": 1, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 4, "band": 1, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 4, "band": 1, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 4, "band": 1, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 4,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 22,
+    "usable": true,
+    "allowed_dbm": 23
+   },
+   {"rule_set": 4, "band": 1, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 4, "band": 1, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 4, "band": 1, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 4, "band": 1, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
    {
     "rule_set": 4,
     "band": 1,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 24
+   },
+   {
+    "rule_set": 4,
+    "band": 1,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
+   },
+   {
+    "rule_set": 4,
+    "band": 1,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 4,
     "band": 1,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 30,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 4,
     "band": 1,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 4,
     "band": 1,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 23
    },
-   {"rule_set": 5, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 5, "band": 0, "device": "collar_mk3", "cap_dbm": 26, "usable": true},
-   {"rule_set": 5, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 5, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 4,
+    "band": 1,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 22,
+    "usable": true,
+    "allowed_dbm": 23
+   },
+   {"rule_set": 5, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 26},
+   {"rule_set": 5, "band": 0, "device": "collar_mk3", "cap_dbm": 26, "usable": true, "allowed_dbm": 26},
+   {"rule_set": 5, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 25},
+   {"rule_set": 5, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 26},
    {
     "rule_set": 5,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 15,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 5,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 26,
+    "usable": true,
+    "allowed_dbm": 26
+   },
+   {
+    "rule_set": 5,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 26,
+    "usable": true,
+    "allowed_dbm": 26
    },
    {
     "rule_set": 5,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 27,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 27
    },
    {
     "rule_set": 5,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 5,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 14,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 14
    },
-   {"rule_set": 6, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 6, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 6, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 6, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 5,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 14,
+    "usable": true,
+    "allowed_dbm": 14
+   },
+   {"rule_set": 6, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 6, "band": 0, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 6, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 27},
+   {"rule_set": 6, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 28},
    {
     "rule_set": 6,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 17,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 17
+   },
+   {
+    "rule_set": 6,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 28
+   },
+   {
+    "rule_set": 6,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 28
    },
    {
     "rule_set": 6,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 29,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 29
    },
    {
     "rule_set": 6,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 6,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 17,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 17
    },
-   {"rule_set": 7, "band": 0, "device": "collar_wio", "cap_dbm": 13, "usable": true},
-   {"rule_set": 7, "band": 0, "device": "collar_mk3", "cap_dbm": 13, "usable": false},
-   {"rule_set": 7, "band": 0, "device": "spotter", "cap_dbm": 13, "usable": true},
-   {"rule_set": 7, "band": 0, "device": "generic", "cap_dbm": 13, "usable": true},
+   {
+    "rule_set": 6,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 17,
+    "usable": true,
+    "allowed_dbm": 17
+   },
+   {"rule_set": 7, "band": 0, "device": "collar_wio", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+   {"rule_set": 7, "band": 0, "device": "collar_mk3", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+   {"rule_set": 7, "band": 0, "device": "spotter", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+   {"rule_set": 7, "band": 0, "device": "generic", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
    {
     "rule_set": 7,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {
+    "rule_set": 7,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 13,
+    "usable": false,
+    "allowed_dbm": 13
+   },
+   {
+    "rule_set": 7,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 13
    },
    {
     "rule_set": 7,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 13,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 13
    },
    {
     "rule_set": 7,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 13,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 13
    },
    {
     "rule_set": 7,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 3,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 3
    },
-   {"rule_set": 8, "band": 0, "device": "collar_wio", "cap_dbm": 13, "usable": true},
-   {"rule_set": 8, "band": 0, "device": "collar_mk3", "cap_dbm": 13, "usable": false},
-   {"rule_set": 8, "band": 0, "device": "spotter", "cap_dbm": 12, "usable": true},
-   {"rule_set": 8, "band": 0, "device": "generic", "cap_dbm": 13, "usable": true},
+   {
+    "rule_set": 7,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 3,
+    "usable": true,
+    "allowed_dbm": 3
+   },
+   {"rule_set": 8, "band": 0, "device": "collar_wio", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+   {"rule_set": 8, "band": 0, "device": "collar_mk3", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+   {"rule_set": 8, "band": 0, "device": "spotter", "cap_dbm": 12, "usable": true, "allowed_dbm": 12},
+   {"rule_set": 8, "band": 0, "device": "generic", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
    {
     "rule_set": 8,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 2,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 2
+   },
+   {
+    "rule_set": 8,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 13,
+    "usable": false,
+    "allowed_dbm": 13
+   },
+   {
+    "rule_set": 8,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 13
    },
    {
     "rule_set": 8,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 14,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 14
    },
    {
     "rule_set": 8,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 17,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 17
    },
    {
     "rule_set": 8,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 1,
-    "usable": false
+    "usable": false,
+    "allowed_dbm": 1
    },
-   {"rule_set": 9, "band": 0, "device": "collar_wio", "cap_dbm": 21, "usable": true},
-   {"rule_set": 9, "band": 0, "device": "collar_mk3", "cap_dbm": 21, "usable": true},
-   {"rule_set": 9, "band": 0, "device": "spotter", "cap_dbm": 20, "usable": true},
-   {"rule_set": 9, "band": 0, "device": "generic", "cap_dbm": 21, "usable": true},
+   {
+    "rule_set": 8,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 2,
+    "usable": true,
+    "allowed_dbm": 1
+   },
+   {"rule_set": 9, "band": 0, "device": "collar_wio", "cap_dbm": 21, "usable": true, "allowed_dbm": 21},
+   {"rule_set": 9, "band": 0, "device": "collar_mk3", "cap_dbm": 21, "usable": true, "allowed_dbm": 21},
+   {"rule_set": 9, "band": 0, "device": "spotter", "cap_dbm": 20, "usable": true, "allowed_dbm": 20},
+   {"rule_set": 9, "band": 0, "device": "generic", "cap_dbm": 21, "usable": true, "allowed_dbm": 21},
    {
     "rule_set": 9,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 10,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 10
+   },
+   {
+    "rule_set": 9,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 21,
+    "usable": true,
+    "allowed_dbm": 21
+   },
+   {
+    "rule_set": 9,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 21,
+    "usable": true,
+    "allowed_dbm": 21
    },
    {
     "rule_set": 9,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 22
    },
    {
     "rule_set": 9,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 25
    },
    {
     "rule_set": 9,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 10,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 10
    },
-   {"rule_set": 10, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 10, "band": 0, "device": "collar_mk3", "cap_dbm": 26, "usable": true},
-   {"rule_set": 10, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 10, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 9,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 10,
+    "usable": true,
+    "allowed_dbm": 10
+   },
+   {"rule_set": 10, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 26},
+   {"rule_set": 10, "band": 0, "device": "collar_mk3", "cap_dbm": 26, "usable": true, "allowed_dbm": 26},
+   {"rule_set": 10, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 25},
+   {"rule_set": 10, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 26},
    {
     "rule_set": 10,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 15,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 10,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 26,
+    "usable": true,
+    "allowed_dbm": 26
+   },
+   {
+    "rule_set": 10,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 26,
+    "usable": true,
+    "allowed_dbm": 26
    },
    {
     "rule_set": 10,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 27,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 27
    },
    {
     "rule_set": 10,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 10,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 14,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 14
    },
-   {"rule_set": 11, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 11, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 11, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 11, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 10,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 14,
+    "usable": true,
+    "allowed_dbm": 14
+   },
+   {"rule_set": 11, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 11, "band": 0, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 11, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
+   {"rule_set": 11, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 30},
    {
     "rule_set": 11,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 24
+   },
+   {
+    "rule_set": 11,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
+   },
+   {
+    "rule_set": 11,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 11,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 30,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 11,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 30
    },
    {
     "rule_set": 11,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 23
    },
-   {"rule_set": 12, "band": 0, "device": "collar_wio", "cap_dbm": 15, "usable": true},
-   {"rule_set": 12, "band": 0, "device": "collar_mk3", "cap_dbm": 15, "usable": false},
-   {"rule_set": 12, "band": 0, "device": "spotter", "cap_dbm": 14, "usable": true},
-   {"rule_set": 12, "band": 0, "device": "generic", "cap_dbm": 15, "usable": true},
+   {
+    "rule_set": 11,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 22,
+    "usable": true,
+    "allowed_dbm": 23
+   },
+   {"rule_set": 12, "band": 0, "device": "collar_wio", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 12, "band": 0, "device": "collar_mk3", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
+   {"rule_set": 12, "band": 0, "device": "spotter", "cap_dbm": 14, "usable": true, "allowed_dbm": 14},
+   {"rule_set": 12, "band": 0, "device": "generic", "cap_dbm": 15, "usable": true, "allowed_dbm": 15},
    {
     "rule_set": 12,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {
+    "rule_set": 12,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 15,
+    "usable": false,
+    "allowed_dbm": 15
+   },
+   {
+    "rule_set": 12,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15
    },
    {
     "rule_set": 12,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 16,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 16
    },
    {
     "rule_set": 12,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 19,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 19
    },
    {
     "rule_set": 12,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 4,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 4
    },
-   {"rule_set": 13, "band": 0, "device": "collar_wio", "cap_dbm": 19, "usable": true},
-   {"rule_set": 13, "band": 0, "device": "collar_mk3", "cap_dbm": 19, "usable": true},
-   {"rule_set": 13, "band": 0, "device": "spotter", "cap_dbm": 18, "usable": true},
-   {"rule_set": 13, "band": 0, "device": "generic", "cap_dbm": 19, "usable": true},
+   {
+    "rule_set": 12,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 4,
+    "usable": true,
+    "allowed_dbm": 4
+   },
+   {"rule_set": 13, "band": 0, "device": "collar_wio", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+   {"rule_set": 13, "band": 0, "device": "collar_mk3", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+   {"rule_set": 13, "band": 0, "device": "spotter", "cap_dbm": 18, "usable": true, "allowed_dbm": 18},
+   {"rule_set": 13, "band": 0, "device": "generic", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
    {
     "rule_set": 13,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 8,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 8
+   },
+   {
+    "rule_set": 13,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 19,
+    "usable": true,
+    "allowed_dbm": 19
+   },
+   {
+    "rule_set": 13,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 19,
+    "usable": true,
+    "allowed_dbm": 19
    },
    {
     "rule_set": 13,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 20,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 20
    },
    {
     "rule_set": 13,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 23
    },
    {
     "rule_set": 13,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 7,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 7
    },
-   {"rule_set": 14, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true},
-   {"rule_set": 14, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 14, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true},
-   {"rule_set": 14, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true},
+   {
+    "rule_set": 13,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 7,
+    "usable": true,
+    "allowed_dbm": 7
+   },
+   {"rule_set": 14, "band": 0, "device": "collar_wio", "cap_dbm": 22, "usable": true, "allowed_dbm": 27},
+   {"rule_set": 14, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true, "allowed_dbm": 27},
+   {"rule_set": 14, "band": 0, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 27},
+   {"rule_set": 14, "band": 0, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 27},
    {
     "rule_set": 14,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 21,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 21
+   },
+   {
+    "rule_set": 14,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 27
+   },
+   {
+    "rule_set": 14,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 27
    },
    {
     "rule_set": 14,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 27,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 27
    },
    {
     "rule_set": 14,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 27
    },
    {
     "rule_set": 14,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 20,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 20
    },
-   {"rule_set": 15, "band": 0, "device": "collar_wio", "cap_dbm": 21, "usable": true},
-   {"rule_set": 15, "band": 0, "device": "collar_mk3", "cap_dbm": 21, "usable": true},
-   {"rule_set": 15, "band": 0, "device": "spotter", "cap_dbm": 20, "usable": true},
-   {"rule_set": 15, "band": 0, "device": "generic", "cap_dbm": 21, "usable": true},
+   {
+    "rule_set": 14,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 20,
+    "usable": true,
+    "allowed_dbm": 20
+   },
+   {"rule_set": 15, "band": 0, "device": "collar_wio", "cap_dbm": 21, "usable": true, "allowed_dbm": 21},
+   {"rule_set": 15, "band": 0, "device": "collar_mk3", "cap_dbm": 21, "usable": true, "allowed_dbm": 21},
+   {"rule_set": 15, "band": 0, "device": "spotter", "cap_dbm": 20, "usable": true, "allowed_dbm": 20},
+   {"rule_set": 15, "band": 0, "device": "generic", "cap_dbm": 21, "usable": true, "allowed_dbm": 21},
    {
     "rule_set": 15,
     "band": 0,
     "device": {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 10,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 10
+   },
+   {
+    "rule_set": 15,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "cap_dbm": 21,
+    "usable": true,
+    "allowed_dbm": 21
+   },
+   {
+    "rule_set": 15,
+    "band": 0,
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "cap_dbm": 21,
+    "usable": true,
+    "allowed_dbm": 21
    },
    {
     "rule_set": 15,
     "band": 0,
     "device": {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 22
    },
    {
     "rule_set": 15,
     "band": 0,
     "device": {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
     "cap_dbm": 22,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 25
    },
    {
     "rule_set": 15,
     "band": 0,
     "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
     "cap_dbm": 10,
-    "usable": true
+    "usable": true,
+    "allowed_dbm": 10
    },
-   {"rule_set": 0, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 1, "band": -1, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 1, "band": 1, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-   {"rule_set": 16, "band": 0, "device": "collar_mk3", "cap_dbm": 27, "usable": true}
+   {
+    "rule_set": 15,
+    "band": 0,
+    "device": {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"},
+    "cap_dbm": 10,
+    "usable": true,
+    "allowed_dbm": 10
+   },
+   {"rule_set": 0, "band": 0, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 1, "band": -1, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 1, "band": 1, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 28},
+   {"rule_set": 16, "band": 0, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 28}
+  ],
+  "below_floor": [
+   {
+    "rule_set": 2,
+    "key": "EU868",
+    "band": 0,
+    "band_name": "K",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 864000,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15,
+    "reason": "OK",
+    "why": "EU band K, 25 mW: sends at its +16 floor"
+   },
+   {
+    "rule_set": 2,
+    "key": "EU868",
+    "band": 1,
+    "band_name": "L",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 866500,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15,
+    "reason": "OK",
+    "why": "EU band L, 25 mW"
+   },
+   {
+    "rule_set": 2,
+    "key": "EU868",
+    "band": 2,
+    "band_name": "M",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868300,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15,
+    "reason": "OK",
+    "why": "EU band M, 25 mW"
+   },
+   {
+    "rule_set": 2,
+    "key": "EU868",
+    "band": 3,
+    "band_name": "N",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868900,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15,
+    "reason": "OK",
+    "why": "EU band N, 25 mW"
+   },
+   {
+    "rule_set": 2,
+    "key": "EU868",
+    "band": 5,
+    "band_name": "Q",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 869850,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15,
+    "reason": "OK",
+    "why": "EU band Q, 25 mW"
+   },
+   {
+    "rule_set": 7,
+    "key": "JP920",
+    "band": 0,
+    "band_name": "920.5-923.5",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922000,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 13,
+    "reason": "OK",
+    "why": "Japan: 20 mW into the antenna"
+   },
+   {
+    "rule_set": 8,
+    "key": "KR920",
+    "band": 0,
+    "band_name": "922-923.4",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922700,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 13,
+    "reason": "OK",
+    "why": "Korea"
+   },
+   {
+    "rule_set": 12,
+    "key": "VN920",
+    "band": 0,
+    "band_name": "920-923",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 921500,
+    "cap_dbm": 16,
+    "usable": true,
+    "allowed_dbm": 15,
+    "reason": "OK",
+    "why": "Vietnam"
+   },
+   {
+    "rule_set": 2,
+    "key": "EU868",
+    "band": 4,
+    "band_name": "O",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 869525,
+    "cap_dbm": 27,
+    "usable": true,
+    "allowed_dbm": 28,
+    "reason": "OK",
+    "why": "EU band O, 500 mW: its own max"
+   },
+   {"rule_set": 2, "key": "EU868", "band": 2, "band_name": "M", "device": "collar_mk3", "sf": 9, "bw_khz": 125, "freq_khz": 868300, "cap_dbm": 15, "usable": true, "allowed_dbm": 15, "reason": "OK", "why": "Mk III (+9..+28): the band's own +15, not at its floor"},
+   {"rule_set": 7, "key": "JP920", "band": 0, "band_name": "920.5-923.5", "device": "collar_mk3", "sf": 9, "bw_khz": 125, "freq_khz": 922000, "cap_dbm": 13, "usable": true, "allowed_dbm": 13, "reason": "OK", "why": "Mk III in Japan: +13"},
+   {"rule_set": 8, "key": "KR920", "band": 0, "band_name": "922-923.4", "device": "collar_mk3", "sf": 9, "bw_khz": 125, "freq_khz": 922700, "cap_dbm": 13, "usable": true, "allowed_dbm": 13, "reason": "OK", "why": "Mk III in Korea: +13"},
+   {"rule_set": 12, "key": "VN920", "band": 0, "band_name": "920-923", "device": "collar_mk3", "sf": 9, "bw_khz": 125, "freq_khz": 921500, "cap_dbm": 15, "usable": true, "allowed_dbm": 15, "reason": "OK", "why": "Mk III in Vietnam: +15"},
+   {"rule_set": 2, "key": "EU868", "band": 4, "band_name": "O", "device": "collar_mk3", "sf": 9, "bw_khz": 125, "freq_khz": 869525, "cap_dbm": 28, "usable": true, "allowed_dbm": 28, "reason": "OK", "why": "Mk III in EU band O, 500 mW: +28"},
+   {"rule_set": 2, "key": "EU868", "band": 2, "band_name": "M", "device": "collar_wio", "sf": 9, "bw_khz": 125, "freq_khz": 868300, "cap_dbm": 15, "usable": true, "allowed_dbm": 15, "reason": "OK", "why": "the Wio board goes down to -9: unchanged"},
+   {
+    "rule_set": 2,
+    "key": "EU868",
+    "band": 2,
+    "band_name": "M",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 868300,
+    "cap_dbm": 15,
+    "usable": false,
+    "allowed_dbm": 15,
+    "reason": "POWER_FLOOR",
+    "why": "an 'unusable' profile: does not send (POWER_FLOOR)"
+   },
+   {
+    "rule_set": 7,
+    "key": "JP920",
+    "band": 0,
+    "band_name": "920.5-923.5",
+    "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+    "sf": 9,
+    "bw_khz": 125,
+    "freq_khz": 922000,
+    "cap_dbm": 13,
+    "usable": false,
+    "allowed_dbm": 13,
+    "reason": "POWER_FLOOR",
+    "why": "an 'unusable' profile in Japan"
+   }
   ],
   "band_of": [
    {"rule_set": 2, "freq_khz": 868100, "bw_khz": 125, "band": 2},
@@ -7101,12 +8240,47 @@
     {"sf": 8, "bw_khz": 125, "freq_khz": 900150, "device": "generic", "reason": "OK"},
     {"sf": 9, "bw_khz": 125, "freq_khz": 900150, "device": "generic", "reason": "FRAME_TIME"},
     {"sf": 12, "bw_khz": 125, "freq_khz": 900250, "device": "generic", "reason": "FRAME_TIME"},
-    {"sf": 8, "bw_khz": 125, "freq_khz": 900150, "device": "collar_mk3", "reason": "POWER_FLOOR"},
-    {"sf": 9, "bw_khz": 125, "freq_khz": 900150, "device": "collar_mk3", "reason": "POWER_FLOOR"},
+    {"sf": 8, "bw_khz": 125, "freq_khz": 900150, "device": "collar_mk3", "reason": "OK"},
+    {"sf": 9, "bw_khz": 125, "freq_khz": 900150, "device": "collar_mk3", "reason": "FRAME_TIME"},
     {"sf": 9, "bw_khz": 125, "freq_khz": 900100, "device": "generic", "reason": "GRID"},
     {"sf": 9, "bw_khz": 250, "freq_khz": 900150, "device": "generic", "reason": "BANDWIDTH"},
     {"sf": 9, "bw_khz": 500, "freq_khz": 900700, "device": "generic", "reason": "OK"},
     {"sf": 9, "bw_khz": 500, "freq_khz": 900700, "device": "collar_mk3", "reason": "OK"},
+    {
+     "sf": 8,
+     "bw_khz": 125,
+     "freq_khz": 900150,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "reason": "POWER_FLOOR"
+    },
+    {
+     "sf": 9,
+     "bw_khz": 125,
+     "freq_khz": 900150,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "reason": "POWER_FLOOR"
+    },
+    {
+     "sf": 9,
+     "bw_khz": 500,
+     "freq_khz": 900700,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "reason": "OK"
+    },
+    {
+     "sf": 8,
+     "bw_khz": 125,
+     "freq_khz": 900150,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "reason": "OK"
+    },
+    {
+     "sf": 9,
+     "bw_khz": 125,
+     "freq_khz": 900150,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "reason": "FRAME_TIME"
+    },
     {"sf": 9, "bw_khz": 500, "freq_khz": 901100, "device": "generic", "reason": "NO_BAND"},
     {"sf": 9, "bw_khz": 125, "freq_khz": 901100, "device": "generic", "reason": "BANDWIDTH"},
     {"sf": 12, "bw_khz": 125, "freq_khz": 905500, "device": "generic", "reason": "FRAME_TIME"},
@@ -7575,24 +8749,108 @@
    ],
    "sweep_columns": ["bw_khz","freq_khz","reason codes for SF7..12 (generic device)","for SF7..12 in turn: sf', bw', freq', how code"],
    "power_caps": [
-    {"band": 0, "device": "generic", "cap_dbm": 13, "usable": true},
-    {"band": 0, "device": "collar_mk3", "cap_dbm": 13, "usable": false},
-    {"band": 0, "device": "spotter", "cap_dbm": 12, "usable": true},
-    {"band": 1, "device": "generic", "cap_dbm": 19, "usable": true},
-    {"band": 1, "device": "collar_mk3", "cap_dbm": 19, "usable": true},
-    {"band": 1, "device": "spotter", "cap_dbm": 18, "usable": true},
-    {"band": 2, "device": "generic", "cap_dbm": 22, "usable": true},
-    {"band": 2, "device": "collar_mk3", "cap_dbm": 27, "usable": true},
-    {"band": 2, "device": "spotter", "cap_dbm": 22, "usable": true},
-    {"band": 3, "device": "generic", "cap_dbm": 13, "usable": true},
-    {"band": 3, "device": "collar_mk3", "cap_dbm": 13, "usable": false},
-    {"band": 3, "device": "spotter", "cap_dbm": 12, "usable": true},
-    {"band": 4, "device": "generic", "cap_dbm": 19, "usable": true},
-    {"band": 4, "device": "collar_mk3", "cap_dbm": 19, "usable": true},
-    {"band": 4, "device": "spotter", "cap_dbm": 18, "usable": true},
-    {"band": 5, "device": "generic", "cap_dbm": 19, "usable": true},
-    {"band": 5, "device": "collar_mk3", "cap_dbm": 19, "usable": true},
-    {"band": 5, "device": "spotter", "cap_dbm": 18, "usable": true}
+    {"band": 0, "device": "generic", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+    {"band": 0, "device": "collar_mk3", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+    {"band": 0, "device": "spotter", "cap_dbm": 12, "usable": true, "allowed_dbm": 12},
+    {
+     "band": 0,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "cap_dbm": 13,
+     "usable": false,
+     "allowed_dbm": 13
+    },
+    {
+     "band": 0,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "cap_dbm": 16,
+     "usable": true,
+     "allowed_dbm": 13
+    },
+    {"band": 1, "device": "generic", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+    {"band": 1, "device": "collar_mk3", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+    {"band": 1, "device": "spotter", "cap_dbm": 18, "usable": true, "allowed_dbm": 18},
+    {
+     "band": 1,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "cap_dbm": 19,
+     "usable": true,
+     "allowed_dbm": 19
+    },
+    {
+     "band": 1,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "cap_dbm": 19,
+     "usable": true,
+     "allowed_dbm": 19
+    },
+    {"band": 2, "device": "generic", "cap_dbm": 22, "usable": true, "allowed_dbm": 29},
+    {"band": 2, "device": "collar_mk3", "cap_dbm": 28, "usable": true, "allowed_dbm": 29},
+    {"band": 2, "device": "spotter", "cap_dbm": 22, "usable": true, "allowed_dbm": 28},
+    {
+     "band": 2,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "cap_dbm": 27,
+     "usable": true,
+     "allowed_dbm": 29
+    },
+    {
+     "band": 2,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "cap_dbm": 27,
+     "usable": true,
+     "allowed_dbm": 29
+    },
+    {"band": 3, "device": "generic", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+    {"band": 3, "device": "collar_mk3", "cap_dbm": 13, "usable": true, "allowed_dbm": 13},
+    {"band": 3, "device": "spotter", "cap_dbm": 12, "usable": true, "allowed_dbm": 12},
+    {
+     "band": 3,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "cap_dbm": 13,
+     "usable": false,
+     "allowed_dbm": 13
+    },
+    {
+     "band": 3,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "cap_dbm": 16,
+     "usable": true,
+     "allowed_dbm": 13
+    },
+    {"band": 4, "device": "generic", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+    {"band": 4, "device": "collar_mk3", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+    {"band": 4, "device": "spotter", "cap_dbm": 18, "usable": true, "allowed_dbm": 18},
+    {
+     "band": 4,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "cap_dbm": 19,
+     "usable": true,
+     "allowed_dbm": 19
+    },
+    {
+     "band": 4,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "cap_dbm": 19,
+     "usable": true,
+     "allowed_dbm": 19
+    },
+    {"band": 5, "device": "generic", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+    {"band": 5, "device": "collar_mk3", "cap_dbm": 19, "usable": true, "allowed_dbm": 19},
+    {"band": 5, "device": "spotter", "cap_dbm": 18, "usable": true, "allowed_dbm": 18},
+    {
+     "band": 5,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"},
+     "cap_dbm": 19,
+     "usable": true,
+     "allowed_dbm": 19
+    },
+    {
+     "band": 5,
+     "device": {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"},
+     "cap_dbm": 19,
+     "usable": true,
+     "allowed_dbm": 19
+    }
    ],
    "band_limits": [
     {

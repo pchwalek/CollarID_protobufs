@@ -211,8 +211,9 @@ DR_US500 = [
 # does not reach happen (a send limit a 64-byte frame can miss, so FRAME_TIME
 # and convert's step 5; a band too narrow for its bandwidth; nearest-centre
 # ties on distance, then e.i.r.p., then lo; a grid that does not start at lo;
-# a power floor for Mk III; a small budget). Implementations that take a
-# rule-set object run it; the others skip it.
+# a power floor (a send_at_floor profile sends at it, an "unusable" one does not); a small
+# budget). Implementations that take a rule-set object run it; the others
+# skip it.
 DR_SYNTHETIC = {
     "id": 99, "key": "TEST", "name": "synthetic: the vectors only", "bands": [
         {"name": "A", "lo_khz": 900000, "hi_khz": 900400, "bw_khz": [125], "grid_base_khz": 900050,
@@ -240,6 +241,37 @@ DR_SYNTHETIC = {
 DR_TOA_LENGTHS = (0, 1, 14, 18, 25, 30, 38, 51, 64, 128, 255)
 DR_MAX_SENDS = (0, 50, 100, 300, 1000, 4000)
 DR_YAGI = {"gain_cdbi": 1200, "min_dbm": -9, "max_dbm": 22}   # a Spotter with a 12 dBi Yagi
+# Mk III as it was until 2026-11-17 noon: +16..+27 dBm, below its floor it
+# does not send. It keeps the POWER_FLOOR path covered.
+DR_MK3_UNUSABLE = {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "unusable"}
+# Mk III as it was the afternoon of 2026-11-17: +16..+27 dBm, below its floor
+# it sends at +16. collar_mk3 now goes down to +9 (the SX1262's reduced PA
+# configuration into a 26 dB amplifier) and is below its floor nowhere in
+# the table, so this profile keeps the send_at_floor path covered.
+DR_FLOOR_16 = {"gain_cdbi": 90, "min_dbm": 16, "max_dbm": 27, "below_floor": "send_at_floor"}
+
+# CONTRACT_direct_regions.md section 3 (2026-11-17): a device below its
+# floor sends at it when its profile says so. (rule set, band, device, cap,
+# usable, allowed, why).
+DR_BELOW_FLOOR_CASES = [
+    ("EU868", 0, DR_FLOOR_16, 16, True, 15, "EU band K, 25 mW: sends at its +16 floor"),
+    ("EU868", 1, DR_FLOOR_16, 16, True, 15, "EU band L, 25 mW"),
+    ("EU868", 2, DR_FLOOR_16, 16, True, 15, "EU band M, 25 mW"),
+    ("EU868", 3, DR_FLOOR_16, 16, True, 15, "EU band N, 25 mW"),
+    ("EU868", 5, DR_FLOOR_16, 16, True, 15, "EU band Q, 25 mW"),
+    ("JP920", 0, DR_FLOOR_16, 16, True, 13, "Japan: 20 mW into the antenna"),
+    ("KR920", 0, DR_FLOOR_16, 16, True, 13, "Korea"),
+    ("VN920", 0, DR_FLOOR_16, 16, True, 15, "Vietnam"),
+    ("EU868", 4, DR_FLOOR_16, 27, True, 28, "EU band O, 500 mW: its own max"),
+    ("EU868", 2, "collar_mk3", 15, True, 15, "Mk III (+9..+28): the band's own +15, not at its floor"),
+    ("JP920", 0, "collar_mk3", 13, True, 13, "Mk III in Japan: +13"),
+    ("KR920", 0, "collar_mk3", 13, True, 13, "Mk III in Korea: +13"),
+    ("VN920", 0, "collar_mk3", 15, True, 15, "Mk III in Vietnam: +15"),
+    ("EU868", 4, "collar_mk3", 28, True, 28, "Mk III in EU band O, 500 mW: +28"),
+    ("EU868", 2, "collar_wio", 15, True, 15, "the Wio board goes down to -9: unchanged"),
+    ("EU868", 2, DR_MK3_UNUSABLE, 15, False, 15, "an 'unusable' profile: does not send (POWER_FLOOR)"),
+    ("JP920", 0, DR_MK3_UNUSABLE, 13, False, 13, "an 'unusable' profile in Japan"),
+]
 
 
 def _dr_sweep_freqs(r):
@@ -274,8 +306,8 @@ def make_direct_regions():
     out = {"about": "Direct-radio regions (CONTRACT_direct_regions.md). rule_set is the DirectRegion id; "
                     "0 is no region. Reasons, how-codes and classes are names, or (in sweep rows) indexes "
                     "into direct_regions.reasons / convert_how. 'device' names a profile of "
-                    "direct_regions.devices or is {gain_cdbi, min_dbm, max_dbm}. The synthetic section's rule "
-                    "set exists only here.",
+                    "direct_regions.devices or is {gain_cdbi, min_dbm, max_dbm[, below_floor]} (no below_floor = "
+                    "unusable). allowed_dbm is dr_power_allowed. The synthetic section's rule set exists only here.",
            "table_sha256": generate.dr_sha256(R.SPEC), "reasons": reasons, "convert_how": hows,
            "classes": classes, "fit_reasons": list(DR["fit_reasons"])}
 
@@ -334,24 +366,42 @@ def make_direct_regions():
         for i, b in enumerate(r["bands"]):
             bw = min(b["bw_khz"])
             f = R._dr_nearest_centre(b, bw, (b["lo_khz"] + b["hi_khz"]) // 2)
-            for dev in list(DR["devices"]) + [DR_YAGI]:
+            for dev in list(DR["devices"]) + [DR_YAGI, DR_MK3_UNUSABLE, DR_FLOOR_16]:
                 dev_rows.append({"rule_set": r["id"], "band": i, "sf": 9, "bw_khz": bw, "freq_khz": f,
                                  "device": dev, "reason": R.dr_check(r["id"], 9, bw, f, dev)})
     out["check_devices"] = dev_rows
 
     caps = []
-    devices = list(DR["devices"]) + [DR_YAGI, {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
+    devices = list(DR["devices"]) + [DR_YAGI, DR_MK3_UNUSABLE, DR_FLOOR_16, {"gain_cdbi": 0, "min_dbm": 0, "max_dbm": 30},
                                      {"gain_cdbi": -300, "min_dbm": -9, "max_dbm": 22},
-                                     {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22}]
+                                     {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22},
+                                     {"gain_cdbi": 1215, "min_dbm": 2, "max_dbm": 22, "below_floor": "send_at_floor"}]
     for r in DR["rule_sets"]:
         for i in range(len(r["bands"])):
             for dev in devices:
                 cap, usable = R.dr_power_cap(r["id"], i, dev)
-                caps.append({"rule_set": r["id"], "band": i, "device": dev, "cap_dbm": cap, "usable": usable})
+                caps.append({"rule_set": r["id"], "band": i, "device": dev, "cap_dbm": cap, "usable": usable,
+                             "allowed_dbm": R.dr_power_allowed(r["id"], i, dev)})
     for rid, band in ((0, 0), (1, -1), (1, 1), (16, 0)):
         cap, usable = R.dr_power_cap(rid, band, "collar_mk3")
-        caps.append({"rule_set": rid, "band": band, "device": "collar_mk3", "cap_dbm": cap, "usable": usable})
+        caps.append({"rule_set": rid, "band": band, "device": "collar_mk3", "cap_dbm": cap, "usable": usable,
+                     "allowed_dbm": R.dr_power_allowed(rid, band, "collar_mk3")})
     out["power_caps"] = caps
+
+    # Mk III below its floor (section 3, 2026-11-17), each with a legal channel of the band
+    out["below_floor"] = []
+    for key, band, dev, cap_w, usable_w, allowed_w, why in DR_BELOW_FLOOR_CASES:
+        r = R.dr_rule_set(key)
+        b = r["bands"][band]
+        bw = min(b["bw_khz"])
+        f = R._dr_nearest_centre(b, bw, (b["lo_khz"] + b["hi_khz"]) // 2)
+        cap, usable = R.dr_power_cap(key, band, dev)
+        allowed = R.dr_power_allowed(key, band, dev)
+        assert (cap, usable, allowed) == (cap_w, usable_w, allowed_w), (key, band, why, cap, usable, allowed)
+        out["below_floor"].append({"rule_set": r["id"], "key": key, "band": band, "band_name": b["name"],
+                                   "device": dev, "sf": 9, "bw_khz": bw, "freq_khz": f, "cap_dbm": cap,
+                                   "usable": usable, "allowed_dbm": allowed,
+                                   "reason": R.dr_check(key, 9, bw, f, dev), "why": why})
 
     out["band_of"] = []
     for rid, f, bw in ((2, 868100, 125), (2, 868000, 125), (2, 869525, 125), (2, 869525, 250), (2, 869525, 500),
@@ -542,7 +592,10 @@ def _dr_synthetic():
     for sf, bw, f, dev in ((8, 125, 900150, "generic"), (9, 125, 900150, "generic"), (12, 125, 900250, "generic"),
                            (8, 125, 900150, "collar_mk3"), (9, 125, 900150, "collar_mk3"),
                            (9, 125, 900100, "generic"), (9, 250, 900150, "generic"), (9, 500, 900700, "generic"),
-                           (9, 500, 900700, "collar_mk3"), (9, 500, 901100, "generic"), (9, 125, 901100, "generic"),
+                           (9, 500, 900700, "collar_mk3"), (8, 125, 900150, DR_MK3_UNUSABLE),
+                           (9, 125, 900150, DR_MK3_UNUSABLE), (9, 500, 900700, DR_MK3_UNUSABLE),
+                           (8, 125, 900150, DR_FLOOR_16), (9, 125, 900150, DR_FLOOR_16),
+                           (9, 500, 901100, "generic"), (9, 125, 901100, "generic"),
                            (12, 125, 905500, "generic"), (11, 125, 905500, "generic"), (12, 250, 905500, "generic"),
                            (9, 125, 906000, "generic"), (9, 125, 907000, "generic"), (9, 125, 906500, "generic"),
                            (9, 250, 906500, "generic"), (7, 125, 899000, "generic"), (13, 125, 905500, "generic"),
@@ -568,8 +621,9 @@ def _dr_synthetic():
     out["sweep_columns"] = ["bw_khz", "freq_khz", "reason codes for SF7..12 (generic device)",
                             "for SF7..12 in turn: sf', bw', freq', how code"]
     out["power_caps"] = [{"band": i, "device": d, "cap_dbm": R.dr_power_cap(S, i, d)[0],
-                          "usable": R.dr_power_cap(S, i, d)[1]}
-                         for i in range(len(S["bands"])) for d in ("generic", "collar_mk3", "spotter")]
+                          "usable": R.dr_power_cap(S, i, d)[1], "allowed_dbm": R.dr_power_allowed(S, i, d)}
+                         for i in range(len(S["bands"]))
+                         for d in ("generic", "collar_mk3", "spotter", DR_MK3_UNUSABLE, DR_FLOOR_16)]
     out["band_limits"] = [{"band": i, "lbt": list(R.dr_lbt(S, i)) if R.dr_lbt(S, i) else None,
                            "send_limit": list(R.dr_send_limit(S, i)) if R.dr_send_limit(S, i) else None,
                            "max_len": [[sf, bw, R.dr_band_max_len(S, i, sf, bw)] for sf in range(7, 13)

@@ -136,12 +136,13 @@ def _c_header_direct_regions(spec, dr):
             continue
         L.append(f"#define CID_DR_{_ident(k)} {v}u" if v >= 0 else f"#define CID_DR_{_ident(k)} ({v})")
     for group, prefix in (("reasons", "REASON"), ("classes", "CLASS"), ("convert_how", "HOW"),
-                          ("fit_reasons", "FIT"), ("confidences", "CONFIDENCE")):
+                          ("fit_reasons", "FIT"), ("confidences", "CONFIDENCE"), ("below_floor", "BELOW_FLOOR")):
         for i, name in enumerate(dr[group]):
             L.append(f"#define CID_DR_{prefix}_{_ident(name)} {i}u")
     for name, d in dr["devices"].items():
         for k in ("gain_cdbi", "min_dbm", "max_dbm"):
             L.append(f"#define CID_DR_DEVICE_{_ident(name)}_{_ident(k)} {_c_int(d[k])}")
+        L.append(f"#define CID_DR_DEVICE_{_ident(name)}_BELOW_FLOOR {_below_floor(dr, d)}u")
     L += ["/* X(id, \"key\", band_count, default_freq_khz, default_bw_khz, default_sf,",
           "     wake_freq_hz, wake_bw_khz, wake_sf, wake_sf_long) */",
           "#define CID_DR_RULE_SETS(X) \\"]
@@ -165,6 +166,12 @@ def _c_header_direct_regions(spec, dr):
         L.append(f'    X("{c["iso"]}", "{c["name"]}", {c["rule_set"]}u, {conf[c["confidence"]]}u) \\')
     L.append("")
     return L
+
+
+def _below_floor(dr, d):
+    """A profile's below_floor as its index in direct_regions.below_floor
+    (direct_rules.h DR_BELOW_FLOOR_*); a profile without it is unusable (0)."""
+    return dr["below_floor"].index(d.get("below_floor") or "unusable")
 
 
 def c_table(spec):
@@ -222,9 +229,10 @@ def c_table(spec):
     for c in dr["countries"]:
         L.append(f'\t{{ {q(c["iso"])}, {c["rule_set"]}u, {conf[c["confidence"]]}u, {q(c["name"])} }},')
     L += ["};", f"const uint8_t dr_country_count = {len(dr['countries'])}u;", ""]
-    L.append("/* gain_cdbi, min_dbm, max_dbm */")
+    L.append("/* gain_cdbi, min_dbm, max_dbm, below_floor (0 unusable, 1 send at the floor) */")
     for name, d in dr["devices"].items():
-        L.append(f"const dr_device_t dr_device_{name} = {{ {d['gain_cdbi']}, {d['min_dbm']}, {d['max_dbm']} }};")
+        L.append(f"const dr_device_t dr_device_{name} = {{ {d['gain_cdbi']}, {d['min_dbm']}, {d['max_dbm']}, "
+                 f"{_below_floor(dr, d)}u }};")
     nd = dr["no_region_default"]
     L += ["", f"const dr_setting_t dr_no_region_default = {{ {nd['freq_khz']}u, {nd['bw_khz']}u, {nd['sf']}u }};", ""]
     return "\n".join(L)

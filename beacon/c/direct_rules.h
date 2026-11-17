@@ -162,13 +162,22 @@ typedef struct {
 	uint8_t            wake_sf_long;
 } dr_rule_set_t;
 
-/* A sending device: its antenna gain and the lowest and highest conducted
- * power its radio can send. The caller fills one (the Spotter: the gain of
- * its current antenna profile) or uses a named profile below. */
+/* dr_device_t.below_floor: what a device does in a band whose cap is below
+ * its minimum (the spec's direct_regions.below_floor, in order). */
+#define DR_BELOW_FLOOR_UNUSABLE 0u   /* it does not send there (DR_POWER_FLOOR) */
+#define DR_BELOW_FLOOR_SEND     1u   /* it sends at its minimum (the Mk III profile, 2026-11-17) */
+
+/* A sending device: its antenna gain, the lowest and highest conducted
+ * power its radio can send, and what it does below its floor. The caller
+ * fills one (the Spotter: the gain of its current antenna profile) or uses
+ * a named profile below. below_floor is the last member, so a device
+ * zero-initialised or written before it existed is DR_BELOW_FLOOR_UNUSABLE,
+ * as every device was until 2026-11-17. */
 typedef struct {
 	int16_t gain_cdbi;
 	int8_t  min_dbm;
 	int8_t  max_dbm;
+	uint8_t below_floor;   /* DR_BELOW_FLOOR_* */
 } dr_device_t;
 
 typedef struct {
@@ -183,7 +192,8 @@ extern const uint8_t       dr_rule_set_count;
 extern const dr_country_t  dr_countries[];     /* the spec's order (grouped by rule set) */
 extern const uint8_t       dr_country_count;
 extern const dr_device_t   dr_device_collar_wio;   /* gain 90 cdBi, -9..22 dBm */
-extern const dr_device_t   dr_device_collar_mk3;   /* gain 90 cdBi, 16..27 dBm (SE2435L) */
+extern const dr_device_t   dr_device_collar_mk3;   /* gain 90 cdBi, 9..28 dBm (SX1262 -17..+2 into the
+                                                      SE2435L's 26 dB); sends at 9 below it */
 extern const dr_device_t   dr_device_spotter;      /* stub antenna 200 cdBi, -9..22 dBm */
 extern const dr_device_t   dr_device_generic;      /* website and app; convert() uses it */
 extern const dr_setting_t  dr_no_region_default;   /* today's (US) default: 915000 / 500 / 9 */
@@ -216,13 +226,24 @@ int dr_band_of(const dr_rule_set_t *rs, uint32_t freq_khz, uint16_t bw_khz);
 
 /* ---- power ---------------------------------------------------------------- */
 
-/* The most a device may send in a band, whole dBm:
- *   min(band conducted, floor((band e.i.r.p. - gain) / 100), device max).
- * *usable (may be NULL) is false when that is below the device's minimum:
- * the device does not send there at all. A NULL rule set or no band gives
- * the device's maximum, usable. dev NULL = dr_device_generic. Every send
- * goes out at min(its setting, this). */
+/* The most a device sends in a band, whole dBm:
+ *   min(dr_power_allowed, device max).
+ * When that is below the device's minimum, its below_floor decides:
+ * DR_BELOW_FLOOR_SEND (the Mk III profile, which since its +9 dBm floor is
+ * below it in no band of the table) gives the device's minimum, usable (it
+ * sends at its floor, above the rule's figure: CONTRACT_direct_regions.md
+ * section 3); DR_BELOW_FLOOR_UNUSABLE gives that figure with *usable false: the
+ * device does not send there at all. *usable may be NULL. A NULL rule set or
+ * no band gives the device's maximum, usable. dev NULL = dr_device_generic.
+ * Every send goes out at min(its setting, this). */
 int8_t dr_power_cap(const dr_rule_set_t *rs, int band, const dr_device_t *dev, bool *usable);
+
+/* The rule's own figure for the device's antenna, whole dBm:
+ *   min(band conducted, floor((band e.i.r.p. - gain) / 100)),
+ * without the device's max or min (what a log or a page calls "the most
+ * allowed here"), held to -128..127. A NULL rule set or no band gives the
+ * device's maximum, as dr_power_cap. dev NULL = dr_device_generic. */
+int8_t dr_power_allowed(const dr_rule_set_t *rs, int band, const dr_device_t *dev);
 
 /* ---- checking and converting a setting ------------------------------------ */
 
@@ -230,7 +251,8 @@ int8_t dr_power_cap(const dr_rule_set_t *rs, int band, const dr_device_t *dev, b
  * holds the whole channel, allows the bandwidth, has the centre on its grid,
  * is usable by the device, and a 64-byte frame at (sf, bw) is shorter than
  * its send limit. DR_OK when one band passes all five, else the reason of
- * the band that got furthest. Power is never a reason. A NULL rule set is
+ * the band that got furthest. Power is never a reason; DR_POWER_FLOOR comes
+ * only from a DR_BELOW_FLOOR_UNUSABLE device. A NULL rule set is
  * DR_OK. dev NULL = dr_device_generic. An SF outside 7..12 never fits a
  * band with a send limit and is otherwise not judged. */
 dr_reason_t dr_check(const dr_rule_set_t *rs, uint8_t sf, uint16_t bw_khz, uint32_t freq_khz,

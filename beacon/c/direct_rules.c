@@ -98,6 +98,27 @@ int dr_band_of(const dr_rule_set_t *rs, uint32_t freq_khz, uint16_t bw_khz)
 
 /* ---- power ---------------------------------------------------------------- */
 
+/* min(band conducted, floor((e.i.r.p. - gain) / 100)), unclamped. */
+static int64_t dr_rule_dbm(const dr_band_t *b, const dr_device_t *dev)
+{
+	int64_t cap = dr_floor_div((int64_t)b->eirp_cdbm - (int64_t)dev->gain_cdbi, 100);
+	if ((int64_t)b->conducted_dbm < cap) cap = b->conducted_dbm;
+	return cap;
+}
+
+int8_t dr_power_allowed(const dr_rule_set_t *rs, int band, const dr_device_t *dev)
+{
+	const dr_band_t *b = dr_band(rs, band);
+	int64_t cap;
+
+	if (!dev) dev = &dr_device_generic;
+	if (!b) return dev->max_dbm;
+	cap = dr_rule_dbm(b, dev);
+	if (cap < -128) cap = -128;
+	if (cap > 127) cap = 127;
+	return (int8_t)cap;
+}
+
 int8_t dr_power_cap(const dr_rule_set_t *rs, int band, const dr_device_t *dev, bool *usable)
 {
 	const dr_band_t *b = dr_band(rs, band);
@@ -108,11 +129,21 @@ int8_t dr_power_cap(const dr_rule_set_t *rs, int band, const dr_device_t *dev, b
 		if (usable) *usable = true;
 		return dev->max_dbm;
 	}
-	cap = dr_floor_div((int64_t)b->eirp_cdbm - (int64_t)dev->gain_cdbi, 100);
-	if ((int64_t)b->conducted_dbm < cap) cap = b->conducted_dbm;
+	cap = dr_rule_dbm(b, dev);
 	if ((int64_t)dev->max_dbm < cap) cap = dev->max_dbm;
+	if (cap >= (int64_t)dev->min_dbm) {
+		if (usable) *usable = true;
+		return (int8_t)cap;
+	}
+	/* Below the device's floor. old (until 2026-11-17 evening): every
+	 * device was unusable here; now a DR_BELOW_FLOOR_SEND device (Mk III)
+	 * sends at its minimum. */
+	if (dev->below_floor == DR_BELOW_FLOOR_SEND) {
+		if (usable) *usable = true;
+		return dev->min_dbm;
+	}
 	if (cap < -128) cap = -128;
-	if (usable) *usable = cap >= (int64_t)dev->min_dbm;
+	if (usable) *usable = false;
 	return (int8_t)cap;
 }
 

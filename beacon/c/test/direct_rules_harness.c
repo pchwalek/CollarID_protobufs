@@ -8,12 +8,14 @@
  *
  * One command per line on stdin, one answer per line on stdout; numbers are
  * decimal, "-" stands for "none". RS is a rule-set id; 99 is the synthetic
- * rule set the synth* commands build. DEV is gen, wio, mk3, spot or
- * GAIN:MIN:MAX.
+ * rule set the synth* commands build. DEV is gen, wio, mk3, spot,
+ * GAIN:MIN:MAX (below its floor: unusable) or GAIN:MIN:MAX:B (B 0 unusable,
+ * 1 send at the floor).
  *
  *   check RS SF BW F DEV            -> reason code
  *   convert RS SF BW F              -> SF BW F HOW
  *   cap RS BAND DEV                 -> DBM USABLE
+ *   allowed RS BAND DEV             -> DBM (dr_power_allowed)
  *   bandof RS F BW                  -> band | -1
  *   toa SF BW N                     -> us          toap SF BW N P -> us
  *   wtoa SF BW N P                  -> us (wake_toa_us, for the cross-check)
@@ -37,7 +39,7 @@
  *   bykey KEY                       -> id | none
  *   country I                       -> ISO RS CONF NAME... | none
  *   iso ISO                         -> RS CONF | none
- *   device NAME                     -> GAIN MIN MAX
+ *   device NAME                     -> GAIN MIN MAX BELOW_FLOOR
  *   sha                             -> CONTRACTS_SHA TABLE_SHA
  *   counts                          -> RULESETS COUNTRIES
  *   synthclear                      -> ok
@@ -83,15 +85,18 @@ static dr_device_t g_custom;
 static const dr_device_t *dev_arg(void)
 {
 	const char *t = next_tok();
-	int g = 0, lo = 0, hi = 0;
+	int g = 0, lo = 0, hi = 0, bf = 0;
+	int n;
 	if (!t || strcmp(t, "gen") == 0) return &dr_device_generic;
 	if (strcmp(t, "wio") == 0) return &dr_device_collar_wio;
 	if (strcmp(t, "mk3") == 0) return &dr_device_collar_mk3;
 	if (strcmp(t, "spot") == 0) return &dr_device_spotter;
-	if (sscanf(t, "%d:%d:%d", &g, &lo, &hi) == 3) {
+	n = sscanf(t, "%d:%d:%d:%d", &g, &lo, &hi, &bf);
+	if (n >= 3) {
 		g_custom.gain_cdbi = (int16_t)g;
 		g_custom.min_dbm = (int8_t)lo;
 		g_custom.max_dbm = (int8_t)hi;
+		g_custom.below_floor = (uint8_t)(n == 4 ? bf : 0);
 		return &g_custom;
 	}
 	return &dr_device_generic;
@@ -151,6 +156,10 @@ int main(void)
 			bool usable = false;
 			const int8_t cap = dr_power_cap(rs, band, dev_arg(), &usable);
 			printf("%d %d\n", (int)cap, usable ? 1 : 0);
+		} else if (strcmp(cmd, "allowed") == 0) {
+			const dr_rule_set_t *rs = rs_arg();
+			const int band = (int)num();
+			printf("%d\n", (int)dr_power_allowed(rs, band, dev_arg()));
 		} else if (strcmp(cmd, "bandof") == 0) {
 			const dr_rule_set_t *rs = rs_arg();
 			const uint32_t f = (uint32_t)num();
@@ -294,7 +303,7 @@ int main(void)
 			else printf("none\n");
 		} else if (strcmp(cmd, "device") == 0) {
 			const dr_device_t *d = dev_arg();
-			printf("%d %d %d\n", (int)d->gain_cdbi, (int)d->min_dbm, (int)d->max_dbm);
+			printf("%d %d %d %u\n", (int)d->gain_cdbi, (int)d->min_dbm, (int)d->max_dbm, (unsigned)d->below_floor);
 		} else if (strcmp(cmd, "sha") == 0) {
 			printf("%s %s\n", dr_contracts_sha256, dr_table_sha256);
 		} else if (strcmp(cmd, "counts") == 0) {

@@ -357,7 +357,10 @@ Regions 4..15 and the table's source (2026-11-17, collarID_thread
 `c/wake_frame.c` through `c/direct_rules.[ch]` and its generated table. The
 power cap is that of the wake channel's band for a collar of unknown board;
 a device caps at `dr_power_cap` with its own antenna and radio (a collar on
-the Mk III amplifier board cannot go low enough for Japan or Korea at all).
+the Mk III amplifier board goes from +9 to +28 dBm since 2026-11-17, the
+SX1262's reduced PA configuration into the SE2435L's 26 dB, so it meets
+Japan's and Korea's +13; a profile below its floor sends at it or not at
+all, as its `below_floor` says; `dr_power_allowed` is the rule's figure).
 Japan, Korea and LA915 listen before every send there; Japan and Korea cut
 a wake train into segments under 4 s with a 50 ms pause and a fresh listen
 between them; in a band with an hourly air budget every send is counted
