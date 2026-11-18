@@ -32,15 +32,20 @@ ALLOCATED = {
     14: "CARD_MISSING",
     15: "CHARGE_HELD_OFF",
     16: "NO_RELEASE_UNIT",
+    17: "SAVING_POWER",
+    18: "LOW_BATTERY_SLEEP",
 }
-FIRST_FREE = 17
+FIRST_FREE = 19
 # Bits allowed past the 2-byte budget: bit 14 rides only frames of a boot
 # without its card, which carry no sensor blocks; bit 15 rides only while a
 # Mk III collar's charger is held off for the cold (2026-10-18); bit 16 rides
 # only the 3 uplinks after a release command the collar had no release unit
-# for (2026-11-05). The firmware's UplinkBudget_Fit measures every frame (one
-# byte more costs a GPS fix at worst).
-OVER_BUDGET_OK = {14, 15, 16}
+# for (2026-11-05); bit 17 rides only while the battery is low enough that the
+# collar saves power, recording nothing, and bit 18 only its last report before
+# a low-battery sleep (2026-11-18). The firmware's UplinkBudget_Fit measures
+# every frame (one byte more costs a GPS fix at worst).
+# old: OVER_BUDGET_OK = {14, 15, 16}
+OVER_BUDGET_OK = {14, 15, 16, 17, 18}
 
 # ble.proto BeaconKeyState: the Bluetooth echo's view of the same condition.
 BEACON_KEY_STATE_FALLBACK = 2
@@ -139,7 +144,8 @@ class SizeBudget(unittest.TestCase):
         for b in sorted(ALLOCATED):
             over = len(deployment_error_flags(1 << b)) > ERROR_FLAGS_BUDGET
             self.assertEqual(over, b in OVER_BUDGET_OK, b)
-        self.assertIn("Bits 14, 15 and 16 are the only bits past a 2-byte varint",
+        # old: self.assertIn("Bits 14, 15 and 16 are the only bits past a 2-byte varint",
+        self.assertIn("Bits 14, 15, 16, 17 and 18 are the only bits past a 2-byte varint",
                       " ".join(ln.strip() for ln in proto_ledger()))
 
     def test_budget_is_stated_where_the_uplink_budget_is(self):

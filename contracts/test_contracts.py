@@ -151,6 +151,61 @@ class BatteryThresholds(unittest.TestCase):
         self.assertEqual(g[i + 1:i + 3], ["battery_hibernate_pct", "battery_resume_pct"])
 
 
+
+class SavingPower(unittest.TestCase):
+    """Saving power before hibernation (2026-11-18): the band sits on the
+    hibernate level, never reaches past the resume ceiling, ends a gap above
+    where it starts, and a Spotter's hold only ever lowers the sleep level."""
+
+    def test_the_band_and_its_gap_stay_under_the_resume_ceiling(self):
+        B = R.SPEC["battery_thresholds"]
+        self.assertTrue(R.saving_band_valid(B["saving_band_default"]))
+        self.assertEqual(B["saving_band_min"], 0)
+        self.assertLessEqual(B["hibernate_max"] + B["saving_band_max"] + B["saving_exit_gap"], B["resume_max"])
+        self.assertLess(B["spotter_floor_pct"], B["hibernate_min"])
+
+    def test_the_stage_has_its_gap_and_band_zero_is_off(self):
+        B = R.SPEC["battery_thresholds"]
+        gap = B["saving_exit_gap"]
+        for hib in range(B["hibernate_min"], B["hibernate_max"] + 1):
+            for band in range(B["saving_band_min"], B["saving_band_max"] + 1):
+                for pct in range(0, 101):
+                    start = R.saving_next(hib, band, pct, False)
+                    keep = R.saving_next(hib, band, pct, True)
+                    if pct <= hib:                       # held by a Spotter: always saving
+                        self.assertTrue(start and keep)
+                        continue
+                    if band == 0:
+                        self.assertFalse(start or keep)
+                        continue
+                    self.assertEqual(start, pct <= hib + band)
+                    self.assertEqual(keep, pct <= hib + band + gap)
+                    self.assertTrue(keep or not start)   # a reading that starts it keeps it
+
+    def test_a_spotter_hold_only_lowers_the_sleep_level(self):
+        for hib in (5, 10, 40):
+            for pct in range(0, 101):
+                if R.hibernate_now(pct, hib, True):
+                    self.assertTrue(R.hibernate_now(pct, hib, False), (pct, hib))
+
+    def test_the_csv_reading_is_always_valid(self):
+        for t in [None, "", "x", "-100", "0", "1", "5", "15", "16", "99999", " 3", "7 "]:
+            self.assertTrue(R.saving_band_valid(R.saving_band_from_csv(t)), t)
+        for b in range(0, 16):
+            self.assertEqual(R.saving_band_from_csv(str(b)), b)
+
+    def test_the_refresh_wait_doubles_to_its_cap(self):
+        B = R.SPEC["battery_thresholds"]
+        waits = [R.saving_gps_refresh_wait_s(n) for n in range(6)]
+        self.assertEqual(waits[0], B["saving_gps_refresh_s"])
+        self.assertEqual(waits[1], 2 * B["saving_gps_refresh_s"])
+        self.assertEqual(waits[-1], B["saving_gps_refresh_max_s"])
+        self.assertEqual(waits, sorted(waits))
+
+    def test_the_csv_key_follows_the_resume_level(self):
+        g = R.SPEC["config_csv"]["keys"]["global"]
+        self.assertEqual(g[g.index("battery_resume_pct") + 1], "battery_saving_band_pct")
+
 class LoRaWake(unittest.TestCase):
     """LoRa wake (2026-11-13): three CONFIG.CSV keys. The region and the
     long-range setting follow the direct radio's other global keys; the
@@ -199,7 +254,8 @@ class LoRaWake(unittest.TestCase):
         self.assertIn("#define CID_CONFIG_CSV_GLOBAL_COUNT %du" % len(g), h)
         self.assertIn("#define CID_CONFIG_CSV_SCHEDULE_COUNT %du" % len(sched), h)
         # old: (44, 41) (to 2026-11-17; + lora_frequency_khz)
-        self.assertEqual((len(g), len(sched)), (45, 41))
+        # old: self.assertEqual((len(g), len(sched)), (45, 41))   (before battery_saving_band_pct, 2026-11-18)
+        self.assertEqual((len(g), len(sched)), (46, 41))
 
 
 

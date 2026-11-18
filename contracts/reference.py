@@ -284,6 +284,81 @@ def battery_thresholds_from_csv(hibernate_text, resume_text):
     return [h, r]
 
 
+
+# ── Saving power before hibernation (2026-11-18) ──────────────────────────
+#
+# collarID_thread docs/DESIGN_saving_power.md. The band is whole points above
+# the hibernate level; 0 = off.
+
+def saving_band_valid(band):
+    """The rails: a band a push, the Bluetooth tunnel or a configurator may
+    set (rule 14 refuses anything else)."""
+    if isinstance(band, bool):
+        return False
+    try:
+        b = int(band)
+    except (TypeError, ValueError):
+        return False
+    if b != band:
+        return False
+    return BATT["saving_band_min"] <= b <= BATT["saving_band_max"]
+
+
+def saving_band_from_csv(text):
+    """The band a CONFIG.CSV row gives (None = the row is missing): read as
+    strtol reads it, a missing or unreadable row is the default, the value is
+    held to its range."""
+    b = _strtol(text)
+    if b is None:
+        return BATT["saving_band_default"]
+    return min(BATT["saving_band_max"], max(BATT["saving_band_min"], b))
+
+
+def saving_next(hibernate, band, pct, was_saving):
+    """Whether the collar saves power after a battery reading of pct percent.
+    It starts at or below hibernate + band and keeps on until the reading is
+    above hibernate + band + saving_exit_gap. band 0 = off. At or below the
+    hibernate level it always saves (only reached while a Spotter holds the
+    collar awake; hibernate_now), whatever the band."""
+    if pct <= hibernate:
+        return True
+    if band <= 0:
+        return False
+    enter = hibernate + band
+    if was_saving:
+        return pct <= enter + BATT["saving_exit_gap"]
+    return pct <= enter
+
+
+def hibernate_now(pct, hibernate, spotter_held):
+    """Whether a battery reading of pct percent sends the collar to its
+    low-battery sleep: at or below the hibernate level, or, while a Spotter
+    holds it, only at or below spotter_floor_pct."""
+    if spotter_held:
+        return pct <= BATT["spotter_floor_pct"]
+    return pct <= hibernate
+
+
+def spotter_held(session_open, find_mode, since_contact_s):
+    """A Spotter holds the collar awake while a session is open, find mode
+    runs, or the Spotter last reached it under spotter_hold_s seconds ago
+    (since_contact_s None = never)."""
+    if session_open or find_mode:
+        return True
+    return since_contact_s is not None and since_contact_s < BATT["spotter_hold_s"]
+
+
+def saving_gps_refresh_wait_s(failures):
+    """How old the last fix (or the last try) must be before a check-in in the
+    stage takes a fix: saving_gps_refresh_s, doubled for each failed try in a
+    row, at most saving_gps_refresh_max_s."""
+    w = BATT["saving_gps_refresh_s"]
+    for _ in range(max(0, failures)):
+        w *= 2
+        if w >= BATT["saving_gps_refresh_max_s"]:
+            return BATT["saving_gps_refresh_max_s"]
+    return min(w, BATT["saving_gps_refresh_max_s"])
+
 # ── Direct-radio regions (2026-11-17) ─────────────────────────────────────
 #
 # collarID_thread docs/CONTRACT_direct_regions.md. A rule set is a

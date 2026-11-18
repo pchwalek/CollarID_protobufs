@@ -134,11 +134,14 @@ class GeneratedC(unittest.TestCase):
         self.assertIn("uint32_t frequency_khz;", body)
         self.assertRegex(c_fieldlist("downlink.pb.h", "RADIO_SETTINGS_FIELDLIST"),
                          r"OPTIONAL, UINT32,\s+frequency_khz,\s+14\)")
-        for macro, size in (("RADIO_SETTINGS_SIZE", 82), ("CONFIG_FRAGMENT_SIZE", 460),
-                            ("DOWNLINK_PACKET_SIZE", 887)):
+        # old: ("CONFIG_FRAGMENT_SIZE", 460), ("DOWNLINK_PACKET_SIZE", 887)   (before
+        # ConfigSystem.battery_saving_band_pct, 6 more in nanopb's bound, 2026-11-18)
+        for macro, size in (("RADIO_SETTINGS_SIZE", 82), ("CONFIG_FRAGMENT_SIZE", 466),
+                            ("DOWNLINK_PACKET_SIZE", 893)):
             self.assertRegex(h, r"#define %s\s+%d\b" % (macro, size))
         m = read("message.pb.h")
-        for macro, size in (("CONFIG_REPORT_SIZE", 487), ("MESSAGE_PACKET_SIZE", 2565)):
+        # old: (("CONFIG_REPORT_SIZE", 487), ("MESSAGE_PACKET_SIZE", 2565))   (before the saving band, 2026-11-18)
+        for macro, size in (("CONFIG_REPORT_SIZE", 493), ("MESSAGE_PACKET_SIZE", 2571)):
             self.assertRegex(m, r"#define %s\s+%d\b" % (macro, size))
 
     def test_swift(self):

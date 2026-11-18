@@ -142,9 +142,12 @@ def make():
                                  "end_frame": hx(bytes([D["frame_end"]]))})
 
     # ErrorFlags.flag
-    # 1 << 16 is no_release_unit; 1 << 17 is the first free bit.
+    # 1 << 16 is no_release_unit; 1 << 17 saving_power, 1 << 18 low_battery_sleep;
+    # 1 << 19 is the first free bit.
+    # old: words = [..., 0x1FFFF, 1 << 17, 1 << 31]   (17 was the first free bit until 2026-11-18)
     words = [0, 0x80, 0x81, 0xFF, 1 << 8, (1 << 13) | (1 << 14), (1 << 10) | 0x80, (1 << 9) | (1 << 11) | (1 << 12),
-             1 << 15, (1 << 14) | (1 << 15), 0x7FFF, 0xFFFF, 1 << 16, (1 << 15) | (1 << 16), 0x1FFFF, 1 << 17, 1 << 31]
+             1 << 15, (1 << 14) | (1 << 15), 0x7FFF, 0xFFFF, 1 << 16, (1 << 15) | (1 << 16), 0x1FFFF, 1 << 17,
+             1 << 18, (1 << 17) | (1 << 18), (1 << 8) | (1 << 17), 0x7FFFF, 1 << 19, 1 << 31]
     v["error_flags"] = [{"word": w, "keys": R.error_flag_keys(w)} for w in words]
 
     # Low-battery hibernation thresholds. "valid": the rails' rule on a pair of
@@ -160,6 +163,39 @@ def make():
              ("+8", "+18"), ("20%", "35%"), ("99999999999999999999", "1")]
     v["battery_thresholds_from_csv"] = [{"hibernate": h, "resume": r, "want": R.battery_thresholds_from_csv(h, r)}
                                         for h, r in texts]
+
+    # Saving power before hibernation (2026-11-18). "saving_band_valid": the
+    # rails' rule on a band; "saving_band_from_csv": the band a CONFIG.CSV row
+    # gives (null = the row is missing); "saving_next": the stage after a
+    # reading; "hibernate_now": the low-battery sleep, with and without a
+    # Spotter's hold; "spotter_held"; "saving_gps_refresh_wait_s".
+    bands = [B["saving_band_default"], 0, 1, 15, 16, -1, 5.5, True, "5", None, 10]
+    v["saving_band_valid"] = [{"band": b, "valid": R.saving_band_valid(b)} for b in bands]
+    btexts = [None, "5", "0", "15", "16", "-3", " 7", "10 ", "abc", "", "4.9", "+12", "99999999999999999999"]
+    v["saving_band_from_csv"] = [{"band": t, "want": R.saving_band_from_csv(t)} for t in btexts]
+    cases = []
+    for hib, band in ((10, 5), (10, 0), (25, 5), (40, 15), (5, 1), (10, 15)):
+        for pct in sorted({hib - 1, hib, hib + 1, hib + band - 1, hib + band, hib + band + 1,
+                           hib + band + 4, hib + band + 5, hib + band + 6, 100, 0}):
+            for was in (False, True):
+                cases.append({"hibernate": hib, "band": band, "pct": pct, "was_saving": was,
+                              "saving": R.saving_next(hib, band, pct, was)})
+    v["saving_next"] = cases
+    hcases = []
+    for hib in (5, 10, 40):
+        for pct in (0, 2, 3, 4, hib - 1, hib, hib + 1, 100):
+            for held in (False, True):
+                hcases.append({"pct": pct, "hibernate": hib, "spotter_held": held,
+                               "hibernate_now": R.hibernate_now(pct, hib, held)})
+    v["hibernate_now"] = hcases
+    hold = B["spotter_hold_s"]
+    v["spotter_held"] = [{"session_open": so, "find_mode": fm, "since_contact_s": sc,
+                          "held": R.spotter_held(so, fm, sc)}
+                         for so, fm, sc in ((False, False, None), (True, False, None), (False, True, None),
+                                            (False, False, 0), (False, False, hold - 1), (False, False, hold),
+                                            (False, False, hold + 1), (True, True, 10**6))]
+    v["saving_gps_refresh_wait_s"] = [{"failures": n, "wait_s": R.saving_gps_refresh_wait_s(n)}
+                                      for n in (0, 1, 2, 3, 4, 10)]
 
     # CONFIG.CSV
     cfg = S.get("config_csv")

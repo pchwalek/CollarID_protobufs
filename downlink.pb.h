@@ -473,6 +473,22 @@ typedef struct config_system {
     uint32_t battery_hibernate_pct;
     bool has_battery_resume_pct;
     uint32_t battery_resume_pct;
+    /* The saving band, whole points above battery_hibernate_pct (2026-11-18;
+ fw gate: the firmware build that lands it, set at merge). At or below
+ hibernate + band the collar saves power to stay findable: it stops
+ recording (sound, movement, magnetometer, environmental, particulate) and
+ its scheduled GPS fixes, sends LoRaWAN check-ins at most hourly and no
+ scheduled direct-radio reports, and keeps listening for a Spotter as its
+ schedule says. It runs its schedule again once the battery reads above
+ hibernate + band + 5. 0 = off; 0..15, default 5; CONFIG.CSV key of the
+ same name (contracts/collarid_contracts.json battery_thresholds). Absent
+ = leave the collar's value alone; staged and applied at COMMIT with the
+ pair above; a value outside 0..15 refuses the transaction under rule 14
+ (SCHED_RAIL_BAD_BATTERY_THRESHOLDS). Reported in the system fragment and
+ on Bluetooth in SystemStatePacket field 13. Firmware that predates the
+ field skips it. */
+    bool has_battery_saving_band_pct;
+    uint32_t battery_saving_band_pct;
 } config_system_t;
 
 /* Geofence definition, delivered through the config transaction one
@@ -834,7 +850,7 @@ extern "C" {
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
-#define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
 #define FIND_MODE_INIT_DEFAULT                   {0, 0}
@@ -857,7 +873,7 @@ extern "C" {
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
-#define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
+#define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
 #define FIND_MODE_INIT_ZERO                      {0, 0}
@@ -928,6 +944,7 @@ extern "C" {
 #define CONFIG_SYSTEM_SCHEDULES_COUNT_TAG        4
 #define CONFIG_SYSTEM_BATTERY_HIBERNATE_PCT_TAG  5
 #define CONFIG_SYSTEM_BATTERY_RESUME_PCT_TAG     6
+#define CONFIG_SYSTEM_BATTERY_SAVING_BAND_PCT_TAG 7
 #define CONFIG_GEOFENCE_FENCE_ID_TAG             1
 #define CONFIG_GEOFENCE_ACTION_TAG               2
 #define CONFIG_GEOFENCE_ZONE_SLOT_TAG            3
@@ -1114,7 +1131,8 @@ X(a, STATIC,   OPTIONAL, BOOL,     enable_reset_on_error,   2) \
 X(a, STATIC,   OPTIONAL, UINT32,   special_mode,      3) \
 X(a, STATIC,   OPTIONAL, UINT32,   schedules_count,   4) \
 X(a, STATIC,   OPTIONAL, UINT32,   battery_hibernate_pct,   5) \
-X(a, STATIC,   OPTIONAL, UINT32,   battery_resume_pct,   6)
+X(a, STATIC,   OPTIONAL, UINT32,   battery_resume_pct,   6) \
+X(a, STATIC,   OPTIONAL, UINT32,   battery_saving_band_pct,   7)
 #define CONFIG_SYSTEM_CALLBACK NULL
 #define CONFIG_SYSTEM_DEFAULT NULL
 
@@ -1313,7 +1331,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define BLE_WINDOW_SIZE                          42
 #define CARD_SUMMARY_REQUEST_SIZE                12
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     460
+#define CONFIG_FRAGMENT_SIZE                     466
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 14
@@ -1321,9 +1339,9 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_MORTALITY_SIZE                    14
 #define CONFIG_RADIO_TIMING_SIZE                 33
 #define CONFIG_SAMPLING_SIZE                     8
-#define CONFIG_SYSTEM_SIZE                       28
+#define CONFIG_SYSTEM_SIZE                       34
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     887
+#define DOWNLINK_PACKET_SIZE                     893
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22

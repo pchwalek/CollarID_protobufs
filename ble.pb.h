@@ -758,12 +758,14 @@ typedef struct system_state_packet {
  and keep their old value when handed a longer one, so the whole BlePacket
  must stay at or under 140 B. The collar fills battery, sdcard,
  firmware_version, hw_diag, this field, board, battery_protection and the
- two battery thresholds, never gps_data or sensors: at most 135 B with
- every one of those at its largest (95 B before the card's identity in
- SDCardState, v1.24.0, 106 B before board and battery_protection, 123 B
- before the battery thresholds, 127 B before the wake key's two fields;
- the firmware's test_radio_crypto measures each). wake_group would add
- up to 6 B more and pass the 140 B, which is why it stays on the echo. */
+ two battery thresholds, the saving band and the saving state, never
+ gps_data or sensors: at most 139 B with every one of those at its largest
+ (95 B before the card's identity in SDCardState, v1.24.0, 106 B before
+ board and battery_protection, 123 B before the battery thresholds, 127 B
+ before the wake key's two fields, 135 B before the saving band and
+ state; the firmware's test_radio_crypto measures each). 1 B is left: a
+ further field needs room made first. wake_group would add up to 6 B more
+ and pass the 140 B, which is why it stays on the echo. */
     bool has_beacon_key;
     beacon_key_report_t beacon_key;
     /* The boards the collar is built from (firmware board_rev_rule.h). A client
@@ -790,6 +792,18 @@ typedef struct system_state_packet {
     uint32_t battery_hibernate_pct;
     bool has_battery_resume_pct;
     uint32_t battery_resume_pct;
+    /* The saving band as the collar runs it, whole points above
+ battery_hibernate_pct, 0 = off (downlink.proto
+ ConfigSystem.battery_saving_band_pct; CONFIG.CSV key of the same name).
+ Present on every status packet from firmware that has the setting (fw
+ gate: the firmware build that lands it, set at merge), absent before:
+ presence is how a client tells "not supported". 2 B. */
+    bool has_battery_saving_band_pct;
+    uint32_t battery_saving_band_pct;
+    /* True while the collar saves power (ErrorFlags bit 17 SAVING_POWER on
+ LoRaWAN): recording stopped to stay findable. Only sent when true: 2 B,
+ 139 B for the worst status packet with a wake key. */
+    bool saving_power;
 } system_state_packet_t;
 
 typedef struct peripheral_packet {
@@ -968,7 +982,7 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, BOARD_IDENTITY_INIT_DEFAULT, false, BATTERY_PROTECTION_REPORT_INIT_DEFAULT, false, 0, false, 0}
+#define SYSTEM_STATE_PACKET_INIT_DEFAULT         {0, false, BATTERY_STATE_INIT_DEFAULT, false, SD_CARD_STATE_INIT_DEFAULT, false, GPS_DATA_INIT_DEFAULT, false, SIMPLE_SENSOR_READING_INIT_DEFAULT, "", false, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, BOARD_IDENTITY_INIT_DEFAULT, false, BATTERY_PROTECTION_REPORT_INIT_DEFAULT, false, 0, false, 0, false, 0, 0}
 #define BOARD_IDENTITY_INIT_DEFAULT              {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
 #define BATTERY_PROTECTION_REPORT_INIT_DEFAULT   {0, 0, 0, false, 0}
 #define PERIPHERAL_PACKET_INIT_DEFAULT           {{0}, _PERIPHERAL_TYPE_MIN}
@@ -993,7 +1007,7 @@ extern "C" {
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
-#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, BOARD_IDENTITY_INIT_ZERO, false, BATTERY_PROTECTION_REPORT_INIT_ZERO, false, 0, false, 0}
+#define SYSTEM_STATE_PACKET_INIT_ZERO            {0, false, BATTERY_STATE_INIT_ZERO, false, SD_CARD_STATE_INIT_ZERO, false, GPS_DATA_INIT_ZERO, false, SIMPLE_SENSOR_READING_INIT_ZERO, "", false, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, BOARD_IDENTITY_INIT_ZERO, false, BATTERY_PROTECTION_REPORT_INIT_ZERO, false, 0, false, 0, false, 0, 0}
 #define BOARD_IDENTITY_INIT_ZERO                 {_CPU_BOARD_REVISION_MIN, _TOP_BOARD_REVISION_MIN}
 #define BATTERY_PROTECTION_REPORT_INIT_ZERO      {0, 0, 0, false, 0}
 #define PERIPHERAL_PACKET_INIT_ZERO              {{0}, _PERIPHERAL_TYPE_MIN}
@@ -1153,6 +1167,8 @@ extern "C" {
 #define SYSTEM_STATE_PACKET_BATTERY_PROTECTION_TAG 10
 #define SYSTEM_STATE_PACKET_BATTERY_HIBERNATE_PCT_TAG 11
 #define SYSTEM_STATE_PACKET_BATTERY_RESUME_PCT_TAG 12
+#define SYSTEM_STATE_PACKET_BATTERY_SAVING_BAND_PCT_TAG 13
+#define SYSTEM_STATE_PACKET_SAVING_POWER_TAG     14
 #define PERIPHERAL_PACKET_MAC_ADDRESS_TAG        1
 #define PERIPHERAL_PACKET_TYPE_TAG               2
 #define PERIPHERAL_INFO_DEVICE_UIDS_TAG          1
@@ -1404,7 +1420,9 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,        8) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  board,             9) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  battery_protection,  10) \
 X(a, STATIC,   OPTIONAL, UINT32,   battery_hibernate_pct,  11) \
-X(a, STATIC,   OPTIONAL, UINT32,   battery_resume_pct,  12)
+X(a, STATIC,   OPTIONAL, UINT32,   battery_resume_pct,  12) \
+X(a, STATIC,   OPTIONAL, UINT32,   battery_saving_band_pct,  13) \
+X(a, STATIC,   SINGULAR, BOOL,     saving_power,     14)
 #define SYSTEM_STATE_PACKET_CALLBACK NULL
 #define SYSTEM_STATE_PACKET_DEFAULT NULL
 #define system_state_packet_t_battery_MSGTYPE battery_state_t
@@ -1533,7 +1551,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define SCHEDULE_CONFIG_PACKET_SIZE              1441
 #define SCHEDULE_CONFIG_SIZE                     186
 #define SIMPLE_SENSOR_READING_SIZE               51
-#define SYSTEM_STATE_PACKET_SIZE                 232
+#define SYSTEM_STATE_PACKET_SIZE                 240
 #define TIME_WINDOW_SIZE                         30
 
 #ifdef __cplusplus

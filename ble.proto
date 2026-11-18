@@ -693,12 +693,14 @@ message SystemStatePacket {
   // and keep their old value when handed a longer one, so the whole BlePacket
   // must stay at or under 140 B. The collar fills battery, sdcard,
   // firmware_version, hw_diag, this field, board, battery_protection and the
-  // two battery thresholds, never gps_data or sensors: at most 135 B with
-  // every one of those at its largest (95 B before the card's identity in
-  // SDCardState, v1.24.0, 106 B before board and battery_protection, 123 B
-  // before the battery thresholds, 127 B before the wake key's two fields;
-  // the firmware's test_radio_crypto measures each). wake_group would add
-  // up to 6 B more and pass the 140 B, which is why it stays on the echo.
+  // two battery thresholds, the saving band and the saving state, never
+  // gps_data or sensors: at most 139 B with every one of those at its largest
+  // (95 B before the card's identity in SDCardState, v1.24.0, 106 B before
+  // board and battery_protection, 123 B before the battery thresholds, 127 B
+  // before the wake key's two fields, 135 B before the saving band and
+  // state; the firmware's test_radio_crypto measures each). 1 B is left: a
+  // further field needs room made first. wake_group would add up to 6 B more
+  // and pass the 140 B, which is why it stays on the echo.
   optional BeaconKeyReport beacon_key = 8;
   // The boards the collar is built from (firmware board_rev_rule.h). A client
   // shows the Battery protection settings only for a Mk III unit (the revised
@@ -720,6 +722,17 @@ message SystemStatePacket {
   // status packet without a wake key (135 B with one).
   optional uint32 battery_hibernate_pct = 11;
   optional uint32 battery_resume_pct    = 12;
+  // The saving band as the collar runs it, whole points above
+  // battery_hibernate_pct, 0 = off (downlink.proto
+  // ConfigSystem.battery_saving_band_pct; CONFIG.CSV key of the same name).
+  // Present on every status packet from firmware that has the setting (fw
+  // gate: the firmware build that lands it, set at merge), absent before:
+  // presence is how a client tells "not supported". 2 B.
+  optional uint32 battery_saving_band_pct = 13;
+  // True while the collar saves power (ErrorFlags bit 17 SAVING_POWER on
+  // LoRaWAN): recording stopped to stay findable. Only sent when true: 2 B,
+  // 139 B for the worst status packet with a wake key.
+  bool saving_power = 14;
 }
 
 // ================== BOARDS AND BATTERY PROTECTION ==================

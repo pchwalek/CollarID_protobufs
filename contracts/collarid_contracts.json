@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "The CollarID contracts that more than one repo implements: the Bluetooth service, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits and the CONFIG.CSV keys. contracts/README.md says how it is used. Change this file first, regenerate (contracts/generate.py), remake the vectors (contracts/make_vectors.py), sync (contracts/sync.py), then fix every repo whose test fails. CONFIG.CSV: every writer emits the keys in this order, every unconditional one, and nothing else; 'conditional' keys depend on the configuration (the LoRaWAN credentials on the activation type, lorawan_identity_uid on credentials from another collar); 'firmware_only' keys only the collar writes. magnetometer_sample_interval_min carries SECONDS on both sides. Battery thresholds (2026-11-12): low-battery hibernation, whole percent; the collar hibernates at or below 'hibernate' and, after such a sleep, runs again only above 'resume'. A pair is valid when hibernate_min <= hibernate <= hibernate_max, resume_min <= resume <= resume_max and resume >= hibernate + min_gap: the rails of a remote push and of the Bluetooth tunnel refuse anything else, and a configurator offers nothing else. A CONFIG.CSV row is read as strtol reads it (leading digits, an optional sign); a missing or unreadable row is the default, each value is held to its range, then resume is raised to hibernate + min_gap when below it (reference.battery_thresholds_from_csv). LoRa wake (2026-11-13): three keys for listening for a Handheld Receiver. lora_wake_interval_s, one per schedule, is the seconds between the slot's listen windows: 0 = not listening (the default), configurators write 0, 10, 30 or 60, the collar holds any other non-zero value to 5..120. lora_region (global) is the direct radio's region, the DirectRegion numbers of ble.proto: 0 = automatic (the LoRaWAN region when LoRaWAN is configured, else from lora_frequency: 863-870 MHz EU868, 902-928 MHz US915), 1 = US915, 2 = EU868, 3 = AU915, 4..15 the other rule sets of direct_regions. lora_wake_long_range (global) is 0 or 1. A missing row of any of the three reads as 0, so a file written before them means what it meant. lora_region now takes 0..15 (2026-11-17): 4..15 are the rule sets of direct_regions. lora_frequency_khz (global, after lora_wake_long_range, conditional) is the direct radio's frequency in kHz, written only when it is not a whole MHz; lora_frequency then holds it rounded to the nearest MHz (a half up), and a missing row reads as 0 (use lora_frequency). Direct-radio regions (collarID_thread docs/CONTRACT_direct_regions.md, 2026-11-17), key direct_regions: a rule set is a DirectRegion value (ble.proto); 0 and any id not listed is no region and nothing is checked. Units: kHz, centi-dBm (cdBm, 1615 = 16.15 dBm), centi-dBi (cdBi), ms per hour. A band allows the channels lying wholly inside lo_khz..hi_khz at the bandwidths in bw_khz, on its grid when it has one (grid_base_khz + k x grid_step_khz, null = none), at most eirp_cdbm e.i.r.p. and conducted_dbm at the radio; budget_ms_per_h is its hourly air budget (0 = none), lbt_dbm/lbt_ms its listen-before-talk (null = none), max_send_ms/pause_ms the longest single send and the pause after it (0 = none). A rule set's default is the channel a new configuration uses, wake its wake channel (sf standard, sf_long long range). The reference is contracts/reference.py (dr_*), the C engine beacon/c/direct_rules.[ch] over the generated beacon/c/direct_rules_table.c, the vectors test_vectors/contracts_v1.json direct_regions. A device profile's below_floor (2026-11-17) says what it does in a band whose power cap is below its min_dbm: unusable (it does not send there; dr_check answers POWER_FLOOR) or send_at_floor (it sends at min_dbm; Mk III, Patrick 2026-11-17); a profile without it is unusable. Mk III (2026-11-17): antenna dBm = SX1262 dBm + 26, the SE2435L's guaranteed minimum gain (Skyworks data sheet 202412L Table 7), the chip at -17..+2 (-9..+2 in its normal PA configuration, -17..-10 in the reduced one, paDuty 0x02 / hpMax 0x02, 8 dB lower: Semtech SX1262 data sheet Table 13-21), so +9..+28 at the antenna; both numbers to be measured.",
+  "about": "The CollarID contracts that more than one repo implements: the Bluetooth service, the radio's capability answer, the firmware-update protocol, how a collar reports its build, the ErrorFlags bits and the CONFIG.CSV keys. contracts/README.md says how it is used. Change this file first, regenerate (contracts/generate.py), remake the vectors (contracts/make_vectors.py), sync (contracts/sync.py), then fix every repo whose test fails. CONFIG.CSV: every writer emits the keys in this order, every unconditional one, and nothing else; 'conditional' keys depend on the configuration (the LoRaWAN credentials on the activation type, lorawan_identity_uid on credentials from another collar); 'firmware_only' keys only the collar writes. magnetometer_sample_interval_min carries SECONDS on both sides. Battery thresholds (2026-11-12): low-battery hibernation, whole percent; the collar hibernates at or below 'hibernate' and, after such a sleep, runs again only above 'resume'. A pair is valid when hibernate_min <= hibernate <= hibernate_max, resume_min <= resume <= resume_max and resume >= hibernate + min_gap: the rails of a remote push and of the Bluetooth tunnel refuse anything else, and a configurator offers nothing else. A CONFIG.CSV row is read as strtol reads it (leading digits, an optional sign); a missing or unreadable row is the default, each value is held to its range, then resume is raised to hibernate + min_gap when below it (reference.battery_thresholds_from_csv). Saving band (2026-11-18): battery_saving_band_pct, whole points above the hibernate level, 0 = off, saving_band_min..saving_band_max, default saving_band_default. At or below hibernate + band the collar saves power to stay findable (ErrorFlags bit 17): no recording, no scheduled GPS fix, LoRaWAN check-ins at most every saving_checkin_min_s, no scheduled direct-radio reports, listening as its schedule says; before a check-in whose last fix is older than saving_gps_refresh_s it takes one fix, and each failed try doubles that wait up to saving_gps_refresh_max_s. It runs its schedule again above hibernate + band + saving_exit_gap (reference.saving_next); at or below the hibernate level, reached only while a Spotter holds it, it saves power whatever the band. While a Spotter is connected (a session open, find mode running, or its last contact under spotter_hold_s ago) the collar hibernates only at or below spotter_floor_pct instead of the hibernate level (reference.hibernate_now); its last report before a low-battery sleep carries bit 18. The rails refuse a band outside its range (rule 14); a CONFIG.CSV row is read as strtol reads it, a missing or unreadable row is the default, and the value is held to its range (reference.saving_band_from_csv). LoRa wake (2026-11-13): three keys for listening for a Handheld Receiver. lora_wake_interval_s, one per schedule, is the seconds between the slot's listen windows: 0 = not listening (the default), configurators write 0, 10, 30 or 60, the collar holds any other non-zero value to 5..120. lora_region (global) is the direct radio's region, the DirectRegion numbers of ble.proto: 0 = automatic (the LoRaWAN region when LoRaWAN is configured, else from lora_frequency: 863-870 MHz EU868, 902-928 MHz US915), 1 = US915, 2 = EU868, 3 = AU915, 4..15 the other rule sets of direct_regions. lora_wake_long_range (global) is 0 or 1. A missing row of any of the three reads as 0, so a file written before them means what it meant. lora_region now takes 0..15 (2026-11-17): 4..15 are the rule sets of direct_regions. lora_frequency_khz (global, after lora_wake_long_range, conditional) is the direct radio's frequency in kHz, written only when it is not a whole MHz; lora_frequency then holds it rounded to the nearest MHz (a half up), and a missing row reads as 0 (use lora_frequency). Direct-radio regions (collarID_thread docs/CONTRACT_direct_regions.md, 2026-11-17), key direct_regions: a rule set is a DirectRegion value (ble.proto); 0 and any id not listed is no region and nothing is checked. Units: kHz, centi-dBm (cdBm, 1615 = 16.15 dBm), centi-dBi (cdBi), ms per hour. A band allows the channels lying wholly inside lo_khz..hi_khz at the bandwidths in bw_khz, on its grid when it has one (grid_base_khz + k x grid_step_khz, null = none), at most eirp_cdbm e.i.r.p. and conducted_dbm at the radio; budget_ms_per_h is its hourly air budget (0 = none), lbt_dbm/lbt_ms its listen-before-talk (null = none), max_send_ms/pause_ms the longest single send and the pause after it (0 = none). A rule set's default is the channel a new configuration uses, wake its wake channel (sf standard, sf_long long range). The reference is contracts/reference.py (dr_*), the C engine beacon/c/direct_rules.[ch] over the generated beacon/c/direct_rules_table.c, the vectors test_vectors/contracts_v1.json direct_regions. A device profile's below_floor (2026-11-17) says what it does in a band whose power cap is below its min_dbm: unusable (it does not send there; dr_check answers POWER_FLOOR) or send_at_floor (it sends at min_dbm; Mk III, Patrick 2026-11-17); a profile without it is unusable. Mk III (2026-11-17): antenna dBm = SX1262 dBm + 26, the SE2435L's guaranteed minimum gain (Skyworks data sheet 202412L Table 7), the chip at -17..+2 (-9..+2 in its normal PA configuration, -17..-10 in the reduced one, paDuty 0x02 / hpMax 0x02, 8 dB lower: Semtech SX1262 data sheet Table 13-21), so +9..+28 at the antenna; both numbers to be measured.",
   "gatt": {
     "service": "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7",
     "update_char": "c4dd1054-f3f3-456b-8ad5-44aaa7ba4fd2",
@@ -63,7 +63,7 @@
     }
   },
   "error_flags": {
-    "first_free": 17,
+    "first_free": 19,
     "bits": [
       {
         "bit": 0,
@@ -149,6 +149,16 @@
         "bit": 16,
         "key": "no_release_unit",
         "what": "a release command reached the collar with no release unit checked in, so it was not queued (not a fault)"
+      },
+      {
+        "bit": 17,
+        "key": "saving_power",
+        "what": "the battery is low: the collar has stopped recording to stay findable, listening for a Spotter and checking in at most hourly (not a fault)"
+      },
+      {
+        "bit": 18,
+        "key": "low_battery_sleep",
+        "what": "the collar's last report before its low-battery sleep; it sends nothing until the sun brings the battery above the resume level (not a fault)"
       }
     ]
   },
@@ -173,6 +183,7 @@
         "battery_protection_min_temp_c",
         "battery_hibernate_pct",
         "battery_resume_pct",
+        "battery_saving_band_pct",
         "lorawan_activation_type",
         "lorawan_region",
         "lorawan_tx_only_on_new_gps_fix",
@@ -270,7 +281,16 @@
     "hibernate_max": 40,
     "resume_min": 10,
     "resume_max": 60,
-    "min_gap": 5
+    "min_gap": 5,
+    "saving_band_default": 5,
+    "saving_band_min": 0,
+    "saving_band_max": 15,
+    "saving_exit_gap": 5,
+    "spotter_floor_pct": 3,
+    "spotter_hold_s": 1800,
+    "saving_checkin_min_s": 3600,
+    "saving_gps_refresh_s": 14400,
+    "saving_gps_refresh_max_s": 86400
   },
   "direct_regions": {
       "rule_sets": [

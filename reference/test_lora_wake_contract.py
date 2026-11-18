@@ -621,16 +621,19 @@ class SizeBudget(unittest.TestCase):
         bp = st.battery_protection
         bp.on, bp.min_temp_c, bp.held_off, bp.die_temp_x10 = True, -30, True, -400
         st.battery_hibernate_pct, st.battery_resume_pct = 40, 60
+        st.battery_saving_band_pct, st.saving_power = 15, True     # 2026-11-18: 4 B more
         return p.SerializeToString()
 
     def test_status_packet_fits_the_characteristic(self):
         ble, _ = PB2
-        self.assertEqual(len(self._status_packet(ble, wake=False)), 127)     # the number ble.proto stated before
+        # old: 127 without the wake key, 135 with it (before the saving band and state, 2026-11-18)
+        self.assertEqual(len(self._status_packet(ble, wake=False)), 131)
         with_wake = self._status_packet(ble, wake=True)
-        self.assertEqual(len(with_wake), 135)                                # ... and states now
+        self.assertEqual(len(with_wake), 139)                                # what ble.proto states now
         self.assertLessEqual(len(with_wake), STATUS_CHAR_CAP)
         # Why wake_group stays on the echo: with it the packet would not fit.
-        self.assertEqual(len(self._status_packet(ble, wake=True, group=True)), 141)
+        # old: self.assertEqual(len(self._status_packet(ble, wake=True, group=True)), 141)
+        self.assertEqual(len(self._status_packet(ble, wake=True, group=True)), 146)
         self.assertGreater(len(self._status_packet(ble, wake=True, group=True)), STATUS_CHAR_CAP)
         r = ble.BlePacket.FromString(with_wake).system_state_packet.beacon_key
         self.assertEqual((r.wake_gen, r.wake_kcv, r.wake_group, r.tx_counter), (255, KCV, 0, 0))

@@ -2092,12 +2092,14 @@ struct SystemStatePacket: @unchecked Sendable {
   /// and keep their old value when handed a longer one, so the whole BlePacket
   /// must stay at or under 140 B. The collar fills battery, sdcard,
   /// firmware_version, hw_diag, this field, board, battery_protection and the
-  /// two battery thresholds, never gps_data or sensors: at most 135 B with
-  /// every one of those at its largest (95 B before the card's identity in
-  /// SDCardState, v1.24.0, 106 B before board and battery_protection, 123 B
-  /// before the battery thresholds, 127 B before the wake key's two fields;
-  /// the firmware's test_radio_crypto measures each). wake_group would add
-  /// up to 6 B more and pass the 140 B, which is why it stays on the echo.
+  /// two battery thresholds, the saving band and the saving state, never
+  /// gps_data or sensors: at most 139 B with every one of those at its largest
+  /// (95 B before the card's identity in SDCardState, v1.24.0, 106 B before
+  /// board and battery_protection, 123 B before the battery thresholds, 127 B
+  /// before the wake key's two fields, 135 B before the saving band and
+  /// state; the firmware's test_radio_crypto measures each). 1 B is left: a
+  /// further field needs room made first. wake_group would add up to 6 B more
+  /// and pass the 140 B, which is why it stays on the echo.
   var beaconKey: BeaconKeyReport {
     get {return _storage._beaconKey ?? BeaconKeyReport()}
     set {_uniqueStorage()._beaconKey = newValue}
@@ -2158,6 +2160,29 @@ struct SystemStatePacket: @unchecked Sendable {
   var hasBatteryResumePct: Bool {return _storage._batteryResumePct != nil}
   /// Clears the value of `batteryResumePct`. Subsequent reads from it will return its default value.
   mutating func clearBatteryResumePct() {_uniqueStorage()._batteryResumePct = nil}
+
+  /// The saving band as the collar runs it, whole points above
+  /// battery_hibernate_pct, 0 = off (downlink.proto
+  /// ConfigSystem.battery_saving_band_pct; CONFIG.CSV key of the same name).
+  /// Present on every status packet from firmware that has the setting (fw
+  /// gate: the firmware build that lands it, set at merge), absent before:
+  /// presence is how a client tells "not supported". 2 B.
+  var batterySavingBandPct: UInt32 {
+    get {return _storage._batterySavingBandPct ?? 0}
+    set {_uniqueStorage()._batterySavingBandPct = newValue}
+  }
+  /// Returns true if `batterySavingBandPct` has been explicitly set.
+  var hasBatterySavingBandPct: Bool {return _storage._batterySavingBandPct != nil}
+  /// Clears the value of `batterySavingBandPct`. Subsequent reads from it will return its default value.
+  mutating func clearBatterySavingBandPct() {_uniqueStorage()._batterySavingBandPct = nil}
+
+  /// True while the collar saves power (ErrorFlags bit 17 SAVING_POWER on
+  /// LoRaWAN): recording stopped to stay findable. Only sent when true: 2 B,
+  /// 139 B for the worst status packet with a wake key.
+  var savingPower: Bool {
+    get {return _storage._savingPower}
+    set {_uniqueStorage()._savingPower = newValue}
+  }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -4049,6 +4074,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     10: .standard(proto: "battery_protection"),
     11: .standard(proto: "battery_hibernate_pct"),
     12: .standard(proto: "battery_resume_pct"),
+    13: .standard(proto: "battery_saving_band_pct"),
+    14: .standard(proto: "saving_power"),
   ]
 
   fileprivate class _StorageClass {
@@ -4064,6 +4091,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
     var _batteryProtection: BatteryProtectionReport? = nil
     var _batteryHibernatePct: UInt32? = nil
     var _batteryResumePct: UInt32? = nil
+    var _batterySavingBandPct: UInt32? = nil
+    var _savingPower: Bool = false
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -4090,6 +4119,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       _batteryProtection = source._batteryProtection
       _batteryHibernatePct = source._batteryHibernatePct
       _batteryResumePct = source._batteryResumePct
+      _batterySavingBandPct = source._batterySavingBandPct
+      _savingPower = source._savingPower
     }
   }
 
@@ -4120,6 +4151,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         case 10: try { try decoder.decodeSingularMessageField(value: &_storage._batteryProtection) }()
         case 11: try { try decoder.decodeSingularUInt32Field(value: &_storage._batteryHibernatePct) }()
         case 12: try { try decoder.decodeSingularUInt32Field(value: &_storage._batteryResumePct) }()
+        case 13: try { try decoder.decodeSingularUInt32Field(value: &_storage._batterySavingBandPct) }()
+        case 14: try { try decoder.decodeSingularBoolField(value: &_storage._savingPower) }()
         default: break
         }
       }
@@ -4168,6 +4201,12 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
       try { if let v = _storage._batteryResumePct {
         try visitor.visitSingularUInt32Field(value: v, fieldNumber: 12)
       } }()
+      try { if let v = _storage._batterySavingBandPct {
+        try visitor.visitSingularUInt32Field(value: v, fieldNumber: 13)
+      } }()
+      if _storage._savingPower != false {
+        try visitor.visitSingularBoolField(value: _storage._savingPower, fieldNumber: 14)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -4189,6 +4228,8 @@ extension SystemStatePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         if _storage._batteryProtection != rhs_storage._batteryProtection {return false}
         if _storage._batteryHibernatePct != rhs_storage._batteryHibernatePct {return false}
         if _storage._batteryResumePct != rhs_storage._batteryResumePct {return false}
+        if _storage._batterySavingBandPct != rhs_storage._batterySavingBandPct {return false}
+        if _storage._savingPower != rhs_storage._savingPower {return false}
         return true
       }
       if !storagesAreEqual {return false}

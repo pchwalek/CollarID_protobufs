@@ -464,6 +464,21 @@ message ConfigSystem {
   // skips them and leaves its thresholds as they were.
   optional uint32 battery_hibernate_pct = 5;
   optional uint32 battery_resume_pct    = 6;
+  // The saving band, whole points above battery_hibernate_pct (2026-11-18;
+  // fw gate: the firmware build that lands it, set at merge). At or below
+  // hibernate + band the collar saves power to stay findable: it stops
+  // recording (sound, movement, magnetometer, environmental, particulate) and
+  // its scheduled GPS fixes, sends LoRaWAN check-ins at most hourly and no
+  // scheduled direct-radio reports, and keeps listening for a Spotter as its
+  // schedule says. It runs its schedule again once the battery reads above
+  // hibernate + band + 5. 0 = off; 0..15, default 5; CONFIG.CSV key of the
+  // same name (contracts/collarid_contracts.json battery_thresholds). Absent
+  // = leave the collar's value alone; staged and applied at COMMIT with the
+  // pair above; a value outside 0..15 refuses the transaction under rule 14
+  // (SCHED_RAIL_BAD_BATTERY_THRESHOLDS). Reported in the system fragment and
+  // on Bluetooth in SystemStatePacket field 13. Firmware that predates the
+  // field skips it.
+  optional uint32 battery_saving_band_pct = 7;
 }
 
 // Geofence definition, delivered through the config transaction one

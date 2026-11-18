@@ -774,7 +774,8 @@ class StatusReadContract(unittest.TestCase):
                          {"engage_state": 1, "battery": 2, "sdcard": 3, "gps_data": 4,
                           "sensors": 5, "firmware_version": 6, "hw_diag": 7,
                           "board": 9, "battery_protection": 10,
-                          "battery_hibernate_pct": 11, "battery_resume_pct": 12})
+                          "battery_hibernate_pct": 11, "battery_resume_pct": 12,
+                          "battery_saving_band_pct": 13, "saving_power": 14})
 
     def test_same_report_as_the_echo(self):
         # One message for both places, so a client reads them with one decoder.
@@ -788,7 +789,8 @@ class StatusReadContract(unittest.TestCase):
                        "a READ restarts nothing", "tx_counter always 0",
                        "Present and empty", "140 B", "never gps_data or sensors",
                        # old: "at most 127 B" (before the wake key's two fields)
-                       "at most 135 B", "never wake_group here", "Never a key byte"):
+                       # old: "at most 135 B" (before the saving band and state, 2026-11-18)
+                       "at most 139 B", "1 B is left", "never wake_group here", "Never a key byte"):
             self.assertIn(phrase, c, phrase)
         self.assertRegex(read("ble.options"),
                          r"SystemStatePacket\.beacon_key, tx_counter never sent there")
@@ -813,7 +815,10 @@ class StatusReadGenerated(unittest.TestCase):
         # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+215\b")
         # 232 with the wake key's fields in BeaconKeyReport (17 more in nanopb's bound); what
         # the collar sends is at most 135 B (test_lora_wake_contract.py builds it).
-        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+232\b")
+        # old: self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+232\b")
+        # 240 with the saving band (6 as uint32) and the saving state (2); what the
+        # collar sends is at most 139 B (2026-11-18).
+        self.assertRegex(h, r"#define SYSTEM_STATE_PACKET_SIZE\s+240\b")
 
     def test_swift(self):
         s = read("ble.pb.swift")

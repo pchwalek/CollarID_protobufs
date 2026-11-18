@@ -3,7 +3,7 @@
 #define COLLARID_CONTRACTS_H
 
 #define CID_CONTRACTS_VERSION 1u
-#define CID_CONTRACTS_SHA256 "3518fbbcf877c516d80b6f681f2e73a9336bb9195790c2703dd54c7b3c723844"
+#define CID_CONTRACTS_SHA256 "51c93f329a9e4392bb26d7f76e3616f63f8036bd229a3b8afe635729ec148b75"
 
 /* Bluetooth service and characteristics */
 #define CID_GATT_SERVICE "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7"
@@ -73,7 +73,9 @@
 #define CID_ERROR_FLAG_CARD_MISSING (1u << 14)   /* running without its memory card (location only) */
 #define CID_ERROR_FLAG_CHARGE_HELD_OFF (1u << 15)   /* battery protection holds the solar charger off: too cold to charge (not a fault) */
 #define CID_ERROR_FLAG_NO_RELEASE_UNIT (1u << 16)   /* a release command reached the collar with no release unit checked in, so it was not queued (not a fault) */
-#define CID_ERROR_FLAGS_FIRST_FREE 17u
+#define CID_ERROR_FLAG_SAVING_POWER (1u << 17)   /* the battery is low: the collar has stopped recording to stay findable, listening for a Spotter and checking in at most hourly (not a fault) */
+#define CID_ERROR_FLAG_LOW_BATTERY_SLEEP (1u << 18)   /* the collar's last report before its low-battery sleep; it sends nothing until the sun brings the battery above the resume level (not a fault) */
+#define CID_ERROR_FLAGS_FIRST_FREE 19u
 
 /* CONFIG.CSV: X-macro lists, X("key") per key, in file order */
 #define CID_CONFIG_CSV_SCHEDULE_HEADER "parameter_name"
@@ -95,6 +97,7 @@
     X("battery_protection_min_temp_c") \
     X("battery_hibernate_pct") \
     X("battery_resume_pct") \
+    X("battery_saving_band_pct") \
     X("lorawan_activation_type") \
     X("lorawan_region") \
     X("lorawan_tx_only_on_new_gps_fix") \
@@ -125,7 +128,7 @@
     X("lorawan_f_nwk_s_int_key") \
     X("lorawan_s_nwk_s_int_key") \
 
-#define CID_CONFIG_CSV_GLOBAL_COUNT 45u
+#define CID_CONFIG_CSV_GLOBAL_COUNT 46u
 #define CID_CONFIG_CSV_SCHEDULE_KEYS(X) \
     X("start_hour") \
     X("end_hour") \
@@ -194,6 +197,15 @@
 #define CID_BATT_RESUME_MIN 10u
 #define CID_BATT_RESUME_MAX 60u
 #define CID_BATT_MIN_GAP 5u
+#define CID_BATT_SAVING_BAND_DEFAULT 5u
+#define CID_BATT_SAVING_BAND_MIN 0u
+#define CID_BATT_SAVING_BAND_MAX 15u
+#define CID_BATT_SAVING_EXIT_GAP 5u
+#define CID_BATT_SPOTTER_FLOOR_PCT 3u
+#define CID_BATT_SPOTTER_HOLD_S 1800u
+#define CID_BATT_SAVING_CHECKIN_MIN_S 3600u
+#define CID_BATT_SAVING_GPS_REFRESH_S 14400u
+#define CID_BATT_SAVING_GPS_REFRESH_MAX_S 86400u
 
 /* Direct-radio regions (CONTRACT_direct_regions.md): ids are ble.proto DirectRegion */
 #define CID_DR_TABLE_SHA256 "d4dcd845c5a71182658e8580401f6758d8bf9a81e41741fa68593ed36e06d559"
