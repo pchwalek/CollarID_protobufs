@@ -1710,6 +1710,40 @@ struct ScheduleConfigPacket: @unchecked Sendable {
 
   var zoneDst: UInt32 = 0
 
+  /// Schedule in parts (2026-11-24, collarID_thread docs/DESIGN_schedule_parts.md;
+  /// fw gate SCHED_PARTS_MIN_FW_BUILD, set at merge). One Bluetooth write
+  /// carries 182 B (the 185-byte MTU macOS and iOS negotiate; the radios
+  /// answer no long writes), and a schedule of three full time blocks is
+  /// ~230 B. Such a schedule used to go through the config tunnel one
+  /// setting per frame (~32 frames); now the writer encodes the WHOLE
+  /// BlePacket it would have written in one go and cuts its bytes into
+  /// parts of at most 128 B, each written as its own schedule-arm frame:
+  ///   sched_part        this part's bytes
+  ///   sched_part_index  0-based; part 0 starts a new whole (any earlier
+  ///                     unfinished one is dropped)
+  ///   sched_part_total  how many parts the whole has, 2..5
+  ///   sched_part_len    the whole's length in bytes (<= 640)
+  ///   sched_part_crc    CRC-32 (IEEE, as zlib) of the whole's bytes
+  /// Every part frame ALSO carries ble_query = 1, so firmware that predates
+  /// parts takes it as a status query (an echo, nothing changed) instead of
+  /// an empty schedule write; the echo's sched_part_status is then absent,
+  /// which tells the writer to stop. The collar echoes every part
+  /// (CfgEchoPacket.sched_part_status; pace on echo_seq, the settings blob
+  /// is one mailbox), and after the last one joins the parts, checks length
+  /// and CRC, decodes the whole and handles it exactly as a single schedule
+  /// write (writer revision check, apply, save), then echoes the outcome.
+  /// The three radios store and forward these unknown fields untouched
+  /// (fields 1-3 is all the WB schemas know; the nRF does not decode).
+  var schedPart: Data = Data()
+
+  var schedPartIndex: UInt32 = 0
+
+  var schedPartTotal: UInt32 = 0
+
+  var schedPartLen: UInt32 = 0
+
+  var schedPartCrc: UInt32 = 0
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
@@ -1881,6 +1915,29 @@ struct CfgEchoPacket: @unchecked Sendable {
   var cmdResult: UInt32 {
     get {return _storage._cmdResult}
     set {_uniqueStorage()._cmdResult = newValue}
+  }
+
+  ///
+  /// Schedule in parts (ScheduleConfigPacket.sched_part, 2026-11-24): the
+  /// answer to a part frame. Absent (0) on every other echo, and on firmware
+  /// that predates parts, which is how a writer tells it must stop.
+  ///   1  part kept: write part sched_part_next
+  ///   2  the whole schedule was taken and saved
+  ///   3  refused, nothing changed: a part out of order, more parts than
+  ///      said, or the joined bytes do not match sched_part_len / _crc.
+  ///      Start again from part 0.
+  ///   4  refused, nothing changed: the writer's revision (writer_version)
+  ///      is older than a feature of the collar's schedule (as a single write)
+  ///   5  refused, nothing changed: the joined bytes are not a schedule write
+  ///      (no decode, another payload arm, or longer than 640 B)
+  var schedPartStatus: UInt32 {
+    get {return _storage._schedPartStatus}
+    set {_uniqueStorage()._schedPartStatus = newValue}
+  }
+
+  var schedPartNext: UInt32 {
+    get {return _storage._schedPartNext}
+    set {_uniqueStorage()._schedPartNext = newValue}
   }
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -3566,6 +3623,11 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     7: .standard(proto: "writer_version"),
     8: .standard(proto: "zone_std_qh"),
     9: .standard(proto: "zone_dst"),
+    10: .standard(proto: "sched_part"),
+    11: .standard(proto: "sched_part_index"),
+    12: .standard(proto: "sched_part_total"),
+    13: .standard(proto: "sched_part_len"),
+    14: .standard(proto: "sched_part_crc"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -3583,6 +3645,11 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
       case 7: try { try decoder.decodeSingularUInt32Field(value: &self.writerVersion) }()
       case 8: try { try decoder.decodeSingularSInt32Field(value: &self.zoneStdQh) }()
       case 9: try { try decoder.decodeSingularUInt32Field(value: &self.zoneDst) }()
+      case 10: try { try decoder.decodeSingularBytesField(value: &self.schedPart) }()
+      case 11: try { try decoder.decodeSingularUInt32Field(value: &self.schedPartIndex) }()
+      case 12: try { try decoder.decodeSingularUInt32Field(value: &self.schedPartTotal) }()
+      case 13: try { try decoder.decodeSingularUInt32Field(value: &self.schedPartLen) }()
+      case 14: try { try decoder.decodeSingularUInt32Field(value: &self.schedPartCrc) }()
       default: break
       }
     }
@@ -3620,6 +3687,21 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     if self.zoneDst != 0 {
       try visitor.visitSingularUInt32Field(value: self.zoneDst, fieldNumber: 9)
     }
+    if !self.schedPart.isEmpty {
+      try visitor.visitSingularBytesField(value: self.schedPart, fieldNumber: 10)
+    }
+    if self.schedPartIndex != 0 {
+      try visitor.visitSingularUInt32Field(value: self.schedPartIndex, fieldNumber: 11)
+    }
+    if self.schedPartTotal != 0 {
+      try visitor.visitSingularUInt32Field(value: self.schedPartTotal, fieldNumber: 12)
+    }
+    if self.schedPartLen != 0 {
+      try visitor.visitSingularUInt32Field(value: self.schedPartLen, fieldNumber: 13)
+    }
+    if self.schedPartCrc != 0 {
+      try visitor.visitSingularUInt32Field(value: self.schedPartCrc, fieldNumber: 14)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3633,6 +3715,11 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     if lhs.writerVersion != rhs.writerVersion {return false}
     if lhs.zoneStdQh != rhs.zoneStdQh {return false}
     if lhs.zoneDst != rhs.zoneDst {return false}
+    if lhs.schedPart != rhs.schedPart {return false}
+    if lhs.schedPartIndex != rhs.schedPartIndex {return false}
+    if lhs.schedPartTotal != rhs.schedPartTotal {return false}
+    if lhs.schedPartLen != rhs.schedPartLen {return false}
+    if lhs.schedPartCrc != rhs.schedPartCrc {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3658,6 +3745,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     15: .standard(proto: "beacon_key"),
     16: .standard(proto: "mag_cal"),
     17: .standard(proto: "cmd_result"),
+    18: .standard(proto: "sched_part_status"),
+    19: .standard(proto: "sched_part_next"),
   ]
 
   fileprivate class _StorageClass {
@@ -3678,6 +3767,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     var _beaconKey: BeaconKeyReport? = nil
     var _magCal: MagCalReport? = nil
     var _cmdResult: UInt32 = 0
+    var _schedPartStatus: UInt32 = 0
+    var _schedPartNext: UInt32 = 0
 
     #if swift(>=5.10)
       // This property is used as the initial default value for new instances of the type.
@@ -3709,6 +3800,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       _beaconKey = source._beaconKey
       _magCal = source._magCal
       _cmdResult = source._cmdResult
+      _schedPartStatus = source._schedPartStatus
+      _schedPartNext = source._schedPartNext
     }
   }
 
@@ -3744,6 +3837,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         case 15: try { try decoder.decodeSingularMessageField(value: &_storage._beaconKey) }()
         case 16: try { try decoder.decodeSingularMessageField(value: &_storage._magCal) }()
         case 17: try { try decoder.decodeSingularUInt32Field(value: &_storage._cmdResult) }()
+        case 18: try { try decoder.decodeSingularUInt32Field(value: &_storage._schedPartStatus) }()
+        case 19: try { try decoder.decodeSingularUInt32Field(value: &_storage._schedPartNext) }()
         default: break
         }
       }
@@ -3807,6 +3902,12 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
       if _storage._cmdResult != 0 {
         try visitor.visitSingularUInt32Field(value: _storage._cmdResult, fieldNumber: 17)
       }
+      if _storage._schedPartStatus != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._schedPartStatus, fieldNumber: 18)
+      }
+      if _storage._schedPartNext != 0 {
+        try visitor.visitSingularUInt32Field(value: _storage._schedPartNext, fieldNumber: 19)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3833,6 +3934,8 @@ extension CfgEchoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         if _storage._beaconKey != rhs_storage._beaconKey {return false}
         if _storage._magCal != rhs_storage._magCal {return false}
         if _storage._cmdResult != rhs_storage._cmdResult {return false}
+        if _storage._schedPartStatus != rhs_storage._schedPartStatus {return false}
+        if _storage._schedPartNext != rhs_storage._schedPartNext {return false}
         return true
       }
       if !storagesAreEqual {return false}

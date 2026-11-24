@@ -453,6 +453,36 @@ message ScheduleConfigPacket {
   // schedule_zone_std_qh and schedule_zone_dst. 2-4 B.
   sint32 zone_std_qh = 8;
   uint32 zone_dst    = 9;
+
+  // Schedule in parts (2026-11-24, collarID_thread docs/DESIGN_schedule_parts.md;
+  // fw gate SCHED_PARTS_MIN_FW_BUILD, set at merge). One Bluetooth write
+  // carries 182 B (the 185-byte MTU macOS and iOS negotiate; the radios
+  // answer no long writes), and a schedule of three full time blocks is
+  // ~230 B. Such a schedule used to go through the config tunnel one
+  // setting per frame (~32 frames); now the writer encodes the WHOLE
+  // BlePacket it would have written in one go and cuts its bytes into
+  // parts of at most 128 B, each written as its own schedule-arm frame:
+  //   sched_part        this part's bytes
+  //   sched_part_index  0-based; part 0 starts a new whole (any earlier
+  //                     unfinished one is dropped)
+  //   sched_part_total  how many parts the whole has, 2..5
+  //   sched_part_len    the whole's length in bytes (<= 640)
+  //   sched_part_crc    CRC-32 (IEEE, as zlib) of the whole's bytes
+  // Every part frame ALSO carries ble_query = 1, so firmware that predates
+  // parts takes it as a status query (an echo, nothing changed) instead of
+  // an empty schedule write; the echo's sched_part_status is then absent,
+  // which tells the writer to stop. The collar echoes every part
+  // (CfgEchoPacket.sched_part_status; pace on echo_seq, the settings blob
+  // is one mailbox), and after the last one joins the parts, checks length
+  // and CRC, decodes the whole and handles it exactly as a single schedule
+  // write (writer revision check, apply, save), then echoes the outcome.
+  // The three radios store and forward these unknown fields untouched
+  // (fields 1-3 is all the WB schemas know; the nRF does not decode).
+  bytes  sched_part       = 10;   // max 128 B
+  uint32 sched_part_index = 11;
+  uint32 sched_part_total = 12;
+  uint32 sched_part_len   = 13;
+  uint32 sched_part_crc   = 14;
 }
 
 // The BLE tunnel echo body. fence_report (ble_query=2 responses) is a
@@ -532,6 +562,21 @@ message CfgEchoPacket {
   // locate over the tunnel and started nothing). On that frame's echo only.
   // 3 B on the wire when present.
   uint32 cmd_result = 17;
+  //
+  // Schedule in parts (ScheduleConfigPacket.sched_part, 2026-11-24): the
+  // answer to a part frame. Absent (0) on every other echo, and on firmware
+  // that predates parts, which is how a writer tells it must stop.
+  //   1  part kept: write part sched_part_next
+  //   2  the whole schedule was taken and saved
+  //   3  refused, nothing changed: a part out of order, more parts than
+  //      said, or the joined bytes do not match sched_part_len / _crc.
+  //      Start again from part 0.
+  //   4  refused, nothing changed: the writer's revision (writer_version)
+  //      is older than a feature of the collar's schedule (as a single write)
+  //   5  refused, nothing changed: the joined bytes are not a schedule write
+  //      (no decode, another payload arm, or longer than 640 B)
+  uint32 sched_part_status = 18;
+  uint32 sched_part_next   = 19;
 }
 
 // ---- Magnetometer calibration report (CfgEchoPacket.mag_cal) ----

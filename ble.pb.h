@@ -612,9 +612,24 @@ typedef struct cfg_echo_packet {
  locate over the tunnel and started nothing). On that frame's echo only.
  3 B on the wire when present. */
     uint32_t cmd_result;
+    /* Schedule in parts (ScheduleConfigPacket.sched_part, 2026-11-24): the
+ answer to a part frame. Absent (0) on every other echo, and on firmware
+ that predates parts, which is how a writer tells it must stop.
+   1  part kept: write part sched_part_next
+   2  the whole schedule was taken and saved
+   3  refused, nothing changed: a part out of order, more parts than
+      said, or the joined bytes do not match sched_part_len / _crc.
+      Start again from part 0.
+   4  refused, nothing changed: the writer's revision (writer_version)
+      is older than a feature of the collar's schedule (as a single write)
+   5  refused, nothing changed: the joined bytes are not a schedule write
+      (no decode, another payload arm, or longer than 640 B) */
+    uint32_t sched_part_status;
+    uint32_t sched_part_next;
 } cfg_echo_packet_t;
 
 typedef PB_BYTES_ARRAY_T(96) schedule_config_packet_cfg_downlink_t;
+typedef PB_BYTES_ARRAY_T(128) schedule_config_packet_sched_part_t;
 /* can include multiple schedules */
 typedef struct schedule_config_packet {
     bool engaged;
@@ -689,6 +704,35 @@ typedef struct schedule_config_packet {
  schedule_zone_std_qh and schedule_zone_dst. 2-4 B. */
     int32_t zone_std_qh;
     uint32_t zone_dst;
+    /* Schedule in parts (2026-11-24, collarID_thread docs/DESIGN_schedule_parts.md;
+ fw gate SCHED_PARTS_MIN_FW_BUILD, set at merge). One Bluetooth write
+ carries 182 B (the 185-byte MTU macOS and iOS negotiate; the radios
+ answer no long writes), and a schedule of three full time blocks is
+ ~230 B. Such a schedule used to go through the config tunnel one
+ setting per frame (~32 frames); now the writer encodes the WHOLE
+ BlePacket it would have written in one go and cuts its bytes into
+ parts of at most 128 B, each written as its own schedule-arm frame:
+   sched_part        this part's bytes
+   sched_part_index  0-based; part 0 starts a new whole (any earlier
+                     unfinished one is dropped)
+   sched_part_total  how many parts the whole has, 2..5
+   sched_part_len    the whole's length in bytes (<= 640)
+   sched_part_crc    CRC-32 (IEEE, as zlib) of the whole's bytes
+ Every part frame ALSO carries ble_query = 1, so firmware that predates
+ parts takes it as a status query (an echo, nothing changed) instead of
+ an empty schedule write; the echo's sched_part_status is then absent,
+ which tells the writer to stop. The collar echoes every part
+ (CfgEchoPacket.sched_part_status; pace on echo_seq, the settings blob
+ is one mailbox), and after the last one joins the parts, checks length
+ and CRC, decodes the whole and handles it exactly as a single schedule
+ write (writer revision check, apply, save), then echoes the outcome.
+ The three radios store and forward these unknown fields untouched
+ (fields 1-3 is all the WB schemas know; the nRF does not decode). */
+    schedule_config_packet_sched_part_t sched_part; /* max 128 B */
+    uint32_t sched_part_index;
+    uint32_t sched_part_total;
+    uint32_t sched_part_len;
+    uint32_t sched_part_crc;
 } schedule_config_packet_t;
 
 typedef struct simple_sensor_reading {
@@ -992,8 +1036,8 @@ extern "C" {
 #define ACCELEROMETER_CONFIG_INIT_DEFAULT        {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT, 0}
-#define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0, 0, 0}
-#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, MAG_CAL_REPORT_INIT_DEFAULT, 0}
+#define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0, 0, 0, {0, {0}}, 0, 0, 0, 0}
+#define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, MAG_CAL_REPORT_INIT_DEFAULT, 0, 0, 0}
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_DEFAULT       {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
@@ -1017,8 +1061,8 @@ extern "C" {
 #define ACCELEROMETER_CONFIG_INIT_ZERO           {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO, 0}
-#define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0, 0, 0}
-#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, MAG_CAL_REPORT_INIT_ZERO, 0}
+#define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0, 0, 0, {0, {0}}, 0, 0, 0, 0}
+#define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, MAG_CAL_REPORT_INIT_ZERO, 0, 0, 0}
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
 #define SIMPLE_SENSOR_READING_INIT_ZERO          {0, 0, 0, 0, 0, 0, 0, _ACTIVITY_MIN, 0, 0, 0, 0}
@@ -1145,6 +1189,8 @@ extern "C" {
 #define CFG_ECHO_PACKET_BEACON_KEY_TAG           15
 #define CFG_ECHO_PACKET_MAG_CAL_TAG              16
 #define CFG_ECHO_PACKET_CMD_RESULT_TAG           17
+#define CFG_ECHO_PACKET_SCHED_PART_STATUS_TAG    18
+#define CFG_ECHO_PACKET_SCHED_PART_NEXT_TAG      19
 #define SCHEDULE_CONFIG_PACKET_ENGAGED_TAG       1
 #define SCHEDULE_CONFIG_PACKET_SCHEDULES_TAG     2
 #define SCHEDULE_CONFIG_PACKET_SPECIAL_MODE_TAG  3
@@ -1154,6 +1200,11 @@ extern "C" {
 #define SCHEDULE_CONFIG_PACKET_WRITER_VERSION_TAG 7
 #define SCHEDULE_CONFIG_PACKET_ZONE_STD_QH_TAG   8
 #define SCHEDULE_CONFIG_PACKET_ZONE_DST_TAG      9
+#define SCHEDULE_CONFIG_PACKET_SCHED_PART_TAG    10
+#define SCHEDULE_CONFIG_PACKET_SCHED_PART_INDEX_TAG 11
+#define SCHEDULE_CONFIG_PACKET_SCHED_PART_TOTAL_TAG 12
+#define SCHEDULE_CONFIG_PACKET_SCHED_PART_LEN_TAG 13
+#define SCHEDULE_CONFIG_PACKET_SCHED_PART_CRC_TAG 14
 #define SIMPLE_SENSOR_READING_INDEX_TAG          1
 #define SIMPLE_SENSOR_READING_TEMPERATURE_TAG    2
 #define SIMPLE_SENSOR_READING_HUMIDITY_TAG       3
@@ -1358,7 +1409,12 @@ X(a, STATIC,   SINGULAR, UINT32,   ble_query,         5) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_echo,          6) \
 X(a, STATIC,   SINGULAR, UINT32,   writer_version,    7) \
 X(a, STATIC,   SINGULAR, SINT32,   zone_std_qh,       8) \
-X(a, STATIC,   SINGULAR, UINT32,   zone_dst,          9)
+X(a, STATIC,   SINGULAR, UINT32,   zone_dst,          9) \
+X(a, STATIC,   SINGULAR, BYTES,    sched_part,       10) \
+X(a, STATIC,   SINGULAR, UINT32,   sched_part_index,  11) \
+X(a, STATIC,   SINGULAR, UINT32,   sched_part_total,  12) \
+X(a, STATIC,   SINGULAR, UINT32,   sched_part_len,   13) \
+X(a, STATIC,   SINGULAR, UINT32,   sched_part_crc,   14)
 #define SCHEDULE_CONFIG_PACKET_CALLBACK NULL
 #define SCHEDULE_CONFIG_PACKET_DEFAULT NULL
 #define schedule_config_packet_t_schedules_MSGTYPE schedule_config_t
@@ -1381,7 +1437,9 @@ X(a, STATIC,   SINGULAR, UINT32,   schedule_count,   13) \
 X(a, STATIC,   SINGULAR, BOOL,     engaged,          14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  beacon_key,       15) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  mag_cal,          16) \
-X(a, STATIC,   SINGULAR, UINT32,   cmd_result,       17)
+X(a, STATIC,   SINGULAR, UINT32,   cmd_result,       17) \
+X(a, STATIC,   SINGULAR, UINT32,   sched_part_status,  18) \
+X(a, STATIC,   SINGULAR, UINT32,   sched_part_next,  19)
 #define CFG_ECHO_PACKET_CALLBACK NULL
 #define CFG_ECHO_PACKET_DEFAULT NULL
 #define cfg_echo_packet_t_beacon_key_MSGTYPE beacon_key_report_t
@@ -1553,7 +1611,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define BATTERY_PROTECTION_REPORT_SIZE           16
 #define BEACON_KEY_REPORT_SIZE                   38
 #define BOARD_IDENTITY_SIZE                      4
-#define CFG_ECHO_PACKET_SIZE                     375
+#define CFG_ECHO_PACKET_SIZE                     389
 #define GPS_CONFIG_SIZE                          44
 #define LOST_MODE_CONFIG_SIZE                    23
 #define LO_RA_CONFIG_SIZE                        41
@@ -1567,7 +1625,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 191
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1453
+#define SCHEDULE_CONFIG_PACKET_SIZE              1622
 #define SCHEDULE_CONFIG_SIZE                     186
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 240

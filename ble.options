@@ -12,6 +12,10 @@ ScheduleConfigPacket.schedules        max_count:5
 # (1 + 16 + 8 verts x 8 B = 81 B worst case). The whole echo BlePacket stays
 # well under the 350 B characteristic cap the deployed WB chips enforce.
 ScheduleConfigPacket.cfg_downlink     max_size:96
+# sched_part: one part of a whole schedule write (2026-11-24). 128 B keeps the
+# part frame (BlePacket + ble_query + the part's index/total/len/crc) under the
+# 182 B single write, and five parts cover the largest whole (640 B).
+ScheduleConfigPacket.sched_part       max_size:128
 CfgEchoPacket.fence_report            max_size:88
 # slot_report: one ScheduleConfig, nanopb-lean. 128 keeps the whole echo
 # BlePacket under the 182 B single-read limit for any realistic slot.
