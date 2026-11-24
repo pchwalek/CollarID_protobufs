@@ -1691,7 +1691,24 @@ struct ScheduleConfigPacket: @unchecked Sendable {
   ///       collar with a listening slot (an interval above 0) refuses a
   ///       schedule write from a version below 2; a schedule with no
   ///       listening slot is still taken from older writers.
+  ///   3 = knows zone_std_qh / zone_dst (fw gate: SCHEDULE_ZONE_MIN_FW_BUILD,
+  ///       set at merge). A collar whose schedule has a zone refuses a
+  ///       schedule write from a version below 3.
   var writerVersion: UInt32 = 0
+
+  /// Schedule zone (2026-11-23, contracts schedule_zone, collarID_thread
+  /// docs/DESIGN_schedule_zone.md). When either is not 0 the schedule's hours,
+  /// weekdays and dates (TimeWindow start_hour / end_hour / day_mask /
+  /// start_day / end_day) are judged in local time, not UTC: UTC + zone_std_qh
+  /// quarter hours + the summer time of rule zone_dst while it runs. Both 0
+  /// (absent) is UTC, as before, so an unzoned schedule encodes, and keeps its
+  /// sched_crc, exactly as it did. zone_std_qh: -48..56 (-28 = Mountain time);
+  /// zone_dst: an id of contracts schedule_zone.rules (0 none, 1 US/Canada,
+  /// 2 Europe, 3 south-east Australia, 4 New Zealand). CONFIG.CSV keys
+  /// schedule_zone_std_qh and schedule_zone_dst. 2-4 B.
+  var zoneStdQh: Int32 = 0
+
+  var zoneDst: UInt32 = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -3547,6 +3564,8 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     5: .standard(proto: "ble_query"),
     6: .standard(proto: "cfg_echo"),
     7: .standard(proto: "writer_version"),
+    8: .standard(proto: "zone_std_qh"),
+    9: .standard(proto: "zone_dst"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -3562,6 +3581,8 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
       case 5: try { try decoder.decodeSingularUInt32Field(value: &self.bleQuery) }()
       case 6: try { try decoder.decodeSingularMessageField(value: &self._cfgEcho) }()
       case 7: try { try decoder.decodeSingularUInt32Field(value: &self.writerVersion) }()
+      case 8: try { try decoder.decodeSingularSInt32Field(value: &self.zoneStdQh) }()
+      case 9: try { try decoder.decodeSingularUInt32Field(value: &self.zoneDst) }()
       default: break
       }
     }
@@ -3593,6 +3614,12 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     if self.writerVersion != 0 {
       try visitor.visitSingularUInt32Field(value: self.writerVersion, fieldNumber: 7)
     }
+    if self.zoneStdQh != 0 {
+      try visitor.visitSingularSInt32Field(value: self.zoneStdQh, fieldNumber: 8)
+    }
+    if self.zoneDst != 0 {
+      try visitor.visitSingularUInt32Field(value: self.zoneDst, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3604,6 +3631,8 @@ extension ScheduleConfigPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     if lhs.bleQuery != rhs.bleQuery {return false}
     if lhs._cfgEcho != rhs._cfgEcho {return false}
     if lhs.writerVersion != rhs.writerVersion {return false}
+    if lhs.zoneStdQh != rhs.zoneStdQh {return false}
+    if lhs.zoneDst != rhs.zoneDst {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

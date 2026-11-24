@@ -835,12 +835,12 @@ extern const pb_msgdesc_t message_packet_t_msg;
 #define BEACON_KEY_STATUS_SIZE                   23
 #define CARD_SUMMARY_SIZE                        193
 #define CONFIG_PACKET_SIZE                       16
-#define CONFIG_REPORT_SIZE                       493
+#define CONFIG_REPORT_SIZE                       508
 #define DEPLOYMENT_SIZE                          1888
 #define ENV_DATA_SIZE                            41
 #define ERROR_FLAGS_SIZE                         6
 #define GPS_DATA_2_SIZE                          52
-#define MESSAGE_PACKET_SIZE                      2571
+#define MESSAGE_PACKET_SIZE                      2586
 #define METADATA_SIZE                            5
 #define PARTICULATE_DATA_SIZE                    24
 #define RADIO_INFO_SIZE                          33

@@ -819,3 +819,115 @@ def to_us500(sf, bw_khz, freq_mhz):
     """CONTRACT_us_500khz.md section 3, through dr_convert: (sf', 500, MHz')."""
     s, b, f, _ = dr_convert(1, sf, bw_khz, freq_mhz * 1000)
     return s, b, f // 1000
+
+
+# ---------------------------------------------------------------------------
+# Schedule zone (2026-11-23): a schedule's hours, weekdays and dates judged in
+# a local time that follows a clock-change rule (spec "schedule_zone"). Integer
+# arithmetic only, so the C, JavaScript and TypeScript ports are line for line.
+
+ZONE = SPEC.get("schedule_zone", {"std_qh_min": -48, "std_qh_max": 56, "rules": []})
+QH_S = 900
+
+
+def zone_rule(dst):
+    """The rule of id `dst`, or None (0 and any id not listed)."""
+    for r in ZONE["rules"]:
+        if r["id"] == dst and dst != 0:
+            return r
+    return None
+
+
+def zone_valid(std_qh, dst):
+    """What the rails accept: the offset in range and a listed rule (0 = none)."""
+    return (ZONE["std_qh_min"] <= std_qh <= ZONE["std_qh_max"]
+            and (dst == 0 or zone_rule(dst) is not None))
+
+
+def zone_from_csv(std_text, dst_text):
+    """CONFIG.CSV rows read as strtol reads them; a missing or unreadable row is
+    0; the offset is held to its range; a rule not listed reads as 0."""
+    std = _strtol(std_text)
+    dst = _strtol(dst_text)
+    std = 0 if std is None else std
+    dst = 0 if dst is None else dst
+    std = max(ZONE["std_qh_min"], min(ZONE["std_qh_max"], std))
+    if dst != 0 and zone_rule(dst) is None:
+        dst = 0
+    return std, dst
+
+
+def _days_from_civil(y, m, d):
+    """Days since 1970-01-01 of a proleptic Gregorian date (H. Hinnant)."""
+    y -= m <= 2
+    era = (y if y >= 0 else y - 399) // 400
+    yoe = y - era * 400
+    doy = (153 * (m + (-3 if m > 2 else 9)) + 2) // 5 + d - 1
+    doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+    return era * 146097 + doe - 719468
+
+
+def _civil_year(days):
+    """The year of a day number (the inverse of _days_from_civil, year only)."""
+    z = days + 719468
+    era = (z if z >= 0 else z - 146096) // 146097
+    doe = z - era * 146097
+    yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365
+    doy = doe - (365 * yoe + yoe // 4 - yoe // 100)
+    mp = (5 * doy + 2) // 153
+    m = mp + 3 if mp < 10 else mp - 9
+    return yoe + era * 400 + (1 if m <= 2 else 0)
+
+
+def _rule_day(year, month, week, weekday):
+    """Day number of the `week`-th `weekday` (0 = Sunday) of the month; week 5 = the last."""
+    if week >= 5:
+        nm_y, nm_m = (year + 1, 1) if month == 12 else (year, month + 1)
+        last = _days_from_civil(nm_y, nm_m, 1) - 1
+        wd = (last + 4) % 7          # 1970-01-01 was a Thursday (4)
+        return last - ((wd - weekday) % 7)
+    first = _days_from_civil(year, month, 1)
+    wd = (first + 4) % 7
+    return first + ((weekday - wd) % 7) + 7 * (week - 1)
+
+
+def zone_edge_utc(year, edge, std_qh):
+    """The UTC epoch of a rule edge ({month, week, weekday, minute, basis}) in `year`."""
+    t = _rule_day(year, edge["month"], edge["week"], edge["weekday"]) * 86400 + edge["minute"] * 60
+    return t - std_qh * QH_S if edge["basis"] == "local_std" else t
+
+
+def zone_summer(utc, std_qh, dst):
+    """True while the rule's summer time runs at `utc`."""
+    r = zone_rule(dst)
+    if r is None:
+        return False
+    year = _civil_year((utc + std_qh * QH_S) // 86400)
+    s = zone_edge_utc(year, r["start"], std_qh)
+    e = zone_edge_utc(year, r["end"], std_qh)
+    return s <= utc < e if s < e else (utc >= s or utc < e)
+
+
+def zone_offset_qh(utc, std_qh, dst):
+    """Local time minus UTC at `utc`, quarter hours."""
+    r = zone_rule(dst)
+    return std_qh + (r["save_qh"] if r is not None and zone_summer(utc, std_qh, dst) else 0)
+
+
+def zone_local_epoch(utc, std_qh, dst):
+    """The epoch a schedule is judged on: its hour (// 3600 % 24), its day
+    number (// 86400) and its weekday ((day + 3) % 7, 0 = Monday)."""
+    return utc + zone_offset_qh(utc, std_qh, dst) * QH_S
+
+
+def zone_next_change_utc(utc, std_qh, dst):
+    """The first clock change after `utc` (UTC epoch), or None for no rule."""
+    r = zone_rule(dst)
+    if r is None:
+        return None
+    year = _civil_year((utc + std_qh * QH_S) // 86400)
+    edges = sorted(zone_edge_utc(y, r[k], std_qh) for y in (year, year + 1) for k in ("start", "end"))
+    for t in edges:
+        if t > utc:
+            return t
+    return None  # pragma: no cover - two years always hold a later edge

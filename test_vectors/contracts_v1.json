@@ -1,6 +1,6 @@
 {
  "version": 1,
- "contracts_sha256": "51c93f329a9e4392bb26d7f76e3616f63f8036bd229a3b8afe635729ec148b75",
+ "contracts_sha256": "b796fd5f35ff6f5ee94334be3f5d617e926f97cd84eb45773b9de1a2c49281f3",
  "about": "Made by contracts/make_vectors.py from contracts/reference.py. Do not edit by hand.",
  "special_mode": [
   {
@@ -2192,6 +2192,2762 @@
   {
    "failures": 10,
    "wait_s": 86400
+  }
+ ],
+ "zone_valid": [
+  {
+   "std_qh": 0,
+   "dst": 0,
+   "valid": true
+  },
+  {
+   "std_qh": -28,
+   "dst": 1,
+   "valid": true
+  },
+  {
+   "std_qh": -28,
+   "dst": 0,
+   "valid": true
+  },
+  {
+   "std_qh": 4,
+   "dst": 2,
+   "valid": true
+  },
+  {
+   "std_qh": 40,
+   "dst": 3,
+   "valid": true
+  },
+  {
+   "std_qh": 48,
+   "dst": 4,
+   "valid": true
+  },
+  {
+   "std_qh": 22,
+   "dst": 0,
+   "valid": true
+  },
+  {
+   "std_qh": -48,
+   "dst": 0,
+   "valid": true
+  },
+  {
+   "std_qh": 56,
+   "dst": 0,
+   "valid": true
+  },
+  {
+   "std_qh": -49,
+   "dst": 0,
+   "valid": false
+  },
+  {
+   "std_qh": 57,
+   "dst": 0,
+   "valid": false
+  },
+  {
+   "std_qh": 0,
+   "dst": 5,
+   "valid": false
+  },
+  {
+   "std_qh": 0,
+   "dst": -1,
+   "valid": false
+  },
+  {
+   "std_qh": -20,
+   "dst": 99,
+   "valid": false
+  }
+ ],
+ "zone_from_csv": [
+  {
+   "std_qh": null,
+   "dst": null,
+   "want": [
+    0,
+    0
+   ]
+  },
+  {
+   "std_qh": "-28",
+   "dst": "1",
+   "want": [
+    -28,
+    1
+   ]
+  },
+  {
+   "std_qh": "-28",
+   "dst": "0",
+   "want": [
+    -28,
+    0
+   ]
+  },
+  {
+   "std_qh": "4",
+   "dst": "2",
+   "want": [
+    4,
+    2
+   ]
+  },
+  {
+   "std_qh": " 40",
+   "dst": "3 ",
+   "want": [
+    40,
+    3
+   ]
+  },
+  {
+   "std_qh": "-60",
+   "dst": "1",
+   "want": [
+    -48,
+    1
+   ]
+  },
+  {
+   "std_qh": "70",
+   "dst": "0",
+   "want": [
+    56,
+    0
+   ]
+  },
+  {
+   "std_qh": "abc",
+   "dst": "9",
+   "want": [
+    0,
+    0
+   ]
+  },
+  {
+   "std_qh": "",
+   "dst": "",
+   "want": [
+    0,
+    0
+   ]
+  },
+  {
+   "std_qh": "22",
+   "dst": "4.5",
+   "want": [
+    22,
+    4
+   ]
+  }
+ ],
+ "zone_offset": [
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1768478400,
+   "offset_qh": -28,
+   "local": 1768453200,
+   "summer": false,
+   "next_change": 1772960400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1772960399,
+   "offset_qh": -28,
+   "local": 1772935199,
+   "summer": false,
+   "next_change": 1772960400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1772960400,
+   "offset_qh": -24,
+   "local": 1772938800,
+   "summer": true,
+   "next_change": 1793520000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1772960401,
+   "offset_qh": -24,
+   "local": 1772938801,
+   "summer": true,
+   "next_change": 1793520000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1784116800,
+   "offset_qh": -24,
+   "local": 1784095200,
+   "summer": true,
+   "next_change": 1793520000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1793519999,
+   "offset_qh": -24,
+   "local": 1793498399,
+   "summer": true,
+   "next_change": 1793520000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1793520000,
+   "offset_qh": -28,
+   "local": 1793494800,
+   "summer": false,
+   "next_change": 1805014800
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1793520001,
+   "offset_qh": -28,
+   "local": 1793494801,
+   "summer": false,
+   "next_change": 1805014800
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1800014400,
+   "offset_qh": -28,
+   "local": 1799989200,
+   "summer": false,
+   "next_change": 1805014800
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1805014799,
+   "offset_qh": -28,
+   "local": 1804989599,
+   "summer": false,
+   "next_change": 1805014800
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1805014800,
+   "offset_qh": -24,
+   "local": 1804993200,
+   "summer": true,
+   "next_change": 1825574400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1805014801,
+   "offset_qh": -24,
+   "local": 1804993201,
+   "summer": true,
+   "next_change": 1825574400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1815652800,
+   "offset_qh": -24,
+   "local": 1815631200,
+   "summer": true,
+   "next_change": 1825574400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1825574399,
+   "offset_qh": -24,
+   "local": 1825552799,
+   "summer": true,
+   "next_change": 1825574400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1825574400,
+   "offset_qh": -28,
+   "local": 1825549200,
+   "summer": false,
+   "next_change": 1836464400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1825574401,
+   "offset_qh": -28,
+   "local": 1825549201,
+   "summer": false,
+   "next_change": 1836464400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1831550400,
+   "offset_qh": -28,
+   "local": 1831525200,
+   "summer": false,
+   "next_change": 1836464400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1836464399,
+   "offset_qh": -28,
+   "local": 1836439199,
+   "summer": false,
+   "next_change": 1836464400
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1836464400,
+   "offset_qh": -24,
+   "local": 1836442800,
+   "summer": true,
+   "next_change": 1857024000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1836464401,
+   "offset_qh": -24,
+   "local": 1836442801,
+   "summer": true,
+   "next_change": 1857024000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1847275200,
+   "offset_qh": -24,
+   "local": 1847253600,
+   "summer": true,
+   "next_change": 1857024000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1857023999,
+   "offset_qh": -24,
+   "local": 1857002399,
+   "summer": true,
+   "next_change": 1857024000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1857024000,
+   "offset_qh": -28,
+   "local": 1856998800,
+   "summer": false,
+   "next_change": 1867914000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1857024001,
+   "offset_qh": -28,
+   "local": 1856998801,
+   "summer": false,
+   "next_change": 1867914000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1863172800,
+   "offset_qh": -28,
+   "local": 1863147600,
+   "summer": false,
+   "next_change": 1867914000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1867913999,
+   "offset_qh": -28,
+   "local": 1867888799,
+   "summer": false,
+   "next_change": 1867914000
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1867914000,
+   "offset_qh": -24,
+   "local": 1867892400,
+   "summer": true,
+   "next_change": 1888473600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1867914001,
+   "offset_qh": -24,
+   "local": 1867892401,
+   "summer": true,
+   "next_change": 1888473600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1878811200,
+   "offset_qh": -24,
+   "local": 1878789600,
+   "summer": true,
+   "next_change": 1888473600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1888473599,
+   "offset_qh": -24,
+   "local": 1888451999,
+   "summer": true,
+   "next_change": 1888473600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1888473600,
+   "offset_qh": -28,
+   "local": 1888448400,
+   "summer": false,
+   "next_change": 1899363600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1888473601,
+   "offset_qh": -28,
+   "local": 1888448401,
+   "summer": false,
+   "next_change": 1899363600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1894708800,
+   "offset_qh": -28,
+   "local": 1894683600,
+   "summer": false,
+   "next_change": 1899363600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1899363599,
+   "offset_qh": -28,
+   "local": 1899338399,
+   "summer": false,
+   "next_change": 1899363600
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1899363600,
+   "offset_qh": -24,
+   "local": 1899342000,
+   "summer": true,
+   "next_change": 1919923200
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1899363601,
+   "offset_qh": -24,
+   "local": 1899342001,
+   "summer": true,
+   "next_change": 1919923200
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1910347200,
+   "offset_qh": -24,
+   "local": 1910325600,
+   "summer": true,
+   "next_change": 1919923200
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1919923199,
+   "offset_qh": -24,
+   "local": 1919901599,
+   "summer": true,
+   "next_change": 1919923200
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1919923200,
+   "offset_qh": -28,
+   "local": 1919898000,
+   "summer": false,
+   "next_change": 1930813200
+  },
+  {
+   "zone": "America/Denver",
+   "std_qh": -28,
+   "dst": 1,
+   "utc": 1919923201,
+   "offset_qh": -28,
+   "local": 1919898001,
+   "summer": false,
+   "next_change": 1930813200
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1768478400,
+   "offset_qh": -28,
+   "local": 1768453200,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1784116800,
+   "offset_qh": -28,
+   "local": 1784091600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1800014400,
+   "offset_qh": -28,
+   "local": 1799989200,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1815652800,
+   "offset_qh": -28,
+   "local": 1815627600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1831550400,
+   "offset_qh": -28,
+   "local": 1831525200,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1847275200,
+   "offset_qh": -28,
+   "local": 1847250000,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1863172800,
+   "offset_qh": -28,
+   "local": 1863147600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1878811200,
+   "offset_qh": -28,
+   "local": 1878786000,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1894708800,
+   "offset_qh": -28,
+   "local": 1894683600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/Phoenix",
+   "std_qh": -28,
+   "dst": 0,
+   "utc": 1910347200,
+   "offset_qh": -28,
+   "local": 1910322000,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1768478400,
+   "offset_qh": -14,
+   "local": 1768465800,
+   "summer": false,
+   "next_change": 1772947800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1772947799,
+   "offset_qh": -14,
+   "local": 1772935199,
+   "summer": false,
+   "next_change": 1772947800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1772947800,
+   "offset_qh": -10,
+   "local": 1772938800,
+   "summer": true,
+   "next_change": 1793507400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1772947801,
+   "offset_qh": -10,
+   "local": 1772938801,
+   "summer": true,
+   "next_change": 1793507400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1784116800,
+   "offset_qh": -10,
+   "local": 1784107800,
+   "summer": true,
+   "next_change": 1793507400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1793507399,
+   "offset_qh": -10,
+   "local": 1793498399,
+   "summer": true,
+   "next_change": 1793507400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1793507400,
+   "offset_qh": -14,
+   "local": 1793494800,
+   "summer": false,
+   "next_change": 1805002200
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1793507401,
+   "offset_qh": -14,
+   "local": 1793494801,
+   "summer": false,
+   "next_change": 1805002200
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1800014400,
+   "offset_qh": -14,
+   "local": 1800001800,
+   "summer": false,
+   "next_change": 1805002200
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1805002199,
+   "offset_qh": -14,
+   "local": 1804989599,
+   "summer": false,
+   "next_change": 1805002200
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1805002200,
+   "offset_qh": -10,
+   "local": 1804993200,
+   "summer": true,
+   "next_change": 1825561800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1805002201,
+   "offset_qh": -10,
+   "local": 1804993201,
+   "summer": true,
+   "next_change": 1825561800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1815652800,
+   "offset_qh": -10,
+   "local": 1815643800,
+   "summer": true,
+   "next_change": 1825561800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1825561799,
+   "offset_qh": -10,
+   "local": 1825552799,
+   "summer": true,
+   "next_change": 1825561800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1825561800,
+   "offset_qh": -14,
+   "local": 1825549200,
+   "summer": false,
+   "next_change": 1836451800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1825561801,
+   "offset_qh": -14,
+   "local": 1825549201,
+   "summer": false,
+   "next_change": 1836451800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1831550400,
+   "offset_qh": -14,
+   "local": 1831537800,
+   "summer": false,
+   "next_change": 1836451800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1836451799,
+   "offset_qh": -14,
+   "local": 1836439199,
+   "summer": false,
+   "next_change": 1836451800
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1836451800,
+   "offset_qh": -10,
+   "local": 1836442800,
+   "summer": true,
+   "next_change": 1857011400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1836451801,
+   "offset_qh": -10,
+   "local": 1836442801,
+   "summer": true,
+   "next_change": 1857011400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1847275200,
+   "offset_qh": -10,
+   "local": 1847266200,
+   "summer": true,
+   "next_change": 1857011400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1857011399,
+   "offset_qh": -10,
+   "local": 1857002399,
+   "summer": true,
+   "next_change": 1857011400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1857011400,
+   "offset_qh": -14,
+   "local": 1856998800,
+   "summer": false,
+   "next_change": 1867901400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1857011401,
+   "offset_qh": -14,
+   "local": 1856998801,
+   "summer": false,
+   "next_change": 1867901400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1863172800,
+   "offset_qh": -14,
+   "local": 1863160200,
+   "summer": false,
+   "next_change": 1867901400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1867901399,
+   "offset_qh": -14,
+   "local": 1867888799,
+   "summer": false,
+   "next_change": 1867901400
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1867901400,
+   "offset_qh": -10,
+   "local": 1867892400,
+   "summer": true,
+   "next_change": 1888461000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1867901401,
+   "offset_qh": -10,
+   "local": 1867892401,
+   "summer": true,
+   "next_change": 1888461000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1878811200,
+   "offset_qh": -10,
+   "local": 1878802200,
+   "summer": true,
+   "next_change": 1888461000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1888460999,
+   "offset_qh": -10,
+   "local": 1888451999,
+   "summer": true,
+   "next_change": 1888461000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1888461000,
+   "offset_qh": -14,
+   "local": 1888448400,
+   "summer": false,
+   "next_change": 1899351000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1888461001,
+   "offset_qh": -14,
+   "local": 1888448401,
+   "summer": false,
+   "next_change": 1899351000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1894708800,
+   "offset_qh": -14,
+   "local": 1894696200,
+   "summer": false,
+   "next_change": 1899351000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1899350999,
+   "offset_qh": -14,
+   "local": 1899338399,
+   "summer": false,
+   "next_change": 1899351000
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1899351000,
+   "offset_qh": -10,
+   "local": 1899342000,
+   "summer": true,
+   "next_change": 1919910600
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1899351001,
+   "offset_qh": -10,
+   "local": 1899342001,
+   "summer": true,
+   "next_change": 1919910600
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1910347200,
+   "offset_qh": -10,
+   "local": 1910338200,
+   "summer": true,
+   "next_change": 1919910600
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1919910599,
+   "offset_qh": -10,
+   "local": 1919901599,
+   "summer": true,
+   "next_change": 1919910600
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1919910600,
+   "offset_qh": -14,
+   "local": 1919898000,
+   "summer": false,
+   "next_change": 1930800600
+  },
+  {
+   "zone": "America/St_Johns",
+   "std_qh": -14,
+   "dst": 1,
+   "utc": 1919910601,
+   "offset_qh": -14,
+   "local": 1919898001,
+   "summer": false,
+   "next_change": 1930800600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1768478400,
+   "offset_qh": 4,
+   "local": 1768482000,
+   "summer": false,
+   "next_change": 1774746000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1774745999,
+   "offset_qh": 4,
+   "local": 1774749599,
+   "summer": false,
+   "next_change": 1774746000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1774746000,
+   "offset_qh": 8,
+   "local": 1774753200,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1774746001,
+   "offset_qh": 8,
+   "local": 1774753201,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1784116800,
+   "offset_qh": 8,
+   "local": 1784124000,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1792889999,
+   "offset_qh": 8,
+   "local": 1792897199,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1792890000,
+   "offset_qh": 4,
+   "local": 1792893600,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1792890001,
+   "offset_qh": 4,
+   "local": 1792893601,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1800014400,
+   "offset_qh": 4,
+   "local": 1800018000,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1806195599,
+   "offset_qh": 4,
+   "local": 1806199199,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1806195600,
+   "offset_qh": 8,
+   "local": 1806202800,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1806195601,
+   "offset_qh": 8,
+   "local": 1806202801,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1815652800,
+   "offset_qh": 8,
+   "local": 1815660000,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1824944399,
+   "offset_qh": 8,
+   "local": 1824951599,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1824944400,
+   "offset_qh": 4,
+   "local": 1824948000,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1824944401,
+   "offset_qh": 4,
+   "local": 1824948001,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1831550400,
+   "offset_qh": 4,
+   "local": 1831554000,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1837645199,
+   "offset_qh": 4,
+   "local": 1837648799,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1837645200,
+   "offset_qh": 8,
+   "local": 1837652400,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1837645201,
+   "offset_qh": 8,
+   "local": 1837652401,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1847275200,
+   "offset_qh": 8,
+   "local": 1847282400,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1856393999,
+   "offset_qh": 8,
+   "local": 1856401199,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1856394000,
+   "offset_qh": 4,
+   "local": 1856397600,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1856394001,
+   "offset_qh": 4,
+   "local": 1856397601,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1863172800,
+   "offset_qh": 4,
+   "local": 1863176400,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1869094799,
+   "offset_qh": 4,
+   "local": 1869098399,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1869094800,
+   "offset_qh": 8,
+   "local": 1869102000,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1869094801,
+   "offset_qh": 8,
+   "local": 1869102001,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1878811200,
+   "offset_qh": 8,
+   "local": 1878818400,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1887843599,
+   "offset_qh": 8,
+   "local": 1887850799,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1887843600,
+   "offset_qh": 4,
+   "local": 1887847200,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1887843601,
+   "offset_qh": 4,
+   "local": 1887847201,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1894708800,
+   "offset_qh": 4,
+   "local": 1894712400,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1901149199,
+   "offset_qh": 4,
+   "local": 1901152799,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1901149200,
+   "offset_qh": 8,
+   "local": 1901156400,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1901149201,
+   "offset_qh": 8,
+   "local": 1901156401,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1910347200,
+   "offset_qh": 8,
+   "local": 1910354400,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1919293199,
+   "offset_qh": 8,
+   "local": 1919300399,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1919293200,
+   "offset_qh": 4,
+   "local": 1919296800,
+   "summer": false,
+   "next_change": 1932598800
+  },
+  {
+   "zone": "Europe/Berlin",
+   "std_qh": 4,
+   "dst": 2,
+   "utc": 1919293201,
+   "offset_qh": 4,
+   "local": 1919296801,
+   "summer": false,
+   "next_change": 1932598800
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1768478400,
+   "offset_qh": 0,
+   "local": 1768478400,
+   "summer": false,
+   "next_change": 1774746000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1774745999,
+   "offset_qh": 0,
+   "local": 1774745999,
+   "summer": false,
+   "next_change": 1774746000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1774746000,
+   "offset_qh": 4,
+   "local": 1774749600,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1774746001,
+   "offset_qh": 4,
+   "local": 1774749601,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1784116800,
+   "offset_qh": 4,
+   "local": 1784120400,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1792889999,
+   "offset_qh": 4,
+   "local": 1792893599,
+   "summer": true,
+   "next_change": 1792890000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1792890000,
+   "offset_qh": 0,
+   "local": 1792890000,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1792890001,
+   "offset_qh": 0,
+   "local": 1792890001,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1800014400,
+   "offset_qh": 0,
+   "local": 1800014400,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1806195599,
+   "offset_qh": 0,
+   "local": 1806195599,
+   "summer": false,
+   "next_change": 1806195600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1806195600,
+   "offset_qh": 4,
+   "local": 1806199200,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1806195601,
+   "offset_qh": 4,
+   "local": 1806199201,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1815652800,
+   "offset_qh": 4,
+   "local": 1815656400,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1824944399,
+   "offset_qh": 4,
+   "local": 1824947999,
+   "summer": true,
+   "next_change": 1824944400
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1824944400,
+   "offset_qh": 0,
+   "local": 1824944400,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1824944401,
+   "offset_qh": 0,
+   "local": 1824944401,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1831550400,
+   "offset_qh": 0,
+   "local": 1831550400,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1837645199,
+   "offset_qh": 0,
+   "local": 1837645199,
+   "summer": false,
+   "next_change": 1837645200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1837645200,
+   "offset_qh": 4,
+   "local": 1837648800,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1837645201,
+   "offset_qh": 4,
+   "local": 1837648801,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1847275200,
+   "offset_qh": 4,
+   "local": 1847278800,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1856393999,
+   "offset_qh": 4,
+   "local": 1856397599,
+   "summer": true,
+   "next_change": 1856394000
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1856394000,
+   "offset_qh": 0,
+   "local": 1856394000,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1856394001,
+   "offset_qh": 0,
+   "local": 1856394001,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1863172800,
+   "offset_qh": 0,
+   "local": 1863172800,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1869094799,
+   "offset_qh": 0,
+   "local": 1869094799,
+   "summer": false,
+   "next_change": 1869094800
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1869094800,
+   "offset_qh": 4,
+   "local": 1869098400,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1869094801,
+   "offset_qh": 4,
+   "local": 1869098401,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1878811200,
+   "offset_qh": 4,
+   "local": 1878814800,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1887843599,
+   "offset_qh": 4,
+   "local": 1887847199,
+   "summer": true,
+   "next_change": 1887843600
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1887843600,
+   "offset_qh": 0,
+   "local": 1887843600,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1887843601,
+   "offset_qh": 0,
+   "local": 1887843601,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1894708800,
+   "offset_qh": 0,
+   "local": 1894708800,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1901149199,
+   "offset_qh": 0,
+   "local": 1901149199,
+   "summer": false,
+   "next_change": 1901149200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1901149200,
+   "offset_qh": 4,
+   "local": 1901152800,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1901149201,
+   "offset_qh": 4,
+   "local": 1901152801,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1910347200,
+   "offset_qh": 4,
+   "local": 1910350800,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1919293199,
+   "offset_qh": 4,
+   "local": 1919296799,
+   "summer": true,
+   "next_change": 1919293200
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1919293200,
+   "offset_qh": 0,
+   "local": 1919293200,
+   "summer": false,
+   "next_change": 1932598800
+  },
+  {
+   "zone": "Europe/London",
+   "std_qh": 0,
+   "dst": 2,
+   "utc": 1919293201,
+   "offset_qh": 0,
+   "local": 1919293201,
+   "summer": false,
+   "next_change": 1932598800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1768478400,
+   "offset_qh": 44,
+   "local": 1768518000,
+   "summer": true,
+   "next_change": 1775318400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1775318399,
+   "offset_qh": 44,
+   "local": 1775357999,
+   "summer": true,
+   "next_change": 1775318400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1775318400,
+   "offset_qh": 40,
+   "local": 1775354400,
+   "summer": false,
+   "next_change": 1791043200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1775318401,
+   "offset_qh": 40,
+   "local": 1775354401,
+   "summer": false,
+   "next_change": 1791043200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1784116800,
+   "offset_qh": 40,
+   "local": 1784152800,
+   "summer": false,
+   "next_change": 1791043200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1791043199,
+   "offset_qh": 40,
+   "local": 1791079199,
+   "summer": false,
+   "next_change": 1791043200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1791043200,
+   "offset_qh": 44,
+   "local": 1791082800,
+   "summer": true,
+   "next_change": 1806768000
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1791043201,
+   "offset_qh": 44,
+   "local": 1791082801,
+   "summer": true,
+   "next_change": 1806768000
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1800014400,
+   "offset_qh": 44,
+   "local": 1800054000,
+   "summer": true,
+   "next_change": 1806768000
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1806767999,
+   "offset_qh": 44,
+   "local": 1806807599,
+   "summer": true,
+   "next_change": 1806768000
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1806768000,
+   "offset_qh": 40,
+   "local": 1806804000,
+   "summer": false,
+   "next_change": 1822492800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1806768001,
+   "offset_qh": 40,
+   "local": 1806804001,
+   "summer": false,
+   "next_change": 1822492800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1815652800,
+   "offset_qh": 40,
+   "local": 1815688800,
+   "summer": false,
+   "next_change": 1822492800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1822492799,
+   "offset_qh": 40,
+   "local": 1822528799,
+   "summer": false,
+   "next_change": 1822492800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1822492800,
+   "offset_qh": 44,
+   "local": 1822532400,
+   "summer": true,
+   "next_change": 1838217600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1822492801,
+   "offset_qh": 44,
+   "local": 1822532401,
+   "summer": true,
+   "next_change": 1838217600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1831550400,
+   "offset_qh": 44,
+   "local": 1831590000,
+   "summer": true,
+   "next_change": 1838217600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1838217599,
+   "offset_qh": 44,
+   "local": 1838257199,
+   "summer": true,
+   "next_change": 1838217600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1838217600,
+   "offset_qh": 40,
+   "local": 1838253600,
+   "summer": false,
+   "next_change": 1853942400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1838217601,
+   "offset_qh": 40,
+   "local": 1838253601,
+   "summer": false,
+   "next_change": 1853942400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1847275200,
+   "offset_qh": 40,
+   "local": 1847311200,
+   "summer": false,
+   "next_change": 1853942400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1853942399,
+   "offset_qh": 40,
+   "local": 1853978399,
+   "summer": false,
+   "next_change": 1853942400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1853942400,
+   "offset_qh": 44,
+   "local": 1853982000,
+   "summer": true,
+   "next_change": 1869667200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1853942401,
+   "offset_qh": 44,
+   "local": 1853982001,
+   "summer": true,
+   "next_change": 1869667200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1863172800,
+   "offset_qh": 44,
+   "local": 1863212400,
+   "summer": true,
+   "next_change": 1869667200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1869667199,
+   "offset_qh": 44,
+   "local": 1869706799,
+   "summer": true,
+   "next_change": 1869667200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1869667200,
+   "offset_qh": 40,
+   "local": 1869703200,
+   "summer": false,
+   "next_change": 1885996800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1869667201,
+   "offset_qh": 40,
+   "local": 1869703201,
+   "summer": false,
+   "next_change": 1885996800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1878811200,
+   "offset_qh": 40,
+   "local": 1878847200,
+   "summer": false,
+   "next_change": 1885996800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1885996799,
+   "offset_qh": 40,
+   "local": 1886032799,
+   "summer": false,
+   "next_change": 1885996800
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1885996800,
+   "offset_qh": 44,
+   "local": 1886036400,
+   "summer": true,
+   "next_change": 1901721600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1885996801,
+   "offset_qh": 44,
+   "local": 1886036401,
+   "summer": true,
+   "next_change": 1901721600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1894708800,
+   "offset_qh": 44,
+   "local": 1894748400,
+   "summer": true,
+   "next_change": 1901721600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1901721599,
+   "offset_qh": 44,
+   "local": 1901761199,
+   "summer": true,
+   "next_change": 1901721600
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1901721600,
+   "offset_qh": 40,
+   "local": 1901757600,
+   "summer": false,
+   "next_change": 1917446400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1901721601,
+   "offset_qh": 40,
+   "local": 1901757601,
+   "summer": false,
+   "next_change": 1917446400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1910347200,
+   "offset_qh": 40,
+   "local": 1910383200,
+   "summer": false,
+   "next_change": 1917446400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1917446399,
+   "offset_qh": 40,
+   "local": 1917482399,
+   "summer": false,
+   "next_change": 1917446400
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1917446400,
+   "offset_qh": 44,
+   "local": 1917486000,
+   "summer": true,
+   "next_change": 1933171200
+  },
+  {
+   "zone": "Australia/Sydney",
+   "std_qh": 40,
+   "dst": 3,
+   "utc": 1917446401,
+   "offset_qh": 44,
+   "local": 1917486001,
+   "summer": true,
+   "next_change": 1933171200
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1768478400,
+   "offset_qh": 52,
+   "local": 1768525200,
+   "summer": true,
+   "next_change": 1775311200
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1775311199,
+   "offset_qh": 52,
+   "local": 1775357999,
+   "summer": true,
+   "next_change": 1775311200
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1775311200,
+   "offset_qh": 48,
+   "local": 1775354400,
+   "summer": false,
+   "next_change": 1790431200
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1775311201,
+   "offset_qh": 48,
+   "local": 1775354401,
+   "summer": false,
+   "next_change": 1790431200
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1784116800,
+   "offset_qh": 48,
+   "local": 1784160000,
+   "summer": false,
+   "next_change": 1790431200
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1790431199,
+   "offset_qh": 48,
+   "local": 1790474399,
+   "summer": false,
+   "next_change": 1790431200
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1790431200,
+   "offset_qh": 52,
+   "local": 1790478000,
+   "summer": true,
+   "next_change": 1806760800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1790431201,
+   "offset_qh": 52,
+   "local": 1790478001,
+   "summer": true,
+   "next_change": 1806760800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1800014400,
+   "offset_qh": 52,
+   "local": 1800061200,
+   "summer": true,
+   "next_change": 1806760800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1806760799,
+   "offset_qh": 52,
+   "local": 1806807599,
+   "summer": true,
+   "next_change": 1806760800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1806760800,
+   "offset_qh": 48,
+   "local": 1806804000,
+   "summer": false,
+   "next_change": 1821880800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1806760801,
+   "offset_qh": 48,
+   "local": 1806804001,
+   "summer": false,
+   "next_change": 1821880800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1815652800,
+   "offset_qh": 48,
+   "local": 1815696000,
+   "summer": false,
+   "next_change": 1821880800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1821880799,
+   "offset_qh": 48,
+   "local": 1821923999,
+   "summer": false,
+   "next_change": 1821880800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1821880800,
+   "offset_qh": 52,
+   "local": 1821927600,
+   "summer": true,
+   "next_change": 1838210400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1821880801,
+   "offset_qh": 52,
+   "local": 1821927601,
+   "summer": true,
+   "next_change": 1838210400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1831550400,
+   "offset_qh": 52,
+   "local": 1831597200,
+   "summer": true,
+   "next_change": 1838210400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1838210399,
+   "offset_qh": 52,
+   "local": 1838257199,
+   "summer": true,
+   "next_change": 1838210400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1838210400,
+   "offset_qh": 48,
+   "local": 1838253600,
+   "summer": false,
+   "next_change": 1853330400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1838210401,
+   "offset_qh": 48,
+   "local": 1838253601,
+   "summer": false,
+   "next_change": 1853330400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1847275200,
+   "offset_qh": 48,
+   "local": 1847318400,
+   "summer": false,
+   "next_change": 1853330400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1853330399,
+   "offset_qh": 48,
+   "local": 1853373599,
+   "summer": false,
+   "next_change": 1853330400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1853330400,
+   "offset_qh": 52,
+   "local": 1853377200,
+   "summer": true,
+   "next_change": 1869660000
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1853330401,
+   "offset_qh": 52,
+   "local": 1853377201,
+   "summer": true,
+   "next_change": 1869660000
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1863172800,
+   "offset_qh": 52,
+   "local": 1863219600,
+   "summer": true,
+   "next_change": 1869660000
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1869659999,
+   "offset_qh": 52,
+   "local": 1869706799,
+   "summer": true,
+   "next_change": 1869660000
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1869660000,
+   "offset_qh": 48,
+   "local": 1869703200,
+   "summer": false,
+   "next_change": 1885384800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1869660001,
+   "offset_qh": 48,
+   "local": 1869703201,
+   "summer": false,
+   "next_change": 1885384800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1878811200,
+   "offset_qh": 48,
+   "local": 1878854400,
+   "summer": false,
+   "next_change": 1885384800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1885384799,
+   "offset_qh": 48,
+   "local": 1885427999,
+   "summer": false,
+   "next_change": 1885384800
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1885384800,
+   "offset_qh": 52,
+   "local": 1885431600,
+   "summer": true,
+   "next_change": 1901714400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1885384801,
+   "offset_qh": 52,
+   "local": 1885431601,
+   "summer": true,
+   "next_change": 1901714400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1894708800,
+   "offset_qh": 52,
+   "local": 1894755600,
+   "summer": true,
+   "next_change": 1901714400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1901714399,
+   "offset_qh": 52,
+   "local": 1901761199,
+   "summer": true,
+   "next_change": 1901714400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1901714400,
+   "offset_qh": 48,
+   "local": 1901757600,
+   "summer": false,
+   "next_change": 1916834400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1901714401,
+   "offset_qh": 48,
+   "local": 1901757601,
+   "summer": false,
+   "next_change": 1916834400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1910347200,
+   "offset_qh": 48,
+   "local": 1910390400,
+   "summer": false,
+   "next_change": 1916834400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1916834399,
+   "offset_qh": 48,
+   "local": 1916877599,
+   "summer": false,
+   "next_change": 1916834400
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1916834400,
+   "offset_qh": 52,
+   "local": 1916881200,
+   "summer": true,
+   "next_change": 1933164000
+  },
+  {
+   "zone": "Pacific/Auckland",
+   "std_qh": 48,
+   "dst": 4,
+   "utc": 1916834401,
+   "offset_qh": 52,
+   "local": 1916881201,
+   "summer": true,
+   "next_change": 1933164000
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1768478400,
+   "offset_qh": 22,
+   "local": 1768498200,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1784116800,
+   "offset_qh": 22,
+   "local": 1784136600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1800014400,
+   "offset_qh": 22,
+   "local": 1800034200,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1815652800,
+   "offset_qh": 22,
+   "local": 1815672600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1831550400,
+   "offset_qh": 22,
+   "local": 1831570200,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1847275200,
+   "offset_qh": 22,
+   "local": 1847295000,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1863172800,
+   "offset_qh": 22,
+   "local": 1863192600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1878811200,
+   "offset_qh": 22,
+   "local": 1878831000,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1894708800,
+   "offset_qh": 22,
+   "local": 1894728600,
+   "summer": false,
+   "next_change": null
+  },
+  {
+   "zone": "Asia/Kolkata",
+   "std_qh": 22,
+   "dst": 0,
+   "utc": 1910347200,
+   "offset_qh": 22,
+   "local": 1910367000,
+   "summer": false,
+   "next_change": null
   }
  ],
  "direct_regions": {

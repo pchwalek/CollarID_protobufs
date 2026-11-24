@@ -105,6 +105,24 @@ def c_header(spec):
         L += ["", "/* Low-battery hibernation thresholds, whole percent */"]
         for k, v in bt.items():
             L.append(f"#define CID_BATT_{_ident(k)} {v}u")
+    z = spec.get("schedule_zone")
+    if isinstance(z, dict):
+        L += ["", "/* Schedule zone (2026-11-23): standard offset range in quarter hours, and the",
+              " * clock-change rules as X(id, save_qh, start month, week, weekday, minute, basis,",
+              " * end month, week, weekday, minute, basis); week 5 = the last, weekday 0 = Sunday,",
+              " * basis 0 = local standard time, 1 = UTC. Id 0 (no clock change) is not listed. */",
+              f"#define CID_ZONE_STD_QH_MIN ({z['std_qh_min']})",
+              f"#define CID_ZONE_STD_QH_MAX ({z['std_qh_max']})",
+              f"#define CID_ZONE_RULE_MAX {max(r['id'] for r in z['rules'])}u",
+              "#define CID_ZONE_RULES(X) \\"]
+        for r in z["rules"]:
+            if r["id"] == 0:
+                continue
+            e = [r["start"], r["end"]]
+            parts = [r["id"], r["save_qh"]] + [x for ed in e for x in
+                     (ed["month"], ed["week"], ed["weekday"], ed["minute"], 1 if ed["basis"] == "utc" else 0)]
+            L.append("    X(" + ", ".join(str(p) for p in parts) + ") \\")
+        L.append("")
     dr = spec.get("direct_regions")
     if isinstance(dr, dict):
         L += _c_header_direct_regions(spec, dr)

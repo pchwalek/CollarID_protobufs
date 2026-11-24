@@ -436,6 +436,16 @@ message ConfigMortality {
   optional uint32 transmit_interval_min  = 3;
 }
 
+// The schedule zone (2026-11-23; ble.proto ScheduleConfigPacket 8 and 9, the
+// same meaning). Global, schedule_index ignored; applied at COMMIT together
+// with the slots of the same transaction, so hours and the zone they are
+// read in always change as one. Both 0 = UTC. The rails refuse an offset
+// outside -48..56 or a rule not listed (rule 16). 2-6 B in a fragment.
+message ConfigZone {
+  sint32 std_qh = 1;
+  uint32 dst    = 2;
+}
+
 // Global system flags — not per-schedule (~4 bytes)
 message ConfigSystem {
   optional bool   verbose_logging       = 1;
@@ -666,6 +676,7 @@ message ConfigFragment {
   // the radio part waits for the session to end (changing the radio would
   // end it). The rails refuse a change that leaves no radio enabled.
   optional RadioSettings       cfg_radio         = 16;
+  optional ConfigZone          cfg_zone          = 17;  // global, schedule_index ignored (2026-11-23)
 }
 
 // ---- Main downlink envelope ----

@@ -212,6 +212,8 @@
         "mortality_enabled",
         "mortality_trigger_hours",
         "mortality_transmit_interval_min",
+        "schedule_zone_std_qh",
+        "schedule_zone_dst",
         "lorawan_dev_eui",
         "lorawan_join_eui",
         "lorawan_app_key",
@@ -298,6 +300,97 @@
     "saving_checkin_min_s": 3600,
     "saving_gps_refresh_s": 14400,
     "saving_gps_refresh_max_s": 86400
+  },
+  "schedule_zone": {
+    "std_qh_min": -48,
+    "std_qh_max": 56,
+    "rules": [
+      {
+        "id": 0,
+        "key": "none",
+        "name": "No clock change"
+      },
+      {
+        "id": 1,
+        "key": "us",
+        "name": "United States and Canada",
+        "save_qh": 4,
+        "start": {
+          "month": 3,
+          "week": 2,
+          "weekday": 0,
+          "minute": 120,
+          "basis": "local_std"
+        },
+        "end": {
+          "month": 11,
+          "week": 1,
+          "weekday": 0,
+          "minute": 60,
+          "basis": "local_std"
+        }
+      },
+      {
+        "id": 2,
+        "key": "eu",
+        "name": "Europe",
+        "save_qh": 4,
+        "start": {
+          "month": 3,
+          "week": 5,
+          "weekday": 0,
+          "minute": 60,
+          "basis": "utc"
+        },
+        "end": {
+          "month": 10,
+          "week": 5,
+          "weekday": 0,
+          "minute": 60,
+          "basis": "utc"
+        }
+      },
+      {
+        "id": 3,
+        "key": "au",
+        "name": "South-east Australia",
+        "save_qh": 4,
+        "start": {
+          "month": 10,
+          "week": 1,
+          "weekday": 0,
+          "minute": 120,
+          "basis": "local_std"
+        },
+        "end": {
+          "month": 4,
+          "week": 1,
+          "weekday": 0,
+          "minute": 120,
+          "basis": "local_std"
+        }
+      },
+      {
+        "id": 4,
+        "key": "nz",
+        "name": "New Zealand",
+        "save_qh": 4,
+        "start": {
+          "month": 9,
+          "week": 5,
+          "weekday": 0,
+          "minute": 120,
+          "basis": "local_std"
+        },
+        "end": {
+          "month": 4,
+          "week": 1,
+          "weekday": 0,
+          "minute": 120,
+          "basis": "local_std"
+        }
+      }
+    ]
   },
   "direct_regions": {
     "rule_sets": [
@@ -1421,7 +1514,7 @@
     }
   }
 };
-  C.CONTRACTS_SHA256 = '51c93f329a9e4392bb26d7f76e3616f63f8036bd229a3b8afe635729ec148b75';
+  C.CONTRACTS_SHA256 = 'b796fd5f35ff6f5ee94334be3f5d617e926f97cd84eb45773b9de1a2c49281f3';
   C.DIRECT_REGIONS_SHA256 = 'd4dcd845c5a71182658e8580401f6758d8bf9a81e41741fa68593ed36e06d559';
   return Object.freeze(C);
 });

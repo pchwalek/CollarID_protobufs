@@ -3,7 +3,7 @@
 #define COLLARID_CONTRACTS_H
 
 #define CID_CONTRACTS_VERSION 1u
-#define CID_CONTRACTS_SHA256 "51c93f329a9e4392bb26d7f76e3616f63f8036bd229a3b8afe635729ec148b75"
+#define CID_CONTRACTS_SHA256 "b796fd5f35ff6f5ee94334be3f5d617e926f97cd84eb45773b9de1a2c49281f3"
 
 /* Bluetooth service and characteristics */
 #define CID_GATT_SERVICE "1a17b2cd-7314-493d-a4b5-32a2d53e6fd7"
@@ -119,6 +119,8 @@
     X("mortality_enabled") \
     X("mortality_trigger_hours") \
     X("mortality_transmit_interval_min") \
+    X("schedule_zone_std_qh") \
+    X("schedule_zone_dst") \
     X("lorawan_dev_eui") \
     X("lorawan_join_eui") \
     X("lorawan_app_key") \
@@ -128,7 +130,7 @@
     X("lorawan_f_nwk_s_int_key") \
     X("lorawan_s_nwk_s_int_key") \
 
-#define CID_CONFIG_CSV_GLOBAL_COUNT 46u
+#define CID_CONFIG_CSV_GLOBAL_COUNT 48u
 #define CID_CONFIG_CSV_SCHEDULE_KEYS(X) \
     X("start_hour") \
     X("end_hour") \
@@ -206,6 +208,20 @@
 #define CID_BATT_SAVING_CHECKIN_MIN_S 3600u
 #define CID_BATT_SAVING_GPS_REFRESH_S 14400u
 #define CID_BATT_SAVING_GPS_REFRESH_MAX_S 86400u
+
+/* Schedule zone (2026-11-23): standard offset range in quarter hours, and the
+ * clock-change rules as X(id, save_qh, start month, week, weekday, minute, basis,
+ * end month, week, weekday, minute, basis); week 5 = the last, weekday 0 = Sunday,
+ * basis 0 = local standard time, 1 = UTC. Id 0 (no clock change) is not listed. */
+#define CID_ZONE_STD_QH_MIN (-48)
+#define CID_ZONE_STD_QH_MAX (56)
+#define CID_ZONE_RULE_MAX 4u
+#define CID_ZONE_RULES(X) \
+    X(1, 4, 3, 2, 0, 120, 0, 11, 1, 0, 60, 0) \
+    X(2, 4, 3, 5, 0, 60, 1, 10, 5, 0, 60, 1) \
+    X(3, 4, 10, 1, 0, 120, 0, 4, 1, 0, 120, 0) \
+    X(4, 4, 9, 5, 0, 120, 0, 4, 1, 0, 120, 0) \
+
 
 /* Direct-radio regions (CONTRACT_direct_regions.md): ids are ble.proto DirectRegion */
 #define CID_DR_TABLE_SHA256 "d4dcd845c5a71182658e8580401f6758d8bf9a81e41741fa68593ed36e06d559"

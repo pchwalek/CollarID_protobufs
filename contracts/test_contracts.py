@@ -255,8 +255,56 @@ class LoRaWake(unittest.TestCase):
         self.assertIn("#define CID_CONFIG_CSV_SCHEDULE_COUNT %du" % len(sched), h)
         # old: (44, 41) (to 2026-11-17; + lora_frequency_khz)
         # old: self.assertEqual((len(g), len(sched)), (45, 41))   (before battery_saving_band_pct, 2026-11-18)
-        self.assertEqual((len(g), len(sched)), (46, 41))
+        # old: self.assertEqual((len(g), len(sched)), (46, 41))   (before the schedule zone, 2026-11-23)
+        self.assertEqual((len(g), len(sched)), (48, 41))
 
+
+
+class ScheduleZone(unittest.TestCase):
+    """The schedule zone (2026-11-23): the reference against the IANA database
+    where this Python has it, the rules' shape, the CSV keys and the header."""
+
+    def test_the_reference_is_the_iana_zones(self):
+        try:
+            import datetime as D
+            from zoneinfo import ZoneInfo
+            ZoneInfo("America/Denver")
+        except Exception:  # pragma: no cover - no tz database here
+            self.skipTest("no IANA database")
+        for name, std, dst in (("America/Denver", -28, 1), ("America/Phoenix", -28, 0),
+                               ("America/New_York", -20, 1), ("America/St_Johns", -14, 1),
+                               ("Europe/Berlin", 4, 2), ("Europe/London", 0, 2),
+                               ("Australia/Sydney", 40, 3), ("Australia/Adelaide", 38, 3),
+                               ("Pacific/Auckland", 48, 4), ("Asia/Kolkata", 22, 0)):
+            tz = ZoneInfo(name)
+            t = int(D.datetime(2026, 1, 1, tzinfo=D.timezone.utc).timestamp())
+            end = int(D.datetime(2031, 1, 1, tzinfo=D.timezone.utc).timestamp())
+            while t < end:
+                want = int(D.datetime.fromtimestamp(t, tz).utcoffset().total_seconds()) // 900
+                self.assertEqual(R.zone_offset_qh(t, std, dst), want, (name, t))
+                t += 1800
+
+    def test_the_rules(self):
+        Z = R.SPEC["schedule_zone"]
+        ids = [r["id"] for r in Z["rules"]]
+        self.assertEqual(ids, sorted(set(ids)))
+        self.assertEqual(Z["rules"][0], {"id": 0, "key": "none", "name": "No clock change"})
+        for r in Z["rules"][1:]:
+            self.assertEqual(r["save_qh"] % 4, 0, r["key"])   # whole hours: a local hour starts where a UTC one does
+            for k in ("start", "end"):
+                e = r[k]
+                self.assertIn(e["basis"], ("utc", "local_std"))
+                self.assertTrue(1 <= e["month"] <= 12 and 1 <= e["week"] <= 5 and 0 <= e["weekday"] <= 6)
+
+    def test_the_csv_keys_and_header(self):
+        g = R.SPEC["config_csv"]["keys"]["global"]
+        i = g.index("mortality_transmit_interval_min")
+        self.assertEqual(g[i + 1:i + 3], ["schedule_zone_std_qh", "schedule_zone_dst"])
+        with open(os.path.join(generate.OUT, "collarid_contracts.h")) as fh:
+            h = fh.read()
+        self.assertIn("#define CID_ZONE_STD_QH_MIN (-48)", h)
+        self.assertIn("#define CID_ZONE_RULES(X)", h)
+        self.assertIn("X(1, 4, 3, 2, 0, 120, 0, 11, 1, 0, 60, 0)", h)   # us: basis 0 = local standard
 
 
 class DirectRegions(unittest.TestCase):

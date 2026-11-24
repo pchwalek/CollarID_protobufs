@@ -11,7 +11,7 @@
 typedef char dr_table_fits_bands[(6u <= DR_MAX_BANDS) ? 1 : -1];
 typedef char dr_table_fits_ids[(15u <= DR_REGION_MAX) ? 1 : -1];
 
-const char dr_contracts_sha256[65] = "51c93f329a9e4392bb26d7f76e3616f63f8036bd229a3b8afe635729ec148b75";
+const char dr_contracts_sha256[65] = "b796fd5f35ff6f5ee94334be3f5d617e926f97cd84eb45773b9de1a2c49281f3";
 const char dr_table_sha256[65] = "d4dcd845c5a71182658e8580401f6758d8bf9a81e41741fa68593ed36e06d559";
 
 /* 1 US915: United States, Canada, Mexico */

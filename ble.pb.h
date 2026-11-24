@@ -672,8 +672,23 @@ typedef struct schedule_config_packet {
    2 = knows ScheduleConfig.lora_wake_interval_s. By the rule above a
        collar with a listening slot (an interval above 0) refuses a
        schedule write from a version below 2; a schedule with no
-       listening slot is still taken from older writers. */
+       listening slot is still taken from older writers.
+   3 = knows zone_std_qh / zone_dst (fw gate: SCHEDULE_ZONE_MIN_FW_BUILD,
+       set at merge). A collar whose schedule has a zone refuses a
+       schedule write from a version below 3. */
     uint32_t writer_version;
+    /* Schedule zone (2026-11-23, contracts schedule_zone, collarID_thread
+ docs/DESIGN_schedule_zone.md). When either is not 0 the schedule's hours,
+ weekdays and dates (TimeWindow start_hour / end_hour / day_mask /
+ start_day / end_day) are judged in local time, not UTC: UTC + zone_std_qh
+ quarter hours + the summer time of rule zone_dst while it runs. Both 0
+ (absent) is UTC, as before, so an unzoned schedule encodes, and keeps its
+ sched_crc, exactly as it did. zone_std_qh: -48..56 (-28 = Mountain time);
+ zone_dst: an id of contracts schedule_zone.rules (0 none, 1 US/Canada,
+ 2 Europe, 3 south-east Australia, 4 New Zealand). CONFIG.CSV keys
+ schedule_zone_std_qh and schedule_zone_dst. 2-4 B. */
+    int32_t zone_std_qh;
+    uint32_t zone_dst;
 } schedule_config_packet_t;
 
 typedef struct simple_sensor_reading {
@@ -977,7 +992,7 @@ extern "C" {
 #define ACCELEROMETER_CONFIG_INIT_DEFAULT        {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_DEFAULT         {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_DEFAULT             {false, TIME_WINDOW_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, SAMPLING_CONFIG_INIT_DEFAULT, false, GPS_CONFIG_INIT_DEFAULT, false, MICROPHONE_CONFIG_INIT_DEFAULT, false, ACCELEROMETER_CONFIG_INIT_DEFAULT, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_DEFAULT, 0}
-#define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0}
+#define SCHEDULE_CONFIG_PACKET_INIT_DEFAULT      {0, 0, {SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT, SCHEDULE_CONFIG_INIT_DEFAULT}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_DEFAULT, 0, 0, 0}
 #define CFG_ECHO_PACKET_INIT_DEFAULT             {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_DEFAULT, false, MAG_CAL_REPORT_INIT_DEFAULT, 0}
 #define MAG_CAL_REPORT_INIT_DEFAULT              {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_DEFAULT           {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
@@ -1002,7 +1017,7 @@ extern "C" {
 #define ACCELEROMETER_CONFIG_INIT_ZERO           {0, _ACCEL_SAMPLE_RATE_MIN, _ACCEL_SENSITIVITY_MIN}
 #define MAGNETOMETER_CONFIG_INIT_ZERO            {0, 0, 0}
 #define SCHEDULE_CONFIG_INIT_ZERO                {false, TIME_WINDOW_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, SAMPLING_CONFIG_INIT_ZERO, false, GPS_CONFIG_INIT_ZERO, false, MICROPHONE_CONFIG_INIT_ZERO, false, ACCELEROMETER_CONFIG_INIT_ZERO, 0, 0, 0, 0, false, MAGNETOMETER_CONFIG_INIT_ZERO, 0}
-#define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0}
+#define SCHEDULE_CONFIG_PACKET_INIT_ZERO         {0, 0, {SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO, SCHEDULE_CONFIG_INIT_ZERO}, 0, {0, {0}}, 0, false, CFG_ECHO_PACKET_INIT_ZERO, 0, 0, 0}
 #define CFG_ECHO_PACKET_INIT_ZERO                {0, 0, 0, 0, 0, 0, 0, {0, {0}}, 0, 0, 0, {0, {0}}, 0, 0, false, BEACON_KEY_REPORT_INIT_ZERO, false, MAG_CAL_REPORT_INIT_ZERO, 0}
 #define MAG_CAL_REPORT_INIT_ZERO                 {_MAG_CAL_STATE_MIN, 0, 0, 0, _MAG_CAL_VERDICT_MIN, _MAG_CAL_REASON_MIN, 0, 0}
 #define BEACON_KEY_REPORT_INIT_ZERO              {_BEACON_KEY_STATE_MIN, 0, {0, {0}}, _BEACON_KEY_RESULT_MIN, 0, 0, 0, {0, {0}}}
@@ -1137,6 +1152,8 @@ extern "C" {
 #define SCHEDULE_CONFIG_PACKET_BLE_QUERY_TAG     5
 #define SCHEDULE_CONFIG_PACKET_CFG_ECHO_TAG      6
 #define SCHEDULE_CONFIG_PACKET_WRITER_VERSION_TAG 7
+#define SCHEDULE_CONFIG_PACKET_ZONE_STD_QH_TAG   8
+#define SCHEDULE_CONFIG_PACKET_ZONE_DST_TAG      9
 #define SIMPLE_SENSOR_READING_INDEX_TAG          1
 #define SIMPLE_SENSOR_READING_TEMPERATURE_TAG    2
 #define SIMPLE_SENSOR_READING_HUMIDITY_TAG       3
@@ -1339,7 +1356,9 @@ X(a, STATIC,   SINGULAR, UINT32,   special_mode,      3) \
 X(a, STATIC,   SINGULAR, BYTES,    cfg_downlink,      4) \
 X(a, STATIC,   SINGULAR, UINT32,   ble_query,         5) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_echo,          6) \
-X(a, STATIC,   SINGULAR, UINT32,   writer_version,    7)
+X(a, STATIC,   SINGULAR, UINT32,   writer_version,    7) \
+X(a, STATIC,   SINGULAR, SINT32,   zone_std_qh,       8) \
+X(a, STATIC,   SINGULAR, UINT32,   zone_dst,          9)
 #define SCHEDULE_CONFIG_PACKET_CALLBACK NULL
 #define SCHEDULE_CONFIG_PACKET_DEFAULT NULL
 #define schedule_config_packet_t_schedules_MSGTYPE schedule_config_t
@@ -1548,7 +1567,7 @@ extern const pb_msgdesc_t ble_packet_t_msg;
 #define RADIO_CONFIG_PACKET_SIZE                 191
 #define RADIO_OTAA_SIZE                          56
 #define SAMPLING_CONFIG_SIZE                     8
-#define SCHEDULE_CONFIG_PACKET_SIZE              1441
+#define SCHEDULE_CONFIG_PACKET_SIZE              1453
 #define SCHEDULE_CONFIG_SIZE                     186
 #define SIMPLE_SENSOR_READING_SIZE               51
 #define SYSTEM_STATE_PACKET_SIZE                 240

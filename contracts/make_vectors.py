@@ -197,6 +197,40 @@ def make():
     v["saving_gps_refresh_wait_s"] = [{"failures": n, "wait_s": R.saving_gps_refresh_wait_s(n)}
                                       for n in (0, 1, 2, 3, 4, 10)]
 
+    # Schedule zone (2026-11-23). "zone_valid": the rails' rule; "zone_from_csv":
+    # the two CONFIG.CSV rows read (null = missing); "zone_offset": for each zone
+    # of the list, every clock change 2026-2030 one second before, on and one
+    # second after, plus mid-January and mid-July noon UTC each year: the
+    # offset in quarter hours, the local epoch, summer time, and the next change.
+    v["zone_valid"] = [{"std_qh": a, "dst": b, "valid": R.zone_valid(a, b)}
+                       for a, b in ((0, 0), (-28, 1), (-28, 0), (4, 2), (40, 3), (48, 4), (22, 0),
+                                    (-48, 0), (56, 0), (-49, 0), (57, 0), (0, 5), (0, -1), (-20, 99))]
+    v["zone_from_csv"] = [{"std_qh": a, "dst": b, "want": list(R.zone_from_csv(a, b))}
+                          for a, b in ((None, None), ("-28", "1"), ("-28", "0"), ("4", "2"), (" 40", "3 "),
+                                       ("-60", "1"), ("70", "0"), ("abc", "9"), ("", ""), ("22", "4.5"))]
+    zones = (("America/Denver", -28, 1), ("America/Phoenix", -28, 0), ("America/St_Johns", -14, 1),
+             ("Europe/Berlin", 4, 2), ("Europe/London", 0, 2), ("Australia/Sydney", 40, 3),
+             ("Pacific/Auckland", 48, 4), ("Asia/Kolkata", 22, 0))
+    zrows = []
+    for name, std, dst in zones:
+        ts = set()
+        for y in range(2026, 2031):
+            jan = R._days_from_civil(y, 1, 15) * 86400 + 43200
+            jul = R._days_from_civil(y, 7, 15) * 86400 + 43200
+            ts.update((jan, jul))
+            r = R.zone_rule(dst)
+            if r:
+                for k in ("start", "end"):
+                    t = R.zone_edge_utc(y, r[k], std)
+                    ts.update((t - 1, t, t + 1))
+        for t in sorted(ts):
+            zrows.append({"zone": name, "std_qh": std, "dst": dst, "utc": t,
+                          "offset_qh": R.zone_offset_qh(t, std, dst),
+                          "local": R.zone_local_epoch(t, std, dst),
+                          "summer": R.zone_summer(t, std, dst),
+                          "next_change": R.zone_next_change_utc(t, std, dst)})
+    v["zone_offset"] = zrows
+
     # CONFIG.CSV
     cfg = S.get("config_csv")
     if isinstance(cfg, dict) and "vectors" in cfg:

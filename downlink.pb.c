@@ -42,6 +42,9 @@ PB_BIND(CONFIG_RADIO_TIMING, config_radio_timing_t, AUTO)
 PB_BIND(CONFIG_MORTALITY, config_mortality_t, AUTO)
 
 
+PB_BIND(CONFIG_ZONE, config_zone_t, AUTO)
+
+
 PB_BIND(CONFIG_SYSTEM, config_system_t, AUTO)
 
 

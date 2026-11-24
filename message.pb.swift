@@ -21,6 +21,69 @@ fileprivate struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAP
   typealias Version = _2
 }
 
+/// Outcome of a config transaction (remote schedule push). Uplinked once
+/// after CMD_CONFIG_COMMIT is processed — the server's only visibility into
+/// whether a push landed; without it, NACKs died in METADATA.CSV.
+enum ConfigAckStatus: SwiftProtobuf.Enum, Swift.CaseIterable {
+  typealias RawValue = Int
+  case cfgAckNone // = 0
+
+  /// staged config applied + persisted
+  case cfgAckApplied // = 1
+
+  /// commit rejected; see cfg_missing_mask
+  case cfgAckMissingFrags // = 2
+
+  /// schedule would silence the device (floor/radio rails)
+  case cfgAckRailsRejected // = 3
+
+  /// commit with no open transaction
+  case cfgAckNoTxn // = 4
+
+  /// staging expired before commit arrived
+  case cfgAckExpired // = 5
+  case UNRECOGNIZED(Int)
+
+  init() {
+    self = .cfgAckNone
+  }
+
+  init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .cfgAckNone
+    case 1: self = .cfgAckApplied
+    case 2: self = .cfgAckMissingFrags
+    case 3: self = .cfgAckRailsRejected
+    case 4: self = .cfgAckNoTxn
+    case 5: self = .cfgAckExpired
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  var rawValue: Int {
+    switch self {
+    case .cfgAckNone: return 0
+    case .cfgAckApplied: return 1
+    case .cfgAckMissingFrags: return 2
+    case .cfgAckRailsRejected: return 3
+    case .cfgAckNoTxn: return 4
+    case .cfgAckExpired: return 5
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  static let allCases: [ConfigAckStatus] = [
+    .cfgAckNone,
+    .cfgAckApplied,
+    .cfgAckMissingFrags,
+    .cfgAckRailsRejected,
+    .cfgAckNoTxn,
+    .cfgAckExpired,
+  ]
+
+}
+
 struct SystemInfoPacket: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -125,32 +188,52 @@ struct GPSData_2: Sendable {
 
   var longitudeE7: Int32 = 0
 
-  var altitudeMm: UInt32 = 0
-
-  var timestamp: UInt32 {
-    get {return _timestamp ?? 0}
-    set {_timestamp = newValue}
+  var altitudeMm: UInt32 {
+    get {return _altitudeMm ?? 0}
+    set {_altitudeMm = newValue}
   }
-  /// Returns true if `timestamp` has been explicitly set.
-  var hasTimestamp: Bool {return self._timestamp != nil}
-  /// Clears the value of `timestamp`. Subsequent reads from it will return its default value.
-  mutating func clearTimestamp() {self._timestamp = nil}
+  /// Returns true if `altitudeMm` has been explicitly set.
+  var hasAltitudeMm: Bool {return self._altitudeMm != nil}
+  /// Clears the value of `altitudeMm`. Subsequent reads from it will return its default value.
+  mutating func clearAltitudeMm() {self._altitudeMm = nil}
 
-  var gpsAvgFixTimeMs: UInt32 {
-    get {return _gpsAvgFixTimeMs ?? 0}
-    set {_gpsAvgFixTimeMs = newValue}
+  var timestamp: UInt32 = 0
+
+  var gpsAvgFixTimeS: UInt32 {
+    get {return _gpsAvgFixTimeS ?? 0}
+    set {_gpsAvgFixTimeS = newValue}
   }
-  /// Returns true if `gpsAvgFixTimeMs` has been explicitly set.
-  var hasGpsAvgFixTimeMs: Bool {return self._gpsAvgFixTimeMs != nil}
-  /// Clears the value of `gpsAvgFixTimeMs`. Subsequent reads from it will return its default value.
-  mutating func clearGpsAvgFixTimeMs() {self._gpsAvgFixTimeMs = nil}
+  /// Returns true if `gpsAvgFixTimeS` has been explicitly set.
+  var hasGpsAvgFixTimeS: Bool {return self._gpsAvgFixTimeS != nil}
+  /// Clears the value of `gpsAvgFixTimeS`. Subsequent reads from it will return its default value.
+  mutating func clearGpsAvgFixTimeS() {self._gpsAvgFixTimeS = nil}
+
+  var hdop: UInt32 {
+    get {return _hdop ?? 0}
+    set {_hdop = newValue}
+  }
+  /// Returns true if `hdop` has been explicitly set.
+  var hasHdop: Bool {return self._hdop != nil}
+  /// Clears the value of `hdop`. Subsequent reads from it will return its default value.
+  mutating func clearHdop() {self._hdop = nil}
+
+  var hAccDm: UInt32 {
+    get {return _hAccDm ?? 0}
+    set {_hAccDm = newValue}
+  }
+  /// Returns true if `hAccDm` has been explicitly set.
+  var hasHAccDm: Bool {return self._hAccDm != nil}
+  /// Clears the value of `hAccDm`. Subsequent reads from it will return its default value.
+  mutating func clearHAccDm() {self._hAccDm = nil}
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
 
-  fileprivate var _timestamp: UInt32? = nil
-  fileprivate var _gpsAvgFixTimeMs: UInt32? = nil
+  fileprivate var _altitudeMm: UInt32? = nil
+  fileprivate var _gpsAvgFixTimeS: UInt32? = nil
+  fileprivate var _hdop: UInt32? = nil
+  fileprivate var _hAccDm: UInt32? = nil
 }
 
 struct SystemSensorSummary: Sendable {
@@ -190,9 +273,56 @@ struct AckPacket: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
+  /// echoes DownlinkPacket.cfg_txn_id
+  var cfgTxnID: UInt32 {
+    get {return _cfgTxnID ?? 0}
+    set {_cfgTxnID = newValue}
+  }
+  /// Returns true if `cfgTxnID` has been explicitly set.
+  var hasCfgTxnID: Bool {return self._cfgTxnID != nil}
+  /// Clears the value of `cfgTxnID`. Subsequent reads from it will return its default value.
+  mutating func clearCfgTxnID() {self._cfgTxnID = nil}
+
+  var cfgStatus: ConfigAckStatus {
+    get {return _cfgStatus ?? .cfgAckNone}
+    set {_cfgStatus = newValue}
+  }
+  /// Returns true if `cfgStatus` has been explicitly set.
+  var hasCfgStatus: Bool {return self._cfgStatus != nil}
+  /// Clears the value of `cfgStatus`. Subsequent reads from it will return its default value.
+  mutating func clearCfgStatus() {self._cfgStatus = nil}
+
+  /// For MISSING_FRAGS: bit i = fragment_index i missing.
+  /// For RAILS_REJECTED (fw 301+): the SCHED_RAIL_* code of the refusing
+  /// rule (1 slot-count, 2 grown-slot-bare, 3 radio-off, 4 cadence-floor,
+  /// 5 both-radios, 6 window-overlap). 0 = firmware predating the field.
+  var cfgMissingMask: UInt32 {
+    get {return _cfgMissingMask ?? 0}
+    set {_cfgMissingMask = newValue}
+  }
+  /// Returns true if `cfgMissingMask` has been explicitly set.
+  var hasCfgMissingMask: Bool {return self._cfgMissingMask != nil}
+  /// Clears the value of `cfgMissingMask`. Subsequent reads from it will return its default value.
+  mutating func clearCfgMissingMask() {self._cfgMissingMask = nil}
+
+  /// schedule identity AFTER the verdict
+  var schedCrc: UInt32 {
+    get {return _schedCrc ?? 0}
+    set {_schedCrc = newValue}
+  }
+  /// Returns true if `schedCrc` has been explicitly set.
+  var hasSchedCrc: Bool {return self._schedCrc != nil}
+  /// Clears the value of `schedCrc`. Subsequent reads from it will return its default value.
+  mutating func clearSchedCrc() {self._schedCrc = nil}
+
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   init() {}
+
+  fileprivate var _cfgTxnID: UInt32? = nil
+  fileprivate var _cfgStatus: ConfigAckStatus? = nil
+  fileprivate var _cfgMissingMask: UInt32? = nil
+  fileprivate var _schedCrc: UInt32? = nil
 }
 
 struct RadioInfo: Sendable {
@@ -364,6 +494,92 @@ struct ParticulateData: Sendable {
   fileprivate var _timestamp: UInt32? = nil
 }
 
+/// Bitmask carried on uplinks while a condition persists.
+///   bits 0-6  boot hardware diagnostics, bit set = FAULT (hw_diag.h):
+///             0 accel, 1 mag, 2 light, 3 BME688, 4 GPS, 5 particulate, 6 LoRa
+///   bit  7    diagnostics ran (validity bit for 0-6)
+///   bit  8    MORTALITY: VeDBA has stayed near zero past the configured
+///             trigger duration. Not a hardware fault — consumers must mask
+///             bits 0-7 before reporting hardware health, or a mortality
+///             flag will read as a broken collar.
+///   bit  9    STORAGE: the collar could not open a recording file on its SD
+///             card (directory or file create failed even after its recovery
+///             fallbacks — see sd_prepare_recording_folder in the firmware).
+///             Audio/accelerometer data is being lost while set. Clears on
+///             the next successful open. Not a hardware fault either.
+///   bit  10   MIC: the boot microphone self-test failed (settled PDM capture
+///             all-zero = broken mic flex). On BLE this fault is bit 8 of
+///             SystemStatePacket.hw_diag; it CANNOT sit there in this word,
+///             because bit 8 here is MORTALITY. Firmware builds 306 up to the
+///             fix did send it on bit 8, so on those builds bit 8 together
+///             with bit 7 is ambiguous (mic fault, mortality, or both), while
+///             bit 8 without bit 7 is always a clean mortality. The server
+///             folds bit 10 back onto bit 8 of devices.hw_faults, which keeps
+///             the BLE layout.
+///   bit  11   LORAWAN_FCNT: the frame-counter restore failed for good and this
+///             session restarted at FCntUp 0 so the collar could keep
+///             reporting (firmware lw_rebase_policy.h). Counters are being
+///             re-used under the same keys while set. Rides every uplink
+///             until a restore works again. Not a hardware fault.
+///   bit  12   BEACON_KEY_FALLBACK: the collar holds a lost-mode beacon key it
+///             cannot use, so its lost-mode beacon goes out as the plaintext
+///             0x4C frame instead of the encrypted 0x4D (beacon/README.md).
+///             Set exactly while the Bluetooth echo's BeaconKeyReport.state
+///             (ble.proto) is BEACON_KEY_STATE_FALLBACK: the key record failed
+///             to read (torn write, ECC), the 24-bit beacon sequence is
+///             exhausted, or the flash store refused a beacon counter (that
+///             last one until the next reboot or key command). Never set
+///             while the state is NONE (no key: 0x4C, as always) or KEYED.
+///             Clears when a key set, a key clear or a factory reset over
+///             Bluetooth leaves the state NONE or KEYED. Rides every LoRaWAN
+///             uplink while it lasts. Not a hardware fault.
+///   bit  13   SAFE_MODE: this boot runs in safe mode (firmware reset_loop.h):
+///             three fast resets in a row, and the subsystem the recorded
+///             fault named (microphone, sensors or GPS) is left off for this
+///             boot so the collar stops looping. Rides every uplink of that
+///             boot; the next boot after a steady session is a normal one.
+///             last_fatal (PacketHeader) says what the fault was.
+///   bit  14   CARD_MISSING: this boot runs without its memory card
+///             (firmware location_only.h): no card answered at boot on a
+///             collar engaged in its flash store, so it sends GPS and reports
+///             from the stored settings and records nothing. Bit 9 (storage)
+///             rides with it; read 14 first. It probes for a card and
+///             restarts when one answers. Past a 2-byte varint (see bit 15).
+///   bit  15   CHARGE_HELD_OFF: battery protection holds the solar charger off
+///             because the cell is too cold to charge (firmware
+///             battery_protection.h; Mk III units with the setting on). Not a
+///             fault: "Charging paused: too cold", so a winter collar whose
+///             battery falls on a sunny day does not read as a broken panel.
+///             Rides every LoRaWAN uplink while it lasts. Bits 14, 15, 16, 17
+///             and 18 are the only bits past a 2-byte varint: a frame that
+///             carries one is a byte longer, and the firmware's
+///             UplinkBudget_Fit measures every frame (a GPS fix fewer on a full
+///             one, at worst).
+///   bit  16   NO_RELEASE_UNIT: a release command reached the collar (a
+///             LoRaWAN Drop Off, Arm or Disarm, or a detach zone firing) while
+///             no release unit had checked in with it
+///             (AddonStore_PrimaryDetachUid() is 0), so the command was not
+///             queued. Rides the next 3 uplinks after the drop, even if a
+///             release unit checks in meanwhile (the command was still
+///             dropped); a new drop starts the 3 again. RAM only, so a reboot
+///             clears it. Not a fault: the server closes the collar's newest
+///             open release command as refused, and the map says why.
+///   bit  17   SAVING_POWER: the battery reads at or below the hibernate
+///             level plus the saving band (firmware battery_thresholds.h,
+///             ConfigSystem.battery_saving_band_pct), so the collar has stopped
+///             recording to stay findable: no sound, movement, magnetometer,
+///             environmental or particulate data and no scheduled GPS fix,
+///             check-ins at most hourly, no scheduled direct-radio reports; it
+///             keeps listening for a Spotter as its schedule says. Ends 5
+///             points above where it began. Rides every LoRaWAN uplink while
+///             it lasts. Not a fault.
+///   bit  18   LOW_BATTERY_SLEEP: this is the collar's last report before its
+///             low-battery sleep (hibernation at the hibernate level, or at
+///             3 % after a Spotter held it awake). It sends nothing until the
+///             sun brings the battery above the resume level. Set on that one
+///             report only: the next report without it means the collar is
+///             running again. Not a fault.
+///   bits 19-31 free
 struct ErrorFlags: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -431,14 +647,10 @@ struct Deployment: @unchecked Sendable {
   /// Clears the value of `steps`. Subsequent reads from it will return its default value.
   mutating func clearSteps() {_uniqueStorage()._steps = nil}
 
-  var gpsData: GPSData_2 {
-    get {return _storage._gpsData ?? GPSData_2()}
+  var gpsData: [GPSData_2] {
+    get {return _storage._gpsData}
     set {_uniqueStorage()._gpsData = newValue}
   }
-  /// Returns true if `gpsData` has been explicitly set.
-  var hasGpsData: Bool {return _storage._gpsData != nil}
-  /// Clears the value of `gpsData`. Subsequent reads from it will return its default value.
-  mutating func clearGpsData() {_uniqueStorage()._gpsData = nil}
 
   var errorFlags: ErrorFlags {
     get {return _storage._errorFlags ?? ErrorFlags()}
@@ -448,6 +660,15 @@ struct Deployment: @unchecked Sendable {
   var hasErrorFlags: Bool {return _storage._errorFlags != nil}
   /// Clears the value of `errorFlags`. Subsequent reads from it will return its default value.
   mutating func clearErrorFlags() {_uniqueStorage()._errorFlags = nil}
+
+  /// Add-on (detachment/SatCom) relay — empty when the collar has no
+  /// paired add-on or nothing new to report. Repeated: one entry per
+  /// add-on in the Thread rendezvous seen-nodes report (up to 4; see
+  /// DESIGN_detachment_thread.md §7.1 multi-add-on policy).
+  var addon: [AddonReport] {
+    get {return _storage._addon}
+    set {_uniqueStorage()._addon = newValue}
+  }
 
   /// GPS block v1: up to 32 fixes bit-packed into one blob, on LoRaWAN
   /// deployment uplinks. The newest fix is sent whole at 1e-5 deg with its
@@ -474,6 +695,151 @@ struct Deployment: @unchecked Sendable {
   init() {}
 
   fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+struct AddonReport: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// add-on die UID
+  var uid: UInt32 = 0
+
+  /// AddonNodeType (addon.proto)
+  var nodeType: UInt32 = 0
+
+  /// UTC s of the last completed rendezvous
+  var lastCheckinEpoch: UInt32 = 0
+
+  var battMv: UInt32 {
+    get {return _battMv ?? 0}
+    set {_battMv = newValue}
+  }
+  /// Returns true if `battMv` has been explicitly set.
+  var hasBattMv: Bool {return self._battMv != nil}
+  /// Clears the value of `battMv`. Subsequent reads from it will return its default value.
+  mutating func clearBattMv() {self._battMv = nil}
+
+  /// armed drop-off time, 0/absent = none
+  var detachEpoch: UInt32 {
+    get {return _detachEpoch ?? 0}
+    set {_detachEpoch = newValue}
+  }
+  /// Returns true if `detachEpoch` has been explicitly set.
+  var hasDetachEpoch: Bool {return self._detachEpoch != nil}
+  /// Clears the value of `detachEpoch`. Subsequent reads from it will return its default value.
+  mutating func clearDetachEpoch() {self._detachEpoch = nil}
+
+  /// 1 = scheduled detach already fired
+  var fired: UInt32 {
+    get {return _fired ?? 0}
+    set {_fired = newValue}
+  }
+  /// Returns true if `fired` has been explicitly set.
+  var hasFired: Bool {return self._fired != nil}
+  /// Clears the value of `fired`. Subsequent reads from it will return its default value.
+  mutating func clearFired() {self._fired = nil}
+
+  /// AddonMotorState
+  var motorState: UInt32 {
+    get {return _motorState ?? 0}
+    set {_motorState = newValue}
+  }
+  /// Returns true if `motorState` has been explicitly set.
+  var hasMotorState: Bool {return self._motorState != nil}
+  /// Clears the value of `motorState`. Subsequent reads from it will return its default value.
+  mutating func clearMotorState() {self._motorState = nil}
+
+  /// 7.1 durable command queue: the collar's queued command for this add-on,
+  /// so the dashboard renders pending/delivered/confirmed truthfully.
+  var pendingCmd: UInt32 {
+    get {return _pendingCmd ?? 0}
+    set {_pendingCmd = newValue}
+  }
+  /// Returns true if `pendingCmd` has been explicitly set.
+  var hasPendingCmd: Bool {return self._pendingCmd != nil}
+  /// Clears the value of `pendingCmd`. Subsequent reads from it will return its default value.
+  mutating func clearPendingCmd() {self._pendingCmd = nil}
+
+  /// 1 pending, 2 delivered, 3 confirmed
+  var cmdState: UInt32 {
+    get {return _cmdState ?? 0}
+    set {_cmdState = newValue}
+  }
+  /// Returns true if `cmdState` has been explicitly set.
+  var hasCmdState: Bool {return self._cmdState != nil}
+  /// Clears the value of `cmdState`. Subsequent reads from it will return its default value.
+  mutating func clearCmdState() {self._cmdState = nil}
+
+  /// The queued command's parameter — for an arm (pending_cmd=1) this is the
+  /// target detach epoch, so the dashboard shows the datetime while the arm
+  /// is still in flight (before the node confirms it in detach_epoch).
+  var pendingCmdParam: UInt32 {
+    get {return _pendingCmdParam ?? 0}
+    set {_pendingCmdParam = newValue}
+  }
+  /// Returns true if `pendingCmdParam` has been explicitly set.
+  var hasPendingCmdParam: Bool {return self._pendingCmdParam != nil}
+  /// Clears the value of `pendingCmdParam`. Subsequent reads from it will return its default value.
+  mutating func clearPendingCmdParam() {self._pendingCmdParam = nil}
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _battMv: UInt32? = nil
+  fileprivate var _detachEpoch: UInt32? = nil
+  fileprivate var _fired: UInt32? = nil
+  fileprivate var _motorState: UInt32? = nil
+  fileprivate var _pendingCmd: UInt32? = nil
+  fileprivate var _cmdState: UInt32? = nil
+  fileprivate var _pendingCmdParam: UInt32? = nil
+}
+
+/// Schedule self-report: the device describes its RUNNING config to the
+/// server in the same fragment vocabulary the server pushes with
+/// (downlink.proto ConfigFragment) — one small fragment per uplink, absolute
+/// values (every field present), not deltas. Sent on CMD_CONFIG_REPORT, after
+/// a config commit, and when sched_crc changes out-of-band (SD/BLE edit).
+/// frag_index/frag_total let the server assemble and detect gaps; sched_crc
+/// binds every fragment to the identity it describes, so a mid-report edit
+/// invalidates the batch instead of splicing two configs together.
+///
+/// fw 360 trims the report: sched_crc is left 0 (the packet header already
+/// carries the identity of every uplink, and the server keys on that), one
+/// fragment carries several settings of a slot (five fragments per slot
+/// instead of nine), and after a committed push only the parts the push
+/// touched are reported — report_mask says which (bits as
+/// DownlinkPacket.report_mask; 0 = the whole config, as older firmware sends).
+struct ConfigReport: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// 0 from fw 360: use PacketHeader.sched_crc
+  var schedCrc: UInt32 = 0
+
+  var fragIndex: UInt32 = 0
+
+  var fragTotal: UInt32 = 0
+
+  var frag: ConfigFragment {
+    get {return _frag ?? ConfigFragment()}
+    set {_frag = newValue}
+  }
+  /// Returns true if `frag` has been explicitly set.
+  var hasFrag: Bool {return self._frag != nil}
+  /// Clears the value of `frag`. Subsequent reads from it will return its default value.
+  mutating func clearFrag() {self._frag = nil}
+
+  /// fw 360+: scope of this report; 0 = everything
+  var reportMask: UInt32 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+
+  fileprivate var _frag: ConfigFragment? = nil
 }
 
 /// Lost-mode beacon key status on the LoRaWAN uplink (MessagePacket.beacon_key).
@@ -528,62 +894,131 @@ struct BeaconKeyStatus: @unchecked Sendable {
   init() {}
 }
 
-struct MessagePacket: Sendable {
+/// What's on the card (2026-11-16, collarID_thread
+/// docs/CONTRACT_files_and_spotter_gaps.md Part 3): one reply frame of a
+/// CMD_CARD_SUMMARY answer. `days` holds 10 B per UTC day, consecutive days
+/// from first_day (reference/CARD_SUMMARY_V1.md, codec
+/// reference/card_summary.py, vectors test_vectors/card_summary_v1.json):
+///   [0..2] sound hours (u24 LE): bit h = some sound on the card covers part
+///          of UTC hour h of that day (from a take's start, its file name, to
+///          its close)
+///   [3..4] sound MiB (u16 LE): the takes that start that day, rounded up;
+///          65535 = that much or more
+///   [5..7] movement hours (u24 LE), as sound (accelerometer files)
+///   [8..9] movement MiB (u16 LE), as sound
+/// A day with nothing is all zeros, and is kept so days stay consecutive. A
+/// frame carries at most 16 days (160 B); an answer at most 4 frames (62
+/// days). log_kib is on part 1 only.
+struct CardSummary: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// UTC midnight (epoch s) of the first day in `days`
+  var firstDay: UInt32 = 0
+
+  /// 10 B per day (above)
+  var days: Data = Data()
+
+  /// 1-based frame number of this answer
+  var part: UInt32 = 0
+
+  /// frames in this answer
+  var parts: UInt32 = 0
+
+  /// size of /METADATA.CSV, KiB rounded up (part 1 only)
+  var logKib: UInt32 = 0
+
+  /// collar UTC when the summary was made
+  var asOf: UInt32 = 0
+
+  var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  init() {}
+}
+
+struct MessagePacket: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
   var header: PacketHeader {
-    get {return _header ?? PacketHeader()}
-    set {_header = newValue}
+    get {return _storage._header ?? PacketHeader()}
+    set {_uniqueStorage()._header = newValue}
   }
   /// Returns true if `header` has been explicitly set.
-  var hasHeader: Bool {return self._header != nil}
+  var hasHeader: Bool {return _storage._header != nil}
   /// Clears the value of `header`. Subsequent reads from it will return its default value.
-  mutating func clearHeader() {self._header = nil}
+  mutating func clearHeader() {_uniqueStorage()._header = nil}
 
-  var payload: MessagePacket.OneOf_Payload? = nil
+  var payload: OneOf_Payload? {
+    get {return _storage._payload}
+    set {_uniqueStorage()._payload = newValue}
+  }
 
   var systemInfoPacket: SystemInfoPacket {
     get {
-      if case .systemInfoPacket(let v)? = payload {return v}
+      if case .systemInfoPacket(let v)? = _storage._payload {return v}
       return SystemInfoPacket()
     }
-    set {payload = .systemInfoPacket(newValue)}
+    set {_uniqueStorage()._payload = .systemInfoPacket(newValue)}
   }
 
   var configPacket: ConfigPacket {
     get {
-      if case .configPacket(let v)? = payload {return v}
+      if case .configPacket(let v)? = _storage._payload {return v}
       return ConfigPacket()
     }
-    set {payload = .configPacket(newValue)}
+    set {_uniqueStorage()._payload = .configPacket(newValue)}
   }
 
   var ackPacket: AckPacket {
     get {
-      if case .ackPacket(let v)? = payload {return v}
+      if case .ackPacket(let v)? = _storage._payload {return v}
       return AckPacket()
     }
-    set {payload = .ackPacket(newValue)}
+    set {_uniqueStorage()._payload = .ackPacket(newValue)}
   }
 
   var systemDeploymentPacket: Deployment {
     get {
-      if case .systemDeploymentPacket(let v)? = payload {return v}
+      if case .systemDeploymentPacket(let v)? = _storage._payload {return v}
       return Deployment()
     }
-    set {payload = .systemDeploymentPacket(newValue)}
+    set {_uniqueStorage()._payload = .systemDeploymentPacket(newValue)}
   }
 
   var radioInfo: RadioInfo {
-    get {return _radioInfo ?? RadioInfo()}
-    set {_radioInfo = newValue}
+    get {return _storage._radioInfo ?? RadioInfo()}
+    set {_uniqueStorage()._radioInfo = newValue}
   }
   /// Returns true if `radioInfo` has been explicitly set.
-  var hasRadioInfo: Bool {return self._radioInfo != nil}
+  var hasRadioInfo: Bool {return _storage._radioInfo != nil}
   /// Clears the value of `radioInfo`. Subsequent reads from it will return its default value.
-  mutating func clearRadioInfo() {self._radioInfo = nil}
+  mutating func clearRadioInfo() {_uniqueStorage()._radioInfo = nil}
+
+  /// Piggybacked config-transaction verdict / schedule self-report. Sibling
+  /// fields, NOT oneof members: they ride whatever uplink goes out next
+  /// (deployment, system info), costing no extra airtime windows. At most
+  /// one of each per uplink; the sender strips them if the encoded packet
+  /// would exceed the region's payload budget and retries on the next one.
+  var cfgAck: AckPacket {
+    get {return _storage._cfgAck ?? AckPacket()}
+    set {_uniqueStorage()._cfgAck = newValue}
+  }
+  /// Returns true if `cfgAck` has been explicitly set.
+  var hasCfgAck: Bool {return _storage._cfgAck != nil}
+  /// Clears the value of `cfgAck`. Subsequent reads from it will return its default value.
+  mutating func clearCfgAck() {_uniqueStorage()._cfgAck = nil}
+
+  var cfgReport: ConfigReport {
+    get {return _storage._cfgReport ?? ConfigReport()}
+    set {_uniqueStorage()._cfgReport = newValue}
+  }
+  /// Returns true if `cfgReport` has been explicitly set.
+  var hasCfgReport: Bool {return _storage._cfgReport != nil}
+  /// Clears the value of `cfgReport`. Subsequent reads from it will return its default value.
+  mutating func clearCfgReport() {_uniqueStorage()._cfgReport = nil}
 
   /// Lost-mode beacon key status (BeaconKeyStatus above): once per boot and
   /// once after each Bluetooth key command, LoRaWAN only, stripped (and
@@ -591,13 +1026,25 @@ struct MessagePacket: Sendable {
   /// report on this frame, never "no key". Fw gate: firmware main build
   /// TBD, set at merge.
   var beaconKey: BeaconKeyStatus {
-    get {return _beaconKey ?? BeaconKeyStatus()}
-    set {_beaconKey = newValue}
+    get {return _storage._beaconKey ?? BeaconKeyStatus()}
+    set {_uniqueStorage()._beaconKey = newValue}
   }
   /// Returns true if `beaconKey` has been explicitly set.
-  var hasBeaconKey: Bool {return self._beaconKey != nil}
+  var hasBeaconKey: Bool {return _storage._beaconKey != nil}
   /// Clears the value of `beaconKey`. Subsequent reads from it will return its default value.
-  mutating func clearBeaconKey() {self._beaconKey = nil}
+  mutating func clearBeaconKey() {_uniqueStorage()._beaconKey = nil}
+
+  /// What's on the card (CMD_CARD_SUMMARY, downlink.proto; 2026-11-16).
+  /// Only on a direct-radio reply frame answering that command, never on a
+  /// report. Fw gate: firmware main build TBD, set at merge.
+  var cardSummary: CardSummary {
+    get {return _storage._cardSummary ?? CardSummary()}
+    set {_uniqueStorage()._cardSummary = newValue}
+  }
+  /// Returns true if `cardSummary` has been explicitly set.
+  var hasCardSummary: Bool {return _storage._cardSummary != nil}
+  /// Clears the value of `cardSummary`. Subsequent reads from it will return its default value.
+  mutating func clearCardSummary() {_uniqueStorage()._cardSummary = nil}
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -611,12 +1058,21 @@ struct MessagePacket: Sendable {
 
   init() {}
 
-  fileprivate var _header: PacketHeader? = nil
-  fileprivate var _radioInfo: RadioInfo? = nil
-  fileprivate var _beaconKey: BeaconKeyStatus? = nil
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
+
+extension ConfigAckStatus: SwiftProtobuf._ProtoNameProviding {
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    0: .same(proto: "CFG_ACK_NONE"),
+    1: .same(proto: "CFG_ACK_APPLIED"),
+    2: .same(proto: "CFG_ACK_MISSING_FRAGS"),
+    3: .same(proto: "CFG_ACK_RAILS_REJECTED"),
+    4: .same(proto: "CFG_ACK_NO_TXN"),
+    5: .same(proto: "CFG_ACK_EXPIRED"),
+  ]
+}
 
 extension SystemInfoPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = "SystemInfoPacket"
@@ -839,7 +1295,9 @@ extension GPSData_2: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     2: .standard(proto: "longitude_e7"),
     3: .standard(proto: "altitude_mm"),
     4: .same(proto: "timestamp"),
-    5: .standard(proto: "gps_avg_fix_time_ms"),
+    5: .standard(proto: "gps_avg_fix_time_s"),
+    6: .same(proto: "hdop"),
+    7: .standard(proto: "h_acc_dm"),
   ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -850,9 +1308,11 @@ extension GPSData_2: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularInt32Field(value: &self.latitudeE7) }()
       case 2: try { try decoder.decodeSingularInt32Field(value: &self.longitudeE7) }()
-      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.altitudeMm) }()
-      case 4: try { try decoder.decodeSingularUInt32Field(value: &self._timestamp) }()
-      case 5: try { try decoder.decodeSingularUInt32Field(value: &self._gpsAvgFixTimeMs) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self._altitudeMm) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.timestamp) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self._gpsAvgFixTimeS) }()
+      case 6: try { try decoder.decodeSingularUInt32Field(value: &self._hdop) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self._hAccDm) }()
       default: break
       }
     }
@@ -869,14 +1329,20 @@ extension GPSData_2: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     if self.longitudeE7 != 0 {
       try visitor.visitSingularInt32Field(value: self.longitudeE7, fieldNumber: 2)
     }
-    if self.altitudeMm != 0 {
-      try visitor.visitSingularUInt32Field(value: self.altitudeMm, fieldNumber: 3)
-    }
-    try { if let v = self._timestamp {
-      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 4)
+    try { if let v = self._altitudeMm {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 3)
     } }()
-    try { if let v = self._gpsAvgFixTimeMs {
+    if self.timestamp != 0 {
+      try visitor.visitSingularUInt32Field(value: self.timestamp, fieldNumber: 4)
+    }
+    try { if let v = self._gpsAvgFixTimeS {
       try visitor.visitSingularUInt32Field(value: v, fieldNumber: 5)
+    } }()
+    try { if let v = self._hdop {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 6)
+    } }()
+    try { if let v = self._hAccDm {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 7)
     } }()
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -884,9 +1350,11 @@ extension GPSData_2: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
   static func ==(lhs: GPSData_2, rhs: GPSData_2) -> Bool {
     if lhs.latitudeE7 != rhs.latitudeE7 {return false}
     if lhs.longitudeE7 != rhs.longitudeE7 {return false}
-    if lhs.altitudeMm != rhs.altitudeMm {return false}
-    if lhs._timestamp != rhs._timestamp {return false}
-    if lhs._gpsAvgFixTimeMs != rhs._gpsAvgFixTimeMs {return false}
+    if lhs._altitudeMm != rhs._altitudeMm {return false}
+    if lhs.timestamp != rhs.timestamp {return false}
+    if lhs._gpsAvgFixTimeS != rhs._gpsAvgFixTimeS {return false}
+    if lhs._hdop != rhs._hdop {return false}
+    if lhs._hAccDm != rhs._hAccDm {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -986,18 +1454,53 @@ extension SystemSensorSummary: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
 
 extension AckPacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = "AckPacket"
-  static let _protobuf_nameMap = SwiftProtobuf._NameMap()
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .standard(proto: "cfg_txn_id"),
+    2: .standard(proto: "cfg_status"),
+    3: .standard(proto: "cfg_missing_mask"),
+    4: .standard(proto: "sched_crc"),
+  ]
 
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    // Load everything into unknown fields
-    while try decoder.nextFieldNumber() != nil {}
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self._cfgTxnID) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self._cfgStatus) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self._cfgMissingMask) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self._schedCrc) }()
+      default: break
+      }
+    }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._cfgTxnID {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 1)
+    } }()
+    try { if let v = self._cfgStatus {
+      try visitor.visitSingularEnumField(value: v, fieldNumber: 2)
+    } }()
+    try { if let v = self._cfgMissingMask {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 3)
+    } }()
+    try { if let v = self._schedCrc {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 4)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: AckPacket, rhs: AckPacket) -> Bool {
+    if lhs._cfgTxnID != rhs._cfgTxnID {return false}
+    if lhs._cfgStatus != rhs._cfgStatus {return false}
+    if lhs._cfgMissingMask != rhs._cfgMissingMask {return false}
+    if lhs._schedCrc != rhs._schedCrc {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1320,6 +1823,7 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     6: .same(proto: "steps"),
     7: .standard(proto: "gps_data"),
     8: .same(proto: "errorFlags"),
+    9: .same(proto: "addon"),
     10: .standard(proto: "gps_block"),
   ]
 
@@ -1330,8 +1834,9 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     var _batteryPercentageX10: UInt32 = 0
     var _accStats: AccStats? = nil
     var _steps: UInt32? = nil
-    var _gpsData: GPSData_2? = nil
+    var _gpsData: [GPSData_2] = []
     var _errorFlags: ErrorFlags? = nil
+    var _addon: [AddonReport] = []
     var _gpsBlock: Data? = nil
 
     #if swift(>=5.10)
@@ -1355,6 +1860,7 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       _steps = source._steps
       _gpsData = source._gpsData
       _errorFlags = source._errorFlags
+      _addon = source._addon
       _gpsBlock = source._gpsBlock
     }
   }
@@ -1380,8 +1886,9 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
         case 4: try { try decoder.decodeSingularUInt32Field(value: &_storage._batteryPercentageX10) }()
         case 5: try { try decoder.decodeSingularMessageField(value: &_storage._accStats) }()
         case 6: try { try decoder.decodeSingularUInt32Field(value: &_storage._steps) }()
-        case 7: try { try decoder.decodeSingularMessageField(value: &_storage._gpsData) }()
+        case 7: try { try decoder.decodeRepeatedMessageField(value: &_storage._gpsData) }()
         case 8: try { try decoder.decodeSingularMessageField(value: &_storage._errorFlags) }()
+        case 9: try { try decoder.decodeRepeatedMessageField(value: &_storage._addon) }()
         case 10: try { try decoder.decodeSingularBytesField(value: &_storage._gpsBlock) }()
         default: break
         }
@@ -1413,12 +1920,15 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       try { if let v = _storage._steps {
         try visitor.visitSingularUInt32Field(value: v, fieldNumber: 6)
       } }()
-      try { if let v = _storage._gpsData {
-        try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
-      } }()
+      if !_storage._gpsData.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._gpsData, fieldNumber: 7)
+      }
       try { if let v = _storage._errorFlags {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
       } }()
+      if !_storage._addon.isEmpty {
+        try visitor.visitRepeatedMessageField(value: _storage._addon, fieldNumber: 9)
+      }
       try { if let v = _storage._gpsBlock {
         try visitor.visitSingularBytesField(value: v, fieldNumber: 10)
       } }()
@@ -1439,11 +1949,162 @@ extension Deployment: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
         if _storage._steps != rhs_storage._steps {return false}
         if _storage._gpsData != rhs_storage._gpsData {return false}
         if _storage._errorFlags != rhs_storage._errorFlags {return false}
+        if _storage._addon != rhs_storage._addon {return false}
         if _storage._gpsBlock != rhs_storage._gpsBlock {return false}
         return true
       }
       if !storagesAreEqual {return false}
     }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension AddonReport: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "AddonReport"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .same(proto: "uid"),
+    2: .standard(proto: "node_type"),
+    3: .standard(proto: "last_checkin_epoch"),
+    4: .standard(proto: "batt_mv"),
+    5: .standard(proto: "detach_epoch"),
+    6: .same(proto: "fired"),
+    7: .standard(proto: "motor_state"),
+    8: .standard(proto: "pending_cmd"),
+    9: .standard(proto: "cmd_state"),
+    10: .standard(proto: "pending_cmd_param"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.uid) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.nodeType) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.lastCheckinEpoch) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self._battMv) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self._detachEpoch) }()
+      case 6: try { try decoder.decodeSingularUInt32Field(value: &self._fired) }()
+      case 7: try { try decoder.decodeSingularUInt32Field(value: &self._motorState) }()
+      case 8: try { try decoder.decodeSingularUInt32Field(value: &self._pendingCmd) }()
+      case 9: try { try decoder.decodeSingularUInt32Field(value: &self._cmdState) }()
+      case 10: try { try decoder.decodeSingularUInt32Field(value: &self._pendingCmdParam) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if self.uid != 0 {
+      try visitor.visitSingularUInt32Field(value: self.uid, fieldNumber: 1)
+    }
+    if self.nodeType != 0 {
+      try visitor.visitSingularUInt32Field(value: self.nodeType, fieldNumber: 2)
+    }
+    if self.lastCheckinEpoch != 0 {
+      try visitor.visitSingularUInt32Field(value: self.lastCheckinEpoch, fieldNumber: 3)
+    }
+    try { if let v = self._battMv {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 4)
+    } }()
+    try { if let v = self._detachEpoch {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 5)
+    } }()
+    try { if let v = self._fired {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 6)
+    } }()
+    try { if let v = self._motorState {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 7)
+    } }()
+    try { if let v = self._pendingCmd {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 8)
+    } }()
+    try { if let v = self._cmdState {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 9)
+    } }()
+    try { if let v = self._pendingCmdParam {
+      try visitor.visitSingularUInt32Field(value: v, fieldNumber: 10)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: AddonReport, rhs: AddonReport) -> Bool {
+    if lhs.uid != rhs.uid {return false}
+    if lhs.nodeType != rhs.nodeType {return false}
+    if lhs.lastCheckinEpoch != rhs.lastCheckinEpoch {return false}
+    if lhs._battMv != rhs._battMv {return false}
+    if lhs._detachEpoch != rhs._detachEpoch {return false}
+    if lhs._fired != rhs._fired {return false}
+    if lhs._motorState != rhs._motorState {return false}
+    if lhs._pendingCmd != rhs._pendingCmd {return false}
+    if lhs._cmdState != rhs._cmdState {return false}
+    if lhs._pendingCmdParam != rhs._pendingCmdParam {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension ConfigReport: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "ConfigReport"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .standard(proto: "sched_crc"),
+    2: .standard(proto: "frag_index"),
+    3: .standard(proto: "frag_total"),
+    4: .same(proto: "frag"),
+    5: .standard(proto: "report_mask"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.schedCrc) }()
+      case 2: try { try decoder.decodeSingularUInt32Field(value: &self.fragIndex) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.fragTotal) }()
+      case 4: try { try decoder.decodeSingularMessageField(value: &self._frag) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.reportMask) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if self.schedCrc != 0 {
+      try visitor.visitSingularUInt32Field(value: self.schedCrc, fieldNumber: 1)
+    }
+    if self.fragIndex != 0 {
+      try visitor.visitSingularUInt32Field(value: self.fragIndex, fieldNumber: 2)
+    }
+    if self.fragTotal != 0 {
+      try visitor.visitSingularUInt32Field(value: self.fragTotal, fieldNumber: 3)
+    }
+    try { if let v = self._frag {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+    } }()
+    if self.reportMask != 0 {
+      try visitor.visitSingularUInt32Field(value: self.reportMask, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: ConfigReport, rhs: ConfigReport) -> Bool {
+    if lhs.schedCrc != rhs.schedCrc {return false}
+    if lhs.fragIndex != rhs.fragIndex {return false}
+    if lhs.fragTotal != rhs.fragTotal {return false}
+    if lhs._frag != rhs._frag {return false}
+    if lhs.reportMask != rhs.reportMask {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1499,6 +2160,68 @@ extension BeaconKeyStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImplemen
   }
 }
 
+extension CardSummary: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  static let protoMessageName: String = "CardSummary"
+  static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
+    1: .standard(proto: "first_day"),
+    2: .same(proto: "days"),
+    3: .same(proto: "part"),
+    4: .same(proto: "parts"),
+    5: .standard(proto: "log_kib"),
+    6: .standard(proto: "as_of"),
+  ]
+
+  mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt32Field(value: &self.firstDay) }()
+      case 2: try { try decoder.decodeSingularBytesField(value: &self.days) }()
+      case 3: try { try decoder.decodeSingularUInt32Field(value: &self.part) }()
+      case 4: try { try decoder.decodeSingularUInt32Field(value: &self.parts) }()
+      case 5: try { try decoder.decodeSingularUInt32Field(value: &self.logKib) }()
+      case 6: try { try decoder.decodeSingularUInt32Field(value: &self.asOf) }()
+      default: break
+      }
+    }
+  }
+
+  func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.firstDay != 0 {
+      try visitor.visitSingularUInt32Field(value: self.firstDay, fieldNumber: 1)
+    }
+    if !self.days.isEmpty {
+      try visitor.visitSingularBytesField(value: self.days, fieldNumber: 2)
+    }
+    if self.part != 0 {
+      try visitor.visitSingularUInt32Field(value: self.part, fieldNumber: 3)
+    }
+    if self.parts != 0 {
+      try visitor.visitSingularUInt32Field(value: self.parts, fieldNumber: 4)
+    }
+    if self.logKib != 0 {
+      try visitor.visitSingularUInt32Field(value: self.logKib, fieldNumber: 5)
+    }
+    if self.asOf != 0 {
+      try visitor.visitSingularUInt32Field(value: self.asOf, fieldNumber: 6)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  static func ==(lhs: CardSummary, rhs: CardSummary) -> Bool {
+    if lhs.firstDay != rhs.firstDay {return false}
+    if lhs.days != rhs.days {return false}
+    if lhs.part != rhs.part {return false}
+    if lhs.parts != rhs.parts {return false}
+    if lhs.logKib != rhs.logKib {return false}
+    if lhs.asOf != rhs.asOf {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 extension MessagePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = "MessagePacket"
   static let _protobuf_nameMap: SwiftProtobuf._NameMap = [
@@ -1508,116 +2231,186 @@ extension MessagePacket: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
     4: .standard(proto: "ack_packet"),
     5: .standard(proto: "system_deployment_packet"),
     6: .standard(proto: "radio_info"),
+    9: .standard(proto: "cfg_ack"),
+    10: .standard(proto: "cfg_report"),
     11: .standard(proto: "beacon_key"),
+    12: .standard(proto: "card_summary"),
   ]
 
+  fileprivate class _StorageClass {
+    var _header: PacketHeader? = nil
+    var _payload: MessagePacket.OneOf_Payload?
+    var _radioInfo: RadioInfo? = nil
+    var _cfgAck: AckPacket? = nil
+    var _cfgReport: ConfigReport? = nil
+    var _beaconKey: BeaconKeyStatus? = nil
+    var _cardSummary: CardSummary? = nil
+
+    #if swift(>=5.10)
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+    #else
+      static let defaultInstance = _StorageClass()
+    #endif
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _header = source._header
+      _payload = source._payload
+      _radioInfo = source._radioInfo
+      _cfgAck = source._cfgAck
+      _cfgReport = source._cfgReport
+      _beaconKey = source._beaconKey
+      _cardSummary = source._cardSummary
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
   mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularMessageField(value: &self._header) }()
-      case 2: try {
-        var v: SystemInfoPacket?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .systemInfoPacket(let m) = current {v = m}
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularMessageField(value: &_storage._header) }()
+        case 2: try {
+          var v: SystemInfoPacket?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .systemInfoPacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .systemInfoPacket(v)
+          }
+        }()
+        case 3: try {
+          var v: ConfigPacket?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .configPacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .configPacket(v)
+          }
+        }()
+        case 4: try {
+          var v: AckPacket?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .ackPacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .ackPacket(v)
+          }
+        }()
+        case 5: try {
+          var v: Deployment?
+          var hadOneofValue = false
+          if let current = _storage._payload {
+            hadOneofValue = true
+            if case .systemDeploymentPacket(let m) = current {v = m}
+          }
+          try decoder.decodeSingularMessageField(value: &v)
+          if let v = v {
+            if hadOneofValue {try decoder.handleConflictingOneOf()}
+            _storage._payload = .systemDeploymentPacket(v)
+          }
+        }()
+        case 6: try { try decoder.decodeSingularMessageField(value: &_storage._radioInfo) }()
+        case 9: try { try decoder.decodeSingularMessageField(value: &_storage._cfgAck) }()
+        case 10: try { try decoder.decodeSingularMessageField(value: &_storage._cfgReport) }()
+        case 11: try { try decoder.decodeSingularMessageField(value: &_storage._beaconKey) }()
+        case 12: try { try decoder.decodeSingularMessageField(value: &_storage._cardSummary) }()
+        default: break
         }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .systemInfoPacket(v)
-        }
-      }()
-      case 3: try {
-        var v: ConfigPacket?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .configPacket(let m) = current {v = m}
-        }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .configPacket(v)
-        }
-      }()
-      case 4: try {
-        var v: AckPacket?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .ackPacket(let m) = current {v = m}
-        }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .ackPacket(v)
-        }
-      }()
-      case 5: try {
-        var v: Deployment?
-        var hadOneofValue = false
-        if let current = self.payload {
-          hadOneofValue = true
-          if case .systemDeploymentPacket(let m) = current {v = m}
-        }
-        try decoder.decodeSingularMessageField(value: &v)
-        if let v = v {
-          if hadOneofValue {try decoder.handleConflictingOneOf()}
-          self.payload = .systemDeploymentPacket(v)
-        }
-      }()
-      case 6: try { try decoder.decodeSingularMessageField(value: &self._radioInfo) }()
-      case 11: try { try decoder.decodeSingularMessageField(value: &self._beaconKey) }()
-      default: break
       }
     }
   }
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    try { if let v = self._header {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
-    } }()
-    switch self.payload {
-    case .systemInfoPacket?: try {
-      guard case .systemInfoPacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
-    }()
-    case .configPacket?: try {
-      guard case .configPacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
-    }()
-    case .ackPacket?: try {
-      guard case .ackPacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
-    }()
-    case .systemDeploymentPacket?: try {
-      guard case .systemDeploymentPacket(let v)? = self.payload else { preconditionFailure() }
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
-    }()
-    case nil: break
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      try { if let v = _storage._header {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+      } }()
+      switch _storage._payload {
+      case .systemInfoPacket?: try {
+        guard case .systemInfoPacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 2)
+      }()
+      case .configPacket?: try {
+        guard case .configPacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+      }()
+      case .ackPacket?: try {
+        guard case .ackPacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+      }()
+      case .systemDeploymentPacket?: try {
+        guard case .systemDeploymentPacket(let v)? = _storage._payload else { preconditionFailure() }
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
+      }()
+      case nil: break
+      }
+      try { if let v = _storage._radioInfo {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      } }()
+      try { if let v = _storage._cfgAck {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
+      } }()
+      try { if let v = _storage._cfgReport {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+      } }()
+      try { if let v = _storage._beaconKey {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+      } }()
+      try { if let v = _storage._cardSummary {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
+      } }()
     }
-    try { if let v = self._radioInfo {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
-    } }()
-    try { if let v = self._beaconKey {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
-    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   static func ==(lhs: MessagePacket, rhs: MessagePacket) -> Bool {
-    if lhs._header != rhs._header {return false}
-    if lhs.payload != rhs.payload {return false}
-    if lhs._radioInfo != rhs._radioInfo {return false}
-    if lhs._beaconKey != rhs._beaconKey {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._header != rhs_storage._header {return false}
+        if _storage._payload != rhs_storage._payload {return false}
+        if _storage._radioInfo != rhs_storage._radioInfo {return false}
+        if _storage._cfgAck != rhs_storage._cfgAck {return false}
+        if _storage._cfgReport != rhs_storage._cfgReport {return false}
+        if _storage._beaconKey != rhs_storage._beaconKey {return false}
+        if _storage._cardSummary != rhs_storage._cardSummary {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -439,6 +439,16 @@ typedef struct config_mortality {
     uint32_t transmit_interval_min;
 } config_mortality_t;
 
+/* The schedule zone (2026-11-23; ble.proto ScheduleConfigPacket 8 and 9, the
+ same meaning). Global, schedule_index ignored; applied at COMMIT together
+ with the slots of the same transaction, so hours and the zone they are
+ read in always change as one. Both 0 = UTC. The rails refuse an offset
+ outside -48..56 or a rule not listed (rule 16). 2-6 B in a fragment. */
+typedef struct config_zone {
+    int32_t std_qh;
+    uint32_t dst;
+} config_zone_t;
+
 /* Global system flags — not per-schedule (~4 bytes) */
 typedef struct config_system {
     bool has_verbose_logging;
@@ -713,6 +723,8 @@ typedef struct config_fragment {
  end it). The rails refuse a change that leaves no radio enabled. */
     bool has_cfg_radio;
     radio_settings_t cfg_radio;
+    bool has_cfg_zone;
+    config_zone_t cfg_zone; /* global, schedule_index ignored (2026-11-23) */
 } config_fragment_t;
 
 /* ---- Main downlink envelope ---- */
@@ -834,6 +846,7 @@ extern "C" {
 
 
 
+
 #define downlink_packet_t_command_ENUMTYPE command_type_t
 
 
@@ -850,6 +863,7 @@ extern "C" {
 #define CONFIG_SAMPLING_INIT_DEFAULT             {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_DEFAULT         {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_DEFAULT            {false, 0, false, 0, false, 0}
+#define CONFIG_ZONE_INIT_DEFAULT                 {0, 0}
 #define CONFIG_SYSTEM_INIT_DEFAULT               {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
@@ -859,7 +873,7 @@ extern "C" {
 #define CARD_SUMMARY_REQUEST_INIT_DEFAULT        {0, 0}
 #define TRACK_REQUEST_INIT_DEFAULT               {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT}
+#define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT, false, CONFIG_ZONE_INIT_DEFAULT}
 #define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT, false, TRACK_REQUEST_INIT_DEFAULT, false, CARD_SUMMARY_REQUEST_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
@@ -873,6 +887,7 @@ extern "C" {
 #define CONFIG_SAMPLING_INIT_ZERO                {false, 0, false, 0}
 #define CONFIG_RADIO_TIMING_INIT_ZERO            {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_MORTALITY_INIT_ZERO               {false, 0, false, 0, false, 0}
+#define CONFIG_ZONE_INIT_ZERO                    {0, 0}
 #define CONFIG_SYSTEM_INIT_ZERO                  {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
@@ -882,7 +897,7 @@ extern "C" {
 #define CARD_SUMMARY_REQUEST_INIT_ZERO           {0, 0}
 #define TRACK_REQUEST_INIT_ZERO                  {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
-#define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO}
+#define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO, false, CONFIG_ZONE_INIT_ZERO}
 #define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO, false, TRACK_REQUEST_INIT_ZERO, false, CARD_SUMMARY_REQUEST_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -938,6 +953,8 @@ extern "C" {
 #define CONFIG_MORTALITY_ENABLED_TAG             1
 #define CONFIG_MORTALITY_TRIGGER_DURATION_HOURS_TAG 2
 #define CONFIG_MORTALITY_TRANSMIT_INTERVAL_MIN_TAG 3
+#define CONFIG_ZONE_STD_QH_TAG                   1
+#define CONFIG_ZONE_DST_TAG                      2
 #define CONFIG_SYSTEM_VERBOSE_LOGGING_TAG        1
 #define CONFIG_SYSTEM_ENABLE_RESET_ON_ERROR_TAG  2
 #define CONFIG_SYSTEM_SPECIAL_MODE_TAG           3
@@ -1004,6 +1021,7 @@ extern "C" {
 #define CONFIG_FRAGMENT_CFG_MORTALITY_TAG        14
 #define CONFIG_FRAGMENT_CFG_GEOFENCE_TAG         15
 #define CONFIG_FRAGMENT_CFG_RADIO_TAG            16
+#define CONFIG_FRAGMENT_CFG_ZONE_TAG             17
 #define DOWNLINK_PACKET_EPOCH_TAG                1
 #define DOWNLINK_PACKET_COMMAND_TAG              2
 #define DOWNLINK_PACKET_HIGH_FIX_PARAMS_TAG      3
@@ -1125,6 +1143,12 @@ X(a, STATIC,   OPTIONAL, UINT32,   transmit_interval_min,   3)
 #define CONFIG_MORTALITY_CALLBACK NULL
 #define CONFIG_MORTALITY_DEFAULT NULL
 
+#define CONFIG_ZONE_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, SINT32,   std_qh,            1) \
+X(a, STATIC,   SINGULAR, UINT32,   dst,               2)
+#define CONFIG_ZONE_CALLBACK NULL
+#define CONFIG_ZONE_DEFAULT NULL
+
 #define CONFIG_SYSTEM_FIELDLIST(X, a) \
 X(a, STATIC,   OPTIONAL, BOOL,     verbose_logging,   1) \
 X(a, STATIC,   OPTIONAL, BOOL,     enable_reset_on_error,   2) \
@@ -1228,7 +1252,8 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_radio_timing,  12) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_system,       13) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_mortality,    14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_geofence,     15) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_radio,        16)
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_radio,        16) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_zone,         17)
 #define CONFIG_FRAGMENT_CALLBACK NULL
 #define CONFIG_FRAGMENT_DEFAULT NULL
 #define config_fragment_t_cfg_time_window_MSGTYPE config_time_window_t
@@ -1244,6 +1269,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  cfg_radio,        16)
 #define config_fragment_t_cfg_mortality_MSGTYPE config_mortality_t
 #define config_fragment_t_cfg_geofence_MSGTYPE config_geofence_t
 #define config_fragment_t_cfg_radio_MSGTYPE radio_settings_t
+#define config_fragment_t_cfg_zone_MSGTYPE config_zone_t
 
 #define DOWNLINK_PACKET_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   epoch,             1) \
@@ -1289,6 +1315,7 @@ extern const pb_msgdesc_t config_magnetometer_t_msg;
 extern const pb_msgdesc_t config_sampling_t_msg;
 extern const pb_msgdesc_t config_radio_timing_t_msg;
 extern const pb_msgdesc_t config_mortality_t_msg;
+extern const pb_msgdesc_t config_zone_t_msg;
 extern const pb_msgdesc_t config_system_t_msg;
 extern const pb_msgdesc_t config_geofence_t_msg;
 extern const pb_msgdesc_t session_params_t_msg;
@@ -1314,6 +1341,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_FIELDS &config_sampling_t_msg
 #define CONFIG_RADIO_TIMING_FIELDS &config_radio_timing_t_msg
 #define CONFIG_MORTALITY_FIELDS &config_mortality_t_msg
+#define CONFIG_ZONE_FIELDS &config_zone_t_msg
 #define CONFIG_SYSTEM_FIELDS &config_system_t_msg
 #define CONFIG_GEOFENCE_FIELDS &config_geofence_t_msg
 #define SESSION_PARAMS_FIELDS &session_params_t_msg
@@ -1331,7 +1359,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define BLE_WINDOW_SIZE                          42
 #define CARD_SUMMARY_REQUEST_SIZE                12
 #define CONFIG_ACCELEROMETER_SIZE                14
-#define CONFIG_FRAGMENT_SIZE                     466
+#define CONFIG_FRAGMENT_SIZE                     481
 #define CONFIG_GEOFENCE_SIZE                     86
 #define CONFIG_GPS_SIZE                          44
 #define CONFIG_MAGNETOMETER_SIZE                 14
@@ -1341,7 +1369,8 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SAMPLING_SIZE                     8
 #define CONFIG_SYSTEM_SIZE                       34
 #define CONFIG_TIME_WINDOW_SIZE                  30
-#define DOWNLINK_PACKET_SIZE                     893
+#define CONFIG_ZONE_SIZE                         12
+#define DOWNLINK_PACKET_SIZE                     908
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
