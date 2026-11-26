@@ -189,7 +189,28 @@ typedef enum command_type {
  still being built (ask again later). Over LoRaWAN it is not run (logged)
  and over the BLE tunnel it is refused (CfgEchoPacket.cmd_result 7).
  Firmware that predates it answers 5 (unknown command). */
-    COMMAND_TYPE_CMD_CARD_SUMMARY = 30
+    COMMAND_TYPE_CMD_CARD_SUMMARY = 30,
+    /* Storage drain (2026-11-25, collarID_thread Core/Inc/storage_drain.h;
+ Patrick: "figure out how we can drain some of these systems to 50%
+ battery for storage", then "let the collar stop itself and disengage").
+ Over the BLE tunnel only, in a Bluetooth session: the collar disengages
+ and saves that at once, then stays in the session with its GPS held on
+ and its LEDs cycling red, green, blue (a pattern used for nothing else)
+ until its battery, read with those loads off, is at or below
+ storage_drain.target_pct (StorageDrain below; absent or 0 = 50, held to
+ 20..80). Then everything goes off and it sleeps as any collar that is not
+ engaged does, until a magnet wakes it. Nothing is recorded meanwhile. A
+ magnet swipe ends a drain (the collar restarts, not engaged); so does any
+ other restart, and 48 hours without reaching the level. The tunnel echo's
+ CfgEchoPacket.cmd_result answers 1 (started; asked again while draining,
+ only the level changes) or 12 (CMD_ACK_BLE_REFUSED: the battery is
+ already at or below the level, or a firmware update or a magnetometer
+ calibration is running). Engaging the collar, or starting either of
+ those, stops a drain and leaves the session open. Over LoRaWAN it is
+ logged and not run; over the direct radio the ACK says 7 (refused on
+ this carrier). Firmware that predates it does nothing and its echo's
+ cmd_result stays 0: only a 1 means a drain is running. */
+    COMMAND_TYPE_CMD_STORAGE_DRAIN = 31
 } command_type_t;
 
 /* ---- Lost-mode beacon key set (CMD_BEACON_KEY_SET / _CLEAR) ----
@@ -598,6 +619,13 @@ typedef struct ble_window {
     uint32_t audio_to; /* UTC epoch seconds; audio_to > audio_from, at most 86400 after it */
 } ble_window_t;
 
+/* CMD_STORAGE_DRAIN parameters. target_pct: the battery level, whole percent,
+ at which the collar stops and sleeps: 0 (or the message absent) = 50, any
+ other value held to 20..80. */
+typedef struct storage_drain {
+    uint32_t target_pct;
+} storage_drain_t;
+
 /* CMD_LOCATE_NOW parameters. timeout_s is how long the one GPS attempt may
  run: 0 (or the message absent) = 60 s, any other value held to 10..120. */
 typedef struct locate_now {
@@ -807,6 +835,9 @@ typedef struct downlink_packet {
     /* CMD_CARD_SUMMARY parameters (2026-11-16); absent = the last 30 days. */
     bool has_card_summary;
     card_summary_request_t card_summary;
+    /* CMD_STORAGE_DRAIN parameters (2026-11-25); absent = 50 %. */
+    bool has_storage_drain;
+    storage_drain_t storage_drain;
 } downlink_packet_t;
 
 
@@ -816,8 +847,8 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _COMMAND_TYPE_MIN COMMAND_TYPE_CMD_NONE
-#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_CARD_SUMMARY
-#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_CARD_SUMMARY+1))
+#define _COMMAND_TYPE_MAX COMMAND_TYPE_CMD_STORAGE_DRAIN
+#define _COMMAND_TYPE_ARRAYSIZE ((command_type_t)(COMMAND_TYPE_CMD_STORAGE_DRAIN+1))
 
 #define _BEACON_KEY_SLOT_MIN BEACON_KEY_SLOT_BEACON_KEY_SLOT_BEACON
 #define _BEACON_KEY_SLOT_MAX BEACON_KEY_SLOT_BEACON_KEY_SLOT_WAKE
@@ -827,6 +858,7 @@ extern "C" {
 
 
 #define beacon_key_set_t_slot_ENUMTYPE beacon_key_slot_t
+
 
 
 
@@ -869,12 +901,13 @@ extern "C" {
 #define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
 #define FIND_MODE_INIT_DEFAULT                   {0, 0}
 #define BLE_WINDOW_INIT_DEFAULT                  {0, {0}, 0, 0, 0}
+#define STORAGE_DRAIN_INIT_DEFAULT               {0}
 #define LOCATE_NOW_INIT_DEFAULT                  {0}
 #define CARD_SUMMARY_REQUEST_INIT_DEFAULT        {0, 0}
 #define TRACK_REQUEST_INIT_DEFAULT               {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_DEFAULT              {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_DEFAULT             {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_DEFAULT, false, CONFIG_ACCELEROMETER_INIT_DEFAULT, false, CONFIG_MICROPHONE_INIT_DEFAULT, false, CONFIG_GPS_INIT_DEFAULT, false, CONFIG_MAGNETOMETER_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_SAMPLING_INIT_DEFAULT, false, CONFIG_RADIO_TIMING_INIT_DEFAULT, false, CONFIG_SYSTEM_INIT_DEFAULT, false, CONFIG_MORTALITY_INIT_DEFAULT, false, CONFIG_GEOFENCE_INIT_DEFAULT, false, RADIO_SETTINGS_INIT_DEFAULT, false, CONFIG_ZONE_INIT_DEFAULT}
-#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT, false, TRACK_REQUEST_INIT_DEFAULT, false, CARD_SUMMARY_REQUEST_INIT_DEFAULT}
+#define DOWNLINK_PACKET_INIT_DEFAULT             {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_DEFAULT, false, GEOFENCE_DATA_INIT_DEFAULT, false, CONFIG_FRAGMENT_INIT_DEFAULT, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_DEFAULT, false, SESSION_PARAMS_INIT_DEFAULT, false, FIND_MODE_INIT_DEFAULT, false, 0, false, BLE_WINDOW_INIT_DEFAULT, false, LOCATE_NOW_INIT_DEFAULT, false, TRACK_REQUEST_INIT_DEFAULT, false, CARD_SUMMARY_REQUEST_INIT_DEFAULT, false, STORAGE_DRAIN_INIT_DEFAULT}
 #define GEO_POINT_INIT_ZERO                      {0, 0}
 #define GEOFENCE_DATA_INIT_ZERO                  {0, 0, {GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO, GEO_POINT_INIT_ZERO}, 0}
 #define HIGH_FIX_PARAMS_INIT_ZERO                {0, 0}
@@ -893,12 +926,13 @@ extern "C" {
 #define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
 #define FIND_MODE_INIT_ZERO                      {0, 0}
 #define BLE_WINDOW_INIT_ZERO                     {0, {0}, 0, 0, 0}
+#define STORAGE_DRAIN_INIT_ZERO                  {0}
 #define LOCATE_NOW_INIT_ZERO                     {0}
 #define CARD_SUMMARY_REQUEST_INIT_ZERO           {0, 0}
 #define TRACK_REQUEST_INIT_ZERO                  {0, 0, 0, 0}
 #define RADIO_SETTINGS_INIT_ZERO                 {false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0}
 #define CONFIG_FRAGMENT_INIT_ZERO                {0, 0, 0, false, CONFIG_TIME_WINDOW_INIT_ZERO, false, CONFIG_ACCELEROMETER_INIT_ZERO, false, CONFIG_MICROPHONE_INIT_ZERO, false, CONFIG_GPS_INIT_ZERO, false, CONFIG_MAGNETOMETER_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_SAMPLING_INIT_ZERO, false, CONFIG_RADIO_TIMING_INIT_ZERO, false, CONFIG_SYSTEM_INIT_ZERO, false, CONFIG_MORTALITY_INIT_ZERO, false, CONFIG_GEOFENCE_INIT_ZERO, false, RADIO_SETTINGS_INIT_ZERO, false, CONFIG_ZONE_INIT_ZERO}
-#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO, false, TRACK_REQUEST_INIT_ZERO, false, CARD_SUMMARY_REQUEST_INIT_ZERO}
+#define DOWNLINK_PACKET_INIT_ZERO                {0, _COMMAND_TYPE_MIN, false, HIGH_FIX_PARAMS_INIT_ZERO, false, GEOFENCE_DATA_INIT_ZERO, false, CONFIG_FRAGMENT_INIT_ZERO, false, 0, false, 0, false, 0, false, 0, false, 0, false, BEACON_KEY_SET_INIT_ZERO, false, SESSION_PARAMS_INIT_ZERO, false, FIND_MODE_INIT_ZERO, false, 0, false, BLE_WINDOW_INIT_ZERO, false, LOCATE_NOW_INIT_ZERO, false, TRACK_REQUEST_INIT_ZERO, false, CARD_SUMMARY_REQUEST_INIT_ZERO, false, STORAGE_DRAIN_INIT_ZERO}
 
 /* Field tags (for use in manual encoding/decoding) */
 #define GEO_POINT_LATITUDE_E7_TAG                1
@@ -984,6 +1018,7 @@ extern "C" {
 #define BLE_WINDOW_KINDS_TAG                     3
 #define BLE_WINDOW_AUDIO_FROM_TAG                4
 #define BLE_WINDOW_AUDIO_TO_TAG                  5
+#define STORAGE_DRAIN_TARGET_PCT_TAG             1
 #define LOCATE_NOW_TIMEOUT_S_TAG                 1
 #define CARD_SUMMARY_REQUEST_FROM_EPOCH_TAG      1
 #define CARD_SUMMARY_REQUEST_DAYS_TAG            2
@@ -1040,6 +1075,7 @@ extern "C" {
 #define DOWNLINK_PACKET_LOCATE_TAG               16
 #define DOWNLINK_PACKET_TRACK_TAG                17
 #define DOWNLINK_PACKET_CARD_SUMMARY_TAG         18
+#define DOWNLINK_PACKET_STORAGE_DRAIN_TAG        19
 
 /* Struct field encoding specification for nanopb */
 #define GEO_POINT_FIELDLIST(X, a) \
@@ -1199,6 +1235,11 @@ X(a, STATIC,   SINGULAR, UINT32,   audio_to,          5)
 #define BLE_WINDOW_CALLBACK NULL
 #define BLE_WINDOW_DEFAULT NULL
 
+#define STORAGE_DRAIN_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   target_pct,        1)
+#define STORAGE_DRAIN_CALLBACK NULL
+#define STORAGE_DRAIN_DEFAULT NULL
+
 #define LOCATE_NOW_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, UINT32,   timeout_s,         1)
 #define LOCATE_NOW_CALLBACK NULL
@@ -1289,7 +1330,8 @@ X(a, STATIC,   OPTIONAL, UINT32,   addon_arm_delay_s,  14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  ble_window,       15) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  locate,           16) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  track,            17) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  card_summary,     18)
+X(a, STATIC,   OPTIONAL, MESSAGE,  card_summary,     18) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  storage_drain,    19)
 #define DOWNLINK_PACKET_CALLBACK NULL
 #define DOWNLINK_PACKET_DEFAULT NULL
 #define downlink_packet_t_high_fix_params_MSGTYPE high_fix_params_t
@@ -1302,6 +1344,7 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  card_summary,     18)
 #define downlink_packet_t_locate_MSGTYPE locate_now_t
 #define downlink_packet_t_track_MSGTYPE track_request_t
 #define downlink_packet_t_card_summary_MSGTYPE card_summary_request_t
+#define downlink_packet_t_storage_drain_MSGTYPE storage_drain_t
 
 extern const pb_msgdesc_t geo_point_t_msg;
 extern const pb_msgdesc_t geofence_data_t_msg;
@@ -1321,6 +1364,7 @@ extern const pb_msgdesc_t config_geofence_t_msg;
 extern const pb_msgdesc_t session_params_t_msg;
 extern const pb_msgdesc_t find_mode_t_msg;
 extern const pb_msgdesc_t ble_window_t_msg;
+extern const pb_msgdesc_t storage_drain_t_msg;
 extern const pb_msgdesc_t locate_now_t_msg;
 extern const pb_msgdesc_t card_summary_request_t_msg;
 extern const pb_msgdesc_t track_request_t_msg;
@@ -1347,6 +1391,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define SESSION_PARAMS_FIELDS &session_params_t_msg
 #define FIND_MODE_FIELDS &find_mode_t_msg
 #define BLE_WINDOW_FIELDS &ble_window_t_msg
+#define STORAGE_DRAIN_FIELDS &storage_drain_t_msg
 #define LOCATE_NOW_FIELDS &locate_now_t_msg
 #define CARD_SUMMARY_REQUEST_FIELDS &card_summary_request_t_msg
 #define TRACK_REQUEST_FIELDS &track_request_t_msg
@@ -1370,7 +1415,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SYSTEM_SIZE                       34
 #define CONFIG_TIME_WINDOW_SIZE                  30
 #define CONFIG_ZONE_SIZE                         12
-#define DOWNLINK_PACKET_SIZE                     908
+#define DOWNLINK_PACKET_SIZE                     917
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22
@@ -1378,6 +1423,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define LOCATE_NOW_SIZE                          6
 #define RADIO_SETTINGS_SIZE                      82
 #define SESSION_PARAMS_SIZE                      18
+#define STORAGE_DRAIN_SIZE                       6
 #define TRACK_REQUEST_SIZE                       24
 
 #ifdef __cplusplus

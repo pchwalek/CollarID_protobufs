@@ -60,6 +60,9 @@ PB_BIND(FIND_MODE, find_mode_t, AUTO)
 PB_BIND(BLE_WINDOW, ble_window_t, AUTO)
 
 
+PB_BIND(STORAGE_DRAIN, storage_drain_t, AUTO)
+
+
 PB_BIND(LOCATE_NOW, locate_now_t, AUTO)
 
 

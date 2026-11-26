@@ -226,6 +226,27 @@ enum CommandType {
   // and over the BLE tunnel it is refused (CfgEchoPacket.cmd_result 7).
   // Firmware that predates it answers 5 (unknown command).
   CMD_CARD_SUMMARY        = 30;
+  // Storage drain (2026-11-25, collarID_thread Core/Inc/storage_drain.h;
+  // Patrick: "figure out how we can drain some of these systems to 50%
+  // battery for storage", then "let the collar stop itself and disengage").
+  // Over the BLE tunnel only, in a Bluetooth session: the collar disengages
+  // and saves that at once, then stays in the session with its GPS held on
+  // and its LEDs cycling red, green, blue (a pattern used for nothing else)
+  // until its battery, read with those loads off, is at or below
+  // storage_drain.target_pct (StorageDrain below; absent or 0 = 50, held to
+  // 20..80). Then everything goes off and it sleeps as any collar that is not
+  // engaged does, until a magnet wakes it. Nothing is recorded meanwhile. A
+  // magnet swipe ends a drain (the collar restarts, not engaged); so does any
+  // other restart, and 48 hours without reaching the level. The tunnel echo's
+  // CfgEchoPacket.cmd_result answers 1 (started; asked again while draining,
+  // only the level changes) or 12 (CMD_ACK_BLE_REFUSED: the battery is
+  // already at or below the level, or a firmware update or a magnetometer
+  // calibration is running). Engaging the collar, or starting either of
+  // those, stops a drain and leaves the session open. Over LoRaWAN it is
+  // logged and not run; over the direct radio the ACK says 7 (refused on
+  // this carrier). Firmware that predates it does nothing and its echo's
+  // cmd_result stays 0: only a 1 means a drain is running.
+  CMD_STORAGE_DRAIN       = 31;
 }
 
 // ---- Geofence ----
@@ -577,6 +598,13 @@ message BleWindow {
   uint32 audio_to   = 5;   // UTC epoch seconds; audio_to > audio_from, at most 86400 after it
 }
 
+// CMD_STORAGE_DRAIN parameters. target_pct: the battery level, whole percent,
+// at which the collar stops and sleeps: 0 (or the message absent) = 50, any
+// other value held to 20..80.
+message StorageDrain {
+  uint32 target_pct = 1;
+}
+
 // CMD_LOCATE_NOW parameters. timeout_s is how long the one GPS attempt may
 // run: 0 (or the message absent) = 60 s, any other value held to 10..120.
 message LocateNow {
@@ -751,4 +779,6 @@ message DownlinkPacket {
   optional TrackRequest track = 17;
   // CMD_CARD_SUMMARY parameters (2026-11-16); absent = the last 30 days.
   optional CardSummaryRequest card_summary = 18;
+  /* CMD_STORAGE_DRAIN parameters (2026-11-25); absent = 50 %. */
+  optional StorageDrain storage_drain = 19;
 }
