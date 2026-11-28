@@ -246,7 +246,8 @@ newer transaction drops it and the collar reports EXPIRED for it), 12
 Bluetooth file window refused (`CMD_BLE_WINDOW`; detail = why: 1 no window
 key, 2 the radio cannot serve files, 3 no card, 4 battery low, 5 a firmware
 update is running, 6 the window asks for audio (`ble_window.kinds` bit 2)
-and its range is missing, reversed or over 24 hours (added 2026-11-16); an
+or, since 2026-11-27, for the sound log (bit 4), and its range is missing,
+reversed or over 24 hours (added 2026-11-16); an
 opened window answers 1 accepted with detail = the minutes granted;
 `../bulk/README.md`). Since 2026-11-16 result 12 is also how
 `CMD_CARD_SUMMARY` says the card cannot answer: detail 3 no readable card,

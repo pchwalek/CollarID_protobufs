@@ -241,6 +241,7 @@ the whole card, as before. A window opened with `kinds` != 0 serves only:
 | card log | 0 (1) | `/METADATA.CSV`. The collar keeps one log file and does not rotate it. |
 | movement data | 1 (2) | everything under `/accelerometer/` (`YYYY/MM/DD/<take>.wav` and each one's time-anchor sidecar `<take>.anc.csv`) and under `/accelerometer_recovery/`, where a card that cannot make the dated folders records |
 | sound | 2 (4) | the takes that overlap `[audio_from, audio_to]`: `/audio/YYYY/MM/DD/<take>.flac` or `.wav` whose start time lies in `[audio_from - 3600, audio_to]`; `mic.anc.csv` (the microphone's time anchors) in the day folders of the UTC days that window touches; in `/audio_recovery/`, the takes in it and its `mic.anc.csv`; in the root, `<take>.flac` in it |
+| sound log | 4 (16) | added 2026-11-27 (collarID_thread `docs/DESIGN_sound_log.md`): the sound logs of those same takes and no sound: `<take>.lvl` whose `<take>` starts in `[audio_from - 3600, audio_to]`, in `/audio/YYYY/MM/DD/`, in `/audio_recovery/` and in the root. Never a `.flac`, `.wav` or `mic.anc.csv`: ask for bit 2 as well for those |
 
 `<take>` is the take's first sample in UTC, `YYYYYMMMDDDHHHMMMSSS`, with an
 optional `_N` the collar adds on a name clash: `2026Y11M16D10H05M00S.flac`,
@@ -253,10 +254,21 @@ serves the previous day's folder (its 23:30 take) and its `mic.anc.csv`.
 Folders on the way: `/` always; `/accelerometer` and
 `/accelerometer_recovery` with bit 1; `/audio`, `/audio/YYYY`,
 `/audio/YYYY/MM` and `/audio/YYYY/MM/DD` for the years, months and days the
-widened window touches, and `/audio_recovery`, with bit 2. Bit 3 is the
-update kind (2026-11-26, "An image towards the collar"): it serves no file.
-Bits above 3 are reserved (a window with only bits 3 and up serves `/`,
-empty).
+widened window touches, and `/audio_recovery`, with bit 2 or bit 4. Bit 3 is
+the update kind (2026-11-26, "An image towards the collar"): it serves no
+file. Bits above 4 are reserved (a window with only those, or only bit 3,
+serves `/`, empty). (old: "Bits above 3 are reserved", before the sound log.)
+
+A sound log (`<take>.lvl`, the same name as its FLAC take with `.lvl`) is a
+48-byte header, then 3 bytes for every FLAC frame of the take in frame
+order: the frame's exact size in its low 14 bits (little-endian), a 2-bit
+kind (0 coded, 1 shed, 2 zero-filled, 3 short final) above it, and a level
+byte `floor(16 log2(1 + sum0)) - 160` from the encoder's order-0 residual
+sum. Each frame's byte offset in the FLAC is the running sum of the sizes
+from byte 512, so a client reads a moment's bytes with `READ` (offset,
+length) in a window with bit 2. The format, its special entries (a run of
+frames with no entry, the trailer) and the rules are collarID_thread
+`docs/DESIGN_sound_log.md`; a WAV take has no log.
 
 - LIST of a folder shows only what the window serves (the cookie counts
   only those entries, so every page is full but the last).
@@ -274,8 +286,8 @@ empty).
   everything else on the card (`CONFIG.CSV`, GPS, magnetometer, ...).
 
 The audio range is checked as sent (the hour before `audio_from` does not
-count) when the command arrives: `kinds` with bit 2 and
-`audio_from` or `audio_to` 0, `audio_to <= audio_from`, or
+count) when the command arrives: `kinds` with bit 2 (or, since 2026-11-27,
+bit 4) and `audio_from` or `audio_to` 0, `audio_to <= audio_from`, or
 `audio_to - audio_from > 86400` is refused with ACK result 12, detail 6
 (`../beacon/README.md`), and no window opens. A command that renews an open
 window replaces its key, its minutes and what it serves.

@@ -138,8 +138,9 @@ typedef enum command_type {
  CfgEchoPacket.cmd_result 7, ble.proto). Refused (handheld ACK result 12,
  detail = reason) without a key (1), on a radio that cannot serve files
  (2), without a card (3), on a low battery (4), while a firmware update
- runs (5), or (6, 2026-11-16) when ble_window.kinds asks for audio and the
- range is missing, reversed or over 24 hours. ble_window.kinds limits
+ runs (5), or (6, 2026-11-16) when ble_window.kinds asks for audio (or,
+ 2026-11-27, the sound log) and the range is missing, reversed or over 24
+ hours. ble_window.kinds limits
  what the window serves (BleWindow below). Firmware that predates it
  answers 5 (unknown command). */
     COMMAND_TYPE_CMD_BLE_WINDOW = 27,
@@ -604,13 +605,26 @@ typedef struct find_mode {
  0 (or absent) = everything on the card, as every build before this one
  served; a magnet session is never restricted. Outside the kinds asked for,
  LIST hides a file or folder and STAT / READ answer NOT_FOUND
- (bulk/README.md "What a window serves" has the exact lists). Bits above 2
+ (bulk/README.md "What a window serves" has the exact lists). Bits above 4
  are reserved: a window whose kinds hold only those serves nothing.
- audio_from / audio_to (UTC epoch seconds) are read only with bit 2 set,
- and then must be present with audio_to > audio_from and
+ (old: "Bits above 2 are reserved", before bits 3 and 4.)
+ audio_from / audio_to (UTC epoch seconds) are read only with bit 2 or bit
+ 4 set, and then must be present with audio_to > audio_from and
  audio_to - audio_from <= 86400 (24 h), or the collar refuses the command:
  ACK result 12 (CMD_ACK_BLE_REFUSED), detail 6, and no window opens.
  Firmware that predates the fields ignores them and serves everything.
+
+ The sound log (2026-11-27, collarID_thread docs/DESIGN_sound_log.md, plan
+ R9; fw gate: firmware main build TBD, set at merge). kinds bit 4,
+   BLE_FILES_KIND_SOUNDLOG = 16  the sound logs of the takes that overlap
+                                 [audio_from, audio_to] (the same rule as
+                                 bit 2): <take>.lvl beside each FLAC take,
+                                 3 bytes a frame (its exact size, a kind,
+                                 a level), and no sound, no mic.anc.csv.
+                                 The server picks moments from the logs
+                                 and fetches their bytes with bit 2.
+ Firmware that predates bit 4 serves nothing for it ("/" lists empty) and
+ does not check its range: send bit 4 only to firmware past the gate.
 
  A software update through the window (2026-11-26, collarID_thread
  docs/DESIGN_remote_update.md; fw gate: firmware main build TBD, set at
@@ -647,8 +661,8 @@ typedef struct find_mode {
 typedef struct ble_window {
     uint32_t minutes;
     pb_byte_t key[16];
-    uint32_t kinds; /* bit 0 card log, bit 1 accelerometer, bit 2 audio, bit 3 update; 0 = everything (no update) */
-    uint32_t audio_from; /* UTC epoch seconds, audio only (bit 2) */
+    uint32_t kinds; /* bit 0 card log, bit 1 accelerometer, bit 2 audio, bit 3 update, bit 4 sound log; 0 = everything (no update) */
+    uint32_t audio_from; /* UTC epoch seconds, audio (bit 2) and sound log (bit 4) only */
     uint32_t audio_to; /* UTC epoch seconds; audio_to > audio_from, at most 86400 after it */
     uint32_t image_len; /* update (bit 3): bytes of the image to be delivered through the window */
     pb_byte_t image_sha256[32]; /* 32 bytes, SHA-256 of the image */

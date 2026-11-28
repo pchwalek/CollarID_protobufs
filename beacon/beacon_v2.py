@@ -504,7 +504,7 @@ BLE_REFUSED_RADIO = 2     # the radio cannot serve files (no bulk capability see
 BLE_REFUSED_NO_CARD = 3   # location-only: no card to read
 BLE_REFUSED_BATTERY = 4   # battery low or critical
 BLE_REFUSED_UPDATING = 5  # a firmware update is running
-BLE_REFUSED_RANGE = 6     # 2026-11-16: kinds has audio (bit 2) and audio_from/audio_to is missing, reversed or over 86400 s
+BLE_REFUSED_RANGE = 6     # 2026-11-16: kinds has audio (bit 2; 2026-11-27: or the sound log, bit 4) and audio_from/audio_to is missing, reversed or over 86400 s
 BLE_REFUSED_CARD_INDEX = 7  # 2026-11-16, CMD_CARD_SUMMARY: the card's day index is still being built (ask again later)
 # 2026-11-26, a window with the update kind (BleWindow.kinds bit 3, downlink.proto):
 BLE_REFUSED_IMAGE_LEN = 8     # image_len outside 1024 .. 2048000 (the room of a bank)
@@ -521,6 +521,7 @@ BLE_FILES_KIND_LOG = 1    # the card log, /METADATA.CSV
 BLE_FILES_KIND_ACCEL = 2  # movement data: /accelerometer/ (and /accelerometer_recovery/)
 BLE_FILES_KIND_AUDIO = 4  # sound: takes overlapping [audio_from, audio_to] (start up to an hour before), range at most 24 h
 BLE_FILES_KIND_UPDATE = 8  # 2026-11-26: the window takes one image of the collar's main software (../bulk/README.md "An image towards the collar")
+BLE_FILES_KIND_SOUNDLOG = 16  # 2026-11-27: the sound logs (<take>.lvl) of the takes overlapping [audio_from, audio_to], no sound
 BLE_UPDATE_IMAGE_MIN = 1024
 BLE_UPDATE_IMAGE_MAX = 2048000    # a bank (2 MB) less the 48 KB of the flash stores at its end
 BLE_UPDATE_MIN_BATTERY_PCT = 50

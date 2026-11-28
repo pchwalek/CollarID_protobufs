@@ -53,8 +53,9 @@ WINDOW_FIELDS = {"minutes": ("uint32", 1),
                  "image_build": ("uint32", 8),
                  "image_sig": ("bytes", 9)}
 KINDS = {"BLE_FILES_KIND_LOG": 1, "BLE_FILES_KIND_ACCEL": 2, "BLE_FILES_KIND_AUDIO": 4,
-         "BLE_FILES_KIND_UPDATE": 8}
-# old: KINDS = {"BLE_FILES_KIND_LOG": 1, "BLE_FILES_KIND_ACCEL": 2, "BLE_FILES_KIND_AUDIO": 4}
+         "BLE_FILES_KIND_UPDATE": 8, "BLE_FILES_KIND_SOUNDLOG": 16}
+# old: KINDS = {"BLE_FILES_KIND_LOG": 1, "BLE_FILES_KIND_ACCEL": 2, "BLE_FILES_KIND_AUDIO": 4,
+#               "BLE_FILES_KIND_UPDATE": 8}   (before the sound log, 2026-11-27)
 AUDIO_SPAN_MAX_S = 86400
 # 2026-11-16 (coordinator): the takes that OVERLAP the range are served, a
 # start up to the longest take (hourly rotation) before audio_from.
@@ -136,6 +137,19 @@ class ProtoContract(unittest.TestCase):
                      "`[audio_from - %d, audio_to]`" % TAKE_MAX_S):
             self.assertIn(must, spec)
 
+    def test_the_sound_log_kind_is_written_down(self):
+        # 2026-11-27: bit 4 serves <take>.lvl by the audio range, and the
+        # range is required with it as with bit 2 (detail 6)
+        spec = read("bulk/README.md")
+        self.assertIn("| sound log | 4 (16) |", spec)
+        self.assertIn("`<take>.lvl`", spec)
+        self.assertIn("Bits above 4 are reserved", spec)
+        self.assertIn("bit 4) and `audio_from` or `audio_to` 0", spec)
+        text = read("downlink.proto").replace("\n//", "")
+        self.assertIn("bit 4 sound log", text)
+        self.assertIn("read only with bit 2 or bit", text)
+        self.assertIn("or, since 2026-11-27, for the sound log (bit 4)", read("beacon/README.md").replace("\n", " "))
+
 
 class WireSizes(unittest.TestCase):
 
@@ -153,6 +167,12 @@ class WireSizes(unittest.TestCase):
         # every uint32 at its largest still fits
         self.assertLessEqual(len(window_cmd(kinds=U32, audio_from=U32, audio_to=U32)),
                              b.COMMAND_MAX_BODY)
+
+    def test_sound_log_window_is_the_audio_window_size(self):
+        # 2026-11-27: kinds 16 (or 23 with log, movement and sound) is one
+        # varint byte, as 7 was: 38 B with a range, a signed frame's body
+        self.assertEqual(len(window_cmd(kinds=16, audio_from=FROM, audio_to=TO)), 38)
+        self.assertEqual(len(window_cmd(kinds=0x17, audio_from=FROM, audio_to=TO)), 38)
 
     def test_update_window_fits_a_signed_frame(self):
         # 2026-11-26: 134 B for an image of 0.67 MB; every uint32 at its
