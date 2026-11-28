@@ -13,3 +13,10 @@ BeaconKeySet.key       max_size:16 fixed_length:true
 # beacon key. Any other length fails to decode, so the window never opens on
 # a short key.
 BleWindow.key          max_size:16 fixed_length:true
+
+# A software update through the window (2026-11-26): the image's SHA-256 is
+# exactly 32 bytes and its release signature exactly 64 (r|s). Any other
+# length fails to decode, so the command is never acted on; absent reads as
+# all zeros, which the collar refuses (ACK 12, detail 9).
+BleWindow.image_sha256 max_size:32 fixed_length:true
+BleWindow.image_sig    max_size:64 fixed_length:true

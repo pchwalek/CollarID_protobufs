@@ -153,6 +153,97 @@ def info_transcript():
     return head, run(m, steps)
 
 
+IMAGE_BUILD = 700
+IMAGE_SIG = bytes(range(0x80, 0xC0))    # a stand-in: the transcript's collar accepts this one signature
+
+
+def image():
+    """A synthetic image: a stack pointer and a reset vector the collar's
+    shape check takes, its build stamp, 1200 bytes in all."""
+    import struct
+    head = struct.pack("<II", 0x20270000, 0x08001235)
+    body = bytes((i * 11 + 5) & 0xFF for i in range(500)) + b"FWBUILD:%d:" % IMAGE_BUILD
+    img = head + body
+    return img + bytes((i * 3 + 1) & 0xFF for i in range(1200 - len(img)))
+
+
+def image_transcript():
+    """An image towards the collar (ops 0x09..0x0B, 2026-11-26): a keyed
+    window whose command named the image. The edges first, then a delivery
+    with one byte wrong (refused at IMG_END, discarded), then the image
+    (verified). A new transcript: the others are unchanged, and `keyed` still
+    shows op 0x09 answered UNKNOWN_OP in a window that takes no image."""
+    import hashlib
+    img = image()
+    fs, mt = files()
+    spec = dict(length=len(img), sha256=hashlib.sha256(img).digest(), build=IMAGE_BUILD, sig=IMAGE_SIG,
+                sig_verify=lambda h, sig: sig == IMAGE_SIG)
+    m = b.CollarModel(UID, fs, key=KEY, mtimes=mt, window_s=WINDOW_S, data_max=DATA_MAX, image=spec)
+    chal = b.challenge(KEY, UID, 1, 0x4001)
+    tag = b.auth_tag(KEY, UID, chal, CNONCE)
+    ks = b.session_key(KEY, UID, chal, CNONCE)
+    n = [0, 0x4002, 3]     # request counter, tick, seq
+
+    def st(note, op, payload):
+        n[1] += 1
+        n[2] = (n[2] + 1) & 0xFF
+        s = dict(note="%s (ctr %d)" % (note, n[0]), tick=n[1], req=b.request(op, n[2], payload, ks, n[0]))
+        n[0] += 1
+        return s
+
+    def begin(note, length, flags=0):
+        import struct
+        return st(note, b.OP_IMG_BEGIN, struct.pack("<IB", length, flags))
+
+    def data(note, off, chunk):
+        return st(note, b.OP_IMG_DATA, b.u32le(off) + chunk)
+
+    def whole(what, src, start=0):
+        return [data("IMG_DATA %sat %d" % (what, o), o, src[o:o + b.IMG_DATA_MAX])
+                for o in range(start, len(src), b.IMG_DATA_MAX)]
+
+    bad = bytearray(img)
+    bad[777] ^= 0x01
+    steps = [
+        dict(note="IMG_BEGIN before AUTH: auth required", tick=0x4000, req=b.img_begin_req(1, len(img))),
+        dict(note="HELLO", tick=0x4001, req=b.hello_req(2, CNONCE)),
+        dict(note="AUTH", tick=0x4002, req=b.auth_req(3, tag)),
+        data("IMG_DATA with no image begun", 0, img[:16]),
+        st("IMG_END with no image begun", b.OP_IMG_END, b""),
+        begin("IMG_BEGIN with a length that is not the command's", len(img) + 1),
+        st("IMG_BEGIN with a short payload: bad request", b.OP_IMG_BEGIN, b.u32le(len(img))),
+        begin("IMG_BEGIN", len(img)),
+        data("IMG_DATA, the first bytes", 0, bytes(bad[:b.IMG_DATA_MAX])),
+        data("IMG_DATA again at 0: wrong offset, next says where", 0, bytes(bad[:b.IMG_DATA_MAX])),
+        data("IMG_DATA ahead of the next byte: wrong offset", 500, bytes(bad[500:600])),
+        st("IMG_END before the last byte: wrong length, the image stays", b.OP_IMG_END, b""),
+        begin("IMG_BEGIN again: resumed, nothing erased", len(img)),
+        st("INFO between the pieces: answered as ever", b.OP_INFO, b""),
+    ]
+    steps += whole("(one byte wrong) ", bytes(bad), b.IMG_DATA_MAX)
+    steps += [
+        data("IMG_DATA past the end: wrong length", len(img), b"\x00"),
+        st("IMG_END: the SHA-256 is not the command's, discarded", b.OP_IMG_END, b""),
+        data("IMG_DATA after the discard: no image begun", 0, img[:16]),
+        begin("IMG_BEGIN, second try", len(img)),
+        data("IMG_DATA, part of it", 0, img[:100]),
+        begin("IMG_BEGIN with the restart flag: from 0 again, third try", len(img), b.IMG_FLAG_RESTART),
+    ]
+    steps += whole("", img)
+    steps += [
+        st("IMG_END with a payload: bad request", b.OP_IMG_END, b"\x00"),
+        st("IMG_END: verified", b.OP_IMG_END, b""),
+        data("IMG_DATA after that: done", 0, img[:16]),
+        begin("IMG_BEGIN after that: done", len(img)),
+    ]
+    head = dict(uid=UID, key=KEY.hex(), window_s=WINDOW_S, data_max=DATA_MAX, cnonce=CNONCE.hex(),
+                kinds=8, image=img.hex(), image_len=len(img), image_sha256=spec["sha256"].hex(),
+                image_build=IMAGE_BUILD, image_sig=IMAGE_SIG.hex(),
+                signed_hash=b.image_signed_hash(img, IMAGE_BUILD).hex(),
+                note="image_sig is a stand-in the transcript's collar accepts, not an ECDSA signature")
+    return head, run(m, steps)
+
+
 def windows():
     """bb_window_close_s cases (the collar's window rule; window_left_s =
     close - now)."""
@@ -187,6 +278,7 @@ def build():
     kh, kt = keyed_transcript()
     oh, ot = open_transcript()
     ih, it = info_transcript()
+    mh, mt_ = image_transcript()
     return dict(format=FORMAT, version=b.VERSION,
                 note="Synthetic. Generated by make_vectors.py from bulk_v1.py; frozen.",
                 files=[dict(path=p, data=d.hex(), mtime=mt[p]) for p, d in sorted(fs.items())],
@@ -194,7 +286,8 @@ def build():
                 open=dict(header=oh, steps=ot),
                 primitives=primitives(),
                 info=dict(header=ih, steps=it),
-                windows=windows())
+                windows=windows(),
+                image=dict(header=mh, steps=mt_))
 
 
 def main():

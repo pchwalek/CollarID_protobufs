@@ -18,8 +18,10 @@ Frame (both directions):
         CMAC(K_s, "CIDB-Q" || ctr_le32 || frame without the mac)[0:8]
 """
 
+import hashlib
 import hmac
 import os
+import re
 import struct
 import sys
 import zlib
@@ -50,6 +52,9 @@ OP_READ = 0x05
 OP_CANCEL = 0x06
 OP_BYE = 0x07
 OP_INFO = 0x08               # 2026-11-16, additive: battery and window time left (README "INFO")
+OP_IMG_BEGIN = 0x09          # 2026-11-26: an image towards the collar (README "An image towards the collar")
+OP_IMG_DATA = 0x0A
+OP_IMG_END = 0x0B
 RESP = 0x80                  # an answer is the request's op | 0x80
 OP_DATA = 0xC5               # READ's data frames (then the 0x85 answer ends it)
 
@@ -68,6 +73,29 @@ R_NO_CARD = 11
 R_UNKNOWN_OP = 12
 R_NOT_NEEDED = 13            # AUTH in a window that needs none (the magnet session)
 R_IS_A_DIR = 14              # READ of a directory
+# 2026-11-26, the IMG requests (in a window that takes no image they answer R_UNKNOWN_OP):
+R_IMG_NOT_BEGUN = 15         # IMG_DATA or IMG_END with no image begun (or after one was discarded)
+R_IMG_OFFSET = 16            # IMG_DATA not at the next byte; the answer's `next` says where
+R_IMG_LENGTH = 17            # IMG_BEGIN's length is not the command's; IMG_DATA past the end; IMG_END before the last byte
+R_IMG_FLASH = 18             # the collar could not erase, write or read back its flash; the image is discarded
+R_IMG_HASH = 19              # the stored image's SHA-256 is not the command's; discarded
+R_IMG_SIGNATURE = 20         # the release signature does not verify; discarded
+R_IMG_BATTERY = 21           # reserved, never sent: the battery is judged when the command arrives (50 %) and by the window's own floor
+R_IMG_BUILD = 22             # the image's own FWBUILD stamp is not the command's image_build; discarded
+R_IMG_VECTORS = 23           # the image does not start with a stack pointer and a reset vector; discarded
+R_IMG_TRIES = 24             # this window has begun an image IMG_BEGINS_MAX times already
+R_IMG_DONE = 25              # an image is verified: the collar is about to restart into it
+
+IMG_ANSWER_LEN = 5           # result, next u32: the bytes the collar holds = the offset of the next IMG_DATA
+IMG_DATA_MAX = REQUEST_MAX - HDR_LEN - MAC_LEN - 4   # 228 image bytes per IMG_DATA
+IMG_BEGINS_MAX = 3           # erases of the spare half of the flash per window
+IMG_FLAG_RESTART = 0x01      # IMG_BEGIN: discard what is stored and begin at 0
+IMG_LEN_MIN = 1024
+IMG_LEN_MAX = 2048000        # a bank less the flash stores at its end
+IMG_END_TIMEOUT_S = 180      # how long a client waits for IMG_END's answer (the collar hashes the whole image)
+IMG_IDLE_S = 60              # a begun image is discarded after this long without an IMG_BEGIN or IMG_DATA the collar took
+IMG_TOTAL_S = 1800           # ... and this long after the IMG_BEGIN that erased, whatever arrives
+BUILD_TAG = b"FWBUILD"
 
 INFO_ANSWER_LEN = 9          # result, battery_pct u8, battery_mv u16, floor_pct u8, window_left_s u32
 WINDOW_HARD_CAP_S = 7200     # 2026-11-16: two hours from the open at most (was 3600)
@@ -211,6 +239,20 @@ def bye_req(seq, ks=None, ctr=0):
     return request(OP_BYE, seq, b"", ks, ctr)
 
 
+def img_begin_req(seq, image_len, flags=0, ks=None, ctr=0):
+    return request(OP_IMG_BEGIN, seq, struct.pack("<IB", image_len, flags), ks, ctr)
+
+
+def img_data_req(seq, offset, data, ks=None, ctr=0):
+    if not 1 <= len(data) <= IMG_DATA_MAX:
+        raise ProtocolError("IMG_DATA carries 1..%d bytes" % IMG_DATA_MAX)
+    return request(OP_IMG_DATA, seq, u32le(offset) + bytes(data), ks, ctr)
+
+
+def img_end_req(seq, ks=None, ctr=0):
+    return request(OP_IMG_END, seq, b"", ks, ctr)
+
+
 # ------------------------------------------------------- answer payloads
 
 def hello_answer(result, flags, uid, chal, window_s, data_max):
@@ -295,6 +337,61 @@ def parse_info(payload):
     return Info(*struct.unpack("<BBHBI", payload))
 
 
+ImgAnswer = namedtuple("ImgAnswer", "result next")
+
+
+def img_answer(result, nxt):
+    return struct.pack("<BI", result, nxt)
+
+
+def parse_img(payload):
+    """The answer of IMG_BEGIN, IMG_DATA and IMG_END. An error found before
+    the op is looked at (and UNKNOWN_OP in a window that takes no image) is
+    the result alone."""
+    if len(payload) == 1:
+        return ImgAnswer(payload[0], 0)
+    if len(payload) != IMG_ANSWER_LEN:
+        raise ProtocolError("IMG answer of %d B" % len(payload))
+    return ImgAnswer(*struct.unpack("<BI", payload))
+
+
+def image_build(image):
+    """The build an image names: the one value of every 'FWBUILD:<digits>:'
+    stamp in it (contracts/reference.py build_of_image), or None when there
+    is none or two that differ."""
+    found = {int(m.group(1)) for m in re.finditer(re.escape(BUILD_TAG) + rb":(\d+):", bytes(image))}
+    return found.pop() if len(found) == 1 else None
+
+
+def image_vectors_ok(image):
+    """The collar's shape check: an initial stack pointer in its RAM and a
+    reset vector in its flash."""
+    if len(image) < 8:
+        return False
+    sp, pc = struct.unpack_from("<II", image, 0)
+    return 0x20000000 <= sp <= 0x20280000 and (pc & 0xFF000000) == 0x08000000
+
+
+def image_signed_hash(image, build):
+    """What the release signature signs: SHA-256(image | build as 4 bytes
+    little-endian) (ECDSA P-256; the signature is r|s, 32 bytes each,
+    big-endian)."""
+    return hashlib.sha256(bytes(image) + u32le(build)).digest()
+
+
+def image_verdict(image, length, sha256, build, sig, sig_verify):
+    """The collar's checks of a stored image, in its order."""
+    if len(image) != length or hashlib.sha256(bytes(image)).digest() != bytes(sha256):
+        return R_IMG_HASH
+    if not image_vectors_ok(image):
+        return R_IMG_VECTORS
+    if image_build(image) != build:
+        return R_IMG_BUILD
+    if not sig_verify(image_signed_hash(image, build), bytes(sig)):
+        return R_IMG_SIGNATURE
+    return R_OK
+
+
 def window_close_s(open_s, minutes, last_activity_s=0, phone_gone=False, gone_s=0):
     """When a window closes by its own rules (the collar's bb_window_close_s):
     the minutes asked (0 = 10, held to 1..30) from the open, or 120 s past the
@@ -361,8 +458,17 @@ class CollarModel:
     key: the window key (keyed window), or None (the magnet session)."""
 
     def __init__(self, uid, files, key=None, mtimes=None, window_s=600, data_max=DATA_MAX,
-                 battery=(0, 0, 0)):
+                 battery=(0, 0, 0), image=None):
         self.battery = tuple(battery)   # INFO: (battery_pct, battery_mv, floor_pct)
+        # 2026-11-26: the image the window's command named (None: the window
+        # takes none): dict(length, sha256, build, sig, sig_verify(hash32, sig64)).
+        self.image = image
+        self.img_buf = None             # the bytes stored so far (None: no image begun)
+        self.img_begins = 0
+        self.img_done = False
+        self.now_s = 0                  # the collar's clock for a begun image's limits (img_tick)
+        self.img_begin_s = 0
+        self.img_last_s = 0
         self.uid = uid
         self.files = dict(files)
         self.mtimes = dict(mtimes or {})
@@ -442,6 +548,10 @@ class CollarModel:
             if len(payload):
                 return frame(op | RESP, seq, bytes([R_BAD_REQUEST]))
             return frame(OP_INFO | RESP, seq, info_answer(R_OK, *self.battery, self.window_s))
+        if op in (OP_IMG_BEGIN, OP_IMG_DATA, OP_IMG_END) and self.image is not None and self.key is not None:
+            if self.stream:
+                return frame(op | RESP, seq, bytes([R_BUSY]))
+            return self._img(op, seq, payload)
         if op not in (OP_LIST, OP_STAT, OP_READ):
             return frame(op | RESP, seq, bytes([R_UNKNOWN_OP]))
         if self.stream:
@@ -463,6 +573,70 @@ class CollarModel:
         if op == OP_LIST:
             return self._list(seq, path, struct.unpack_from("<I", payload, 0)[0])
         return self._read(seq, path, *struct.unpack_from("<QI", payload, 0))
+
+    def _img(self, op, seq, payload):
+        """IMG_BEGIN, IMG_DATA, IMG_END in a window that takes an image."""
+        im = self.image
+
+        def ans(result, nxt):
+            return frame(op | RESP, seq, img_answer(result, nxt))
+        have = len(self.img_buf) if self.img_buf is not None else 0
+        if op == OP_IMG_BEGIN:
+            if len(payload) != 5 or payload[4] & ~IMG_FLAG_RESTART:
+                return frame(op | RESP, seq, bytes([R_BAD_REQUEST]))
+        elif op == OP_IMG_DATA:
+            if len(payload) < 5:
+                return frame(op | RESP, seq, bytes([R_BAD_REQUEST]))
+        elif len(payload):
+            return frame(op | RESP, seq, bytes([R_BAD_REQUEST]))
+        if self.img_done:
+            return ans(R_IMG_DONE, im["length"])
+        if op == OP_IMG_BEGIN:
+            length, flags = struct.unpack("<IB", payload)
+            if length != im["length"]:
+                return ans(R_IMG_LENGTH, have)
+            if self.img_buf is not None and not flags & IMG_FLAG_RESTART:
+                self.img_last_s = self.now_s
+                return ans(R_OK, have)                  # resumed: nothing erased
+            if self.img_begins >= IMG_BEGINS_MAX:
+                return ans(R_IMG_TRIES, have)           # counted out before anything is discarded
+            self.img_buf = None
+            self.img_begins += 1
+            self.img_buf = bytearray()
+            self.img_begin_s = self.img_last_s = self.now_s
+            return ans(R_OK, 0)
+        if self.img_buf is None:
+            return ans(R_IMG_NOT_BEGUN, 0)
+        if op == OP_IMG_DATA:
+            offset = struct.unpack_from("<I", payload, 0)[0]
+            data = payload[4:]
+            if offset != have:
+                return ans(R_IMG_OFFSET, have)
+            if len(data) > im["length"] - have:
+                return ans(R_IMG_LENGTH, have)
+            self.img_buf += data
+            self.img_last_s = self.now_s
+            return ans(R_OK, have + len(data))
+        if have != im["length"]:
+            return ans(R_IMG_LENGTH, have)
+        r = image_verdict(self.img_buf, im["length"], im["sha256"], im["build"], im["sig"], im["sig_verify"])
+        self.img_buf = None
+        if r != R_OK:
+            return ans(r, 0)
+        self.img_done = True
+        return ans(R_OK, im["length"])
+
+    def img_tick(self, now_s):
+        """The collar's clock. True when a begun image has just been
+        discarded: IMG_IDLE_S without a piece, or IMG_TOTAL_S since it was
+        begun (a verified image is not touched)."""
+        self.now_s = now_s
+        if self.img_buf is None:
+            return False
+        if now_s - self.img_last_s < IMG_IDLE_S and now_s - self.img_begin_s < IMG_TOTAL_S:
+            return False
+        self.img_buf = None
+        return True
 
     def _hello(self, seq, payload):
         if len(payload) != NONCE_LEN:
@@ -673,6 +847,35 @@ class Client:
         if i.result != R_OK:
             raise ProtocolError("INFO: result %d" % i.result)
         return i
+
+    def send_image(self, image, restart=False, progress=None, chunk=IMG_DATA_MAX):
+        """Deliver an image (IMG_BEGIN, IMG_DATA from where the collar says,
+        IMG_END). Returns when the collar has verified it (it restarts about
+        1.5 s later); raises with the result otherwise. A transport's read
+        must wait IMG_END_TIMEOUT_S for the last answer. chunk: image bytes
+        per IMG_DATA, 1..IMG_DATA_MAX (a link whose writes are shorter than
+        a whole request sends fewer)."""
+        if not 1 <= chunk <= IMG_DATA_MAX:
+            raise ProtocolError("chunk of 1..%d bytes" % IMG_DATA_MAX)
+        image = bytes(image)
+        seq = self._send(OP_IMG_BEGIN, struct.pack("<IB", len(image), IMG_FLAG_RESTART if restart else 0))
+        a = parse_img(self._answer(seq, OP_IMG_BEGIN))
+        if a.result != R_OK:
+            raise ProtocolError("IMG_BEGIN: result %d" % a.result)
+        at = a.next
+        while at < len(image):
+            seq = self._send(OP_IMG_DATA, u32le(at) + image[at:at + chunk])
+            a = parse_img(self._answer(seq, OP_IMG_DATA))
+            if a.result not in (R_OK, R_IMG_OFFSET):
+                raise ProtocolError("IMG_DATA at %d: result %d" % (at, a.result))
+            at = a.next                 # after R_IMG_OFFSET: where the collar is
+            if progress:
+                progress(at, len(image))
+        seq = self._send(OP_IMG_END)
+        a = parse_img(self._answer(seq, OP_IMG_END))
+        if a.result != R_OK:
+            raise ProtocolError("IMG_END: result %d" % a.result)
+        return a
 
     def cancel(self):
         seq = self._send(OP_CANCEL)

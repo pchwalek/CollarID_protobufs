@@ -610,13 +610,50 @@ typedef struct find_mode {
  and then must be present with audio_to > audio_from and
  audio_to - audio_from <= 86400 (24 h), or the collar refuses the command:
  ACK result 12 (CMD_ACK_BLE_REFUSED), detail 6, and no window opens.
- Firmware that predates the fields ignores them and serves everything. */
+ Firmware that predates the fields ignores them and serves everything.
+
+ A software update through the window (2026-11-26, collarID_thread
+ docs/DESIGN_remote_update.md; fw gate: firmware main build TBD, set at
+ merge). kinds bit 3,
+   BLE_FILES_KIND_UPDATE = 8  the window also takes one image of the
+                              collar's main software, through the bulk
+                              channel's IMG_BEGIN / IMG_DATA / IMG_END
+                              requests (bulk/README.md "An image towards
+                              the collar"),
+ with image_len, image_sha256, image_build and image_sig naming the one
+ image the collar will install: image_len bytes whose SHA-256 is
+ image_sha256, whose own FWBUILD stamp is image_build, and whose release
+ signature image_sig (r|s, 32 bytes each, big-endian) verifies under the
+ release public key compiled into the collar: ECDSA P-256 over
+ SHA-256(image | image_build as 4 bytes little-endian). Anything else
+ delivered is discarded and the collar goes on as it was. Bit 3 alone
+ serves no files ("/" lists empty); with bits 0..2 the window serves those
+ files as well. The collar refuses the command (ACK result 12, no window)
+ with detail
+    8  image_len outside 1024 .. the room of a bank (2048000)
+    9  image_sha256 or image_sig absent (all zeros)
+   10  image_build is not above the collar's own build (no going back, no
+       installing the same build twice)
+   11  the collar has no release public key (it can verify no image)
+   12  battery below 50 %
+   13  a window is open already (an update is not added to an open window)
+   14  the command did not come in a signed direct-radio frame: an update
+       is ordered only by a 0x44 frame under the collar's command key,
+       never over LoRaWAN or the Bluetooth tunnel (checked first)
+ after the refusals every window has (1..6). A window WITHOUT bit 3 over
+ LoRaWAN is as it always was. Firmware that predates the
+ fields ignores them and bit 3: its window serves nothing and answers the
+ IMG requests UNKNOWN_OP. */
 typedef struct ble_window {
     uint32_t minutes;
     pb_byte_t key[16];
-    uint32_t kinds; /* bit 0 card log, bit 1 accelerometer, bit 2 audio; 0 = everything */
+    uint32_t kinds; /* bit 0 card log, bit 1 accelerometer, bit 2 audio, bit 3 update; 0 = everything (no update) */
     uint32_t audio_from; /* UTC epoch seconds, audio only (bit 2) */
     uint32_t audio_to; /* UTC epoch seconds; audio_to > audio_from, at most 86400 after it */
+    uint32_t image_len; /* update (bit 3): bytes of the image to be delivered through the window */
+    pb_byte_t image_sha256[32]; /* 32 bytes, SHA-256 of the image */
+    uint32_t image_build; /* the image's build number (its FWBUILD stamp) */
+    pb_byte_t image_sig[64]; /* 64 bytes, release signature r|s: ECDSA P-256 over SHA-256(image | image_build as 4 bytes little-endian) */
 } ble_window_t;
 
 /* CMD_STORAGE_DRAIN parameters. target_pct: the battery level, whole percent,
@@ -900,7 +937,7 @@ extern "C" {
 #define CONFIG_GEOFENCE_INIT_DEFAULT             {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_DEFAULT, false, 0}
 #define SESSION_PARAMS_INIT_DEFAULT              {0, 0, 0}
 #define FIND_MODE_INIT_DEFAULT                   {0, 0}
-#define BLE_WINDOW_INIT_DEFAULT                  {0, {0}, 0, 0, 0}
+#define BLE_WINDOW_INIT_DEFAULT                  {0, {0}, 0, 0, 0, 0, {0}, 0, {0}}
 #define STORAGE_DRAIN_INIT_DEFAULT               {0}
 #define LOCATE_NOW_INIT_DEFAULT                  {0}
 #define CARD_SUMMARY_REQUEST_INIT_DEFAULT        {0, 0}
@@ -925,7 +962,7 @@ extern "C" {
 #define CONFIG_GEOFENCE_INIT_ZERO                {0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, 0, false, GEO_POINT_INIT_ZERO, false, 0}
 #define SESSION_PARAMS_INIT_ZERO                 {0, 0, 0}
 #define FIND_MODE_INIT_ZERO                      {0, 0}
-#define BLE_WINDOW_INIT_ZERO                     {0, {0}, 0, 0, 0}
+#define BLE_WINDOW_INIT_ZERO                     {0, {0}, 0, 0, 0, 0, {0}, 0, {0}}
 #define STORAGE_DRAIN_INIT_ZERO                  {0}
 #define LOCATE_NOW_INIT_ZERO                     {0}
 #define CARD_SUMMARY_REQUEST_INIT_ZERO           {0, 0}
@@ -1018,6 +1055,10 @@ extern "C" {
 #define BLE_WINDOW_KINDS_TAG                     3
 #define BLE_WINDOW_AUDIO_FROM_TAG                4
 #define BLE_WINDOW_AUDIO_TO_TAG                  5
+#define BLE_WINDOW_IMAGE_LEN_TAG                 6
+#define BLE_WINDOW_IMAGE_SHA256_TAG              7
+#define BLE_WINDOW_IMAGE_BUILD_TAG               8
+#define BLE_WINDOW_IMAGE_SIG_TAG                 9
 #define STORAGE_DRAIN_TARGET_PCT_TAG             1
 #define LOCATE_NOW_TIMEOUT_S_TAG                 1
 #define CARD_SUMMARY_REQUEST_FROM_EPOCH_TAG      1
@@ -1231,7 +1272,11 @@ X(a, STATIC,   SINGULAR, UINT32,   minutes,           1) \
 X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, key,               2) \
 X(a, STATIC,   SINGULAR, UINT32,   kinds,             3) \
 X(a, STATIC,   SINGULAR, UINT32,   audio_from,        4) \
-X(a, STATIC,   SINGULAR, UINT32,   audio_to,          5)
+X(a, STATIC,   SINGULAR, UINT32,   audio_to,          5) \
+X(a, STATIC,   SINGULAR, UINT32,   image_len,         6) \
+X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, image_sha256,      7) \
+X(a, STATIC,   SINGULAR, UINT32,   image_build,       8) \
+X(a, STATIC,   SINGULAR, FIXED_LENGTH_BYTES, image_sig,         9)
 #define BLE_WINDOW_CALLBACK NULL
 #define BLE_WINDOW_DEFAULT NULL
 
@@ -1401,7 +1446,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define BEACON_KEY_SET_SIZE                      32
-#define BLE_WINDOW_SIZE                          42
+#define BLE_WINDOW_SIZE                          154
 #define CARD_SUMMARY_REQUEST_SIZE                12
 #define CONFIG_ACCELEROMETER_SIZE                14
 #define CONFIG_FRAGMENT_SIZE                     481
@@ -1415,7 +1460,7 @@ extern const pb_msgdesc_t downlink_packet_t_msg;
 #define CONFIG_SYSTEM_SIZE                       34
 #define CONFIG_TIME_WINDOW_SIZE                  30
 #define CONFIG_ZONE_SIZE                         12
-#define DOWNLINK_PACKET_SIZE                     917
+#define DOWNLINK_PACKET_SIZE                     1030
 #define FIND_MODE_SIZE                           12
 #define GEOFENCE_DATA_SIZE                       200
 #define GEO_POINT_SIZE                           22

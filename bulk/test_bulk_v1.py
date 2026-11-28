@@ -186,5 +186,134 @@ class Info(unittest.TestCase):
         self.assertEqual(list(v.keys())[:7], ["format", "version", "note", "files", "keyed", "open", "primitives"])
 
 
+class Image(unittest.TestCase):
+    """An image towards the collar (2026-11-26, ops 0x09..0x0B)."""
+
+    KEY = bytes(range(16, 32))
+
+    def spec(self, img, **over):
+        import hashlib
+        d = dict(length=len(img), sha256=hashlib.sha256(img).digest(), build=make_vectors.IMAGE_BUILD,
+                 sig=make_vectors.IMAGE_SIG, sig_verify=lambda h, sig: sig == make_vectors.IMAGE_SIG)
+        d.update(over)
+        return d
+
+    def pair(self, spec, key=KEY):
+        m = b.CollarModel(7, {}, key=key, image=spec)
+        c = b.Client(*wire(m, [20, 3, 244]), key=key)
+        c.open()
+        return m, c
+
+    def test_the_named_image_is_taken(self):
+        img = make_vectors.image()
+        m, c = self.pair(self.spec(img))
+        seen = []
+        a = c.send_image(img, progress=lambda at, n: seen.append(at))
+        self.assertEqual((a.result, a.next), (b.R_OK, len(img)))
+        self.assertTrue(m.img_done)
+        self.assertEqual(seen[-1], len(img))
+        self.assertEqual(seen[0], b.IMG_DATA_MAX)
+        self.assertEqual(b.IMG_DATA_MAX, 228)
+
+    def test_smaller_pieces_for_a_short_link(self):
+        img = make_vectors.image()
+        m, c = self.pair(self.spec(img))
+        seen = []
+        a = c.send_image(img, progress=lambda at, n: seen.append(at), chunk=166)
+        self.assertEqual((a.result, a.next), (b.R_OK, len(img)))
+        self.assertTrue(m.img_done)
+        self.assertEqual(seen[0], 166)
+        for bad in (0, b.IMG_DATA_MAX + 1):
+            with self.assertRaises(b.ProtocolError):
+                c.send_image(img, chunk=bad)
+
+    def test_anything_else_is_discarded(self):
+        img = make_vectors.image()
+        wrong = bytearray(img)
+        wrong[-1] ^= 0x80
+        for spec, sent, result in (
+                (self.spec(img), bytes(wrong), b.R_IMG_HASH),
+                (self.spec(img, build=make_vectors.IMAGE_BUILD + 1), img, b.R_IMG_BUILD),
+                (self.spec(img, sig=bytes(64)), img, b.R_IMG_SIGNATURE),
+                (self.spec(b"\xff" * 8 + img[8:]), b"\xff" * 8 + img[8:], b.R_IMG_VECTORS)):
+            m, c = self.pair(spec)
+            with self.assertRaisesRegex(b.ProtocolError, "IMG_END: result %d" % result):
+                c.send_image(sent)
+            self.assertFalse(m.img_done)
+            self.assertIsNone(m.img_buf)
+
+    def test_two_stamps_that_differ_name_no_build(self):
+        img = make_vectors.image()
+        self.assertEqual(b.image_build(img), make_vectors.IMAGE_BUILD)
+        self.assertIsNone(b.image_build(img + b"FWBUILD:701:"))
+        self.assertEqual(b.image_build(img + b"FWBUILD:700:"), 700)
+        self.assertIsNone(b.image_build(b"FWBUILD:x:"))
+
+    def test_a_window_without_the_update_kind_knows_no_such_op(self):
+        img = make_vectors.image()
+        for key in (self.KEY, None):
+            m = b.CollarModel(7, {}, key=key, image=None if key else self.spec(img))
+            c = b.Client(*wire(m, [50]), key=key)
+            c.open()
+            with self.assertRaisesRegex(b.ProtocolError, "IMG_BEGIN: result %d" % b.R_UNKNOWN_OP):
+                c.send_image(img)
+
+    def test_a_client_that_comes_back_goes_on_and_three_erases_are_the_limit(self):
+        img = make_vectors.image()
+        m, c = self.pair(self.spec(img))
+        seq = c._send(b.OP_IMG_BEGIN, b"\xb0\x04\x00\x00\x00")
+        self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_BEGIN)), (b.R_OK, 0))
+        seq = c._send(b.OP_IMG_DATA, b.u32le(0) + img[:200])
+        self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_DATA)), (b.R_OK, 200))
+        c2 = b.Client(*wire(m, [64]), key=self.KEY)      # the phone left and came back
+        c2.open()
+        self.assertEqual(c2.send_image(img).next, len(img))
+        m, c = self.pair(self.spec(img))
+        for _ in range(b.IMG_BEGINS_MAX):
+            seq = c._send(b.OP_IMG_BEGIN, b.u32le(len(img)) + b"\x01")
+            self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_BEGIN)).result, b.R_OK)
+        seq = c._send(b.OP_IMG_DATA, b.u32le(0) + img[:50])
+        self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_DATA)), (b.R_OK, 50))
+        # a restart asked for once too often is refused and leaves what is stored
+        seq = c._send(b.OP_IMG_BEGIN, b.u32le(len(img)) + b"\x01")
+        self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_BEGIN)), (b.R_IMG_TRIES, 50))
+        self.assertEqual(c.send_image(img).next, len(img))
+
+    def test_a_begun_image_does_not_wait_for_ever(self):
+        img = make_vectors.image()
+        m, c = self.pair(self.spec(img))
+        m.img_tick(1000)
+        seq = c._send(b.OP_IMG_BEGIN, b.u32le(len(img)) + b"\x00")
+        self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_BEGIN)), (b.R_OK, 0))
+        self.assertFalse(m.img_tick(1000 + b.IMG_IDLE_S - 1))
+        self.assertTrue(m.img_tick(1000 + b.IMG_IDLE_S))          # begun, then silence
+        seq = c._send(b.OP_IMG_DATA, b.u32le(0) + img[:10])
+        self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_DATA)), (b.R_IMG_NOT_BEGUN, 0))
+        # a byte every half minute is cut off 30 min after the erase
+        m, c = self.pair(self.spec(img))
+        m.img_tick(0)
+        seq = c._send(b.OP_IMG_BEGIN, b.u32le(len(img)) + b"\x00")
+        c._answer(seq, b.OP_IMG_BEGIN)
+        at, cut = 0, None
+        for t in range(30, b.IMG_TOTAL_S + 61, 30):
+            if m.img_tick(t):
+                cut = t
+                break
+            seq = c._send(b.OP_IMG_DATA, b.u32le(at) + img[at:at + 1])
+            self.assertEqual(b.parse_img(c._answer(seq, b.OP_IMG_DATA)).result, b.R_OK)
+            at += 1
+        self.assertEqual(cut, b.IMG_TOTAL_S)
+        self.assertEqual((b.IMG_IDLE_S, b.IMG_TOTAL_S), (60, 1800))
+
+    def test_the_transcript_reaches_every_answer_a_model_can_give(self):
+        seen = set()
+        for st in make_vectors.build()["image"]["steps"]:
+            ans = bytes.fromhex(st["ans"])
+            if ans[0] in (0x89, 0x8A, 0x8B):
+                seen.add(ans[4])
+        self.assertEqual(seen, {b.R_OK, b.R_BAD_REQUEST, b.R_AUTH_REQUIRED, b.R_IMG_NOT_BEGUN, b.R_IMG_OFFSET,
+                                b.R_IMG_LENGTH, b.R_IMG_HASH, b.R_IMG_DONE})
+
+
 if __name__ == "__main__":
     unittest.main()

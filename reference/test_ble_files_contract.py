@@ -46,14 +46,25 @@ WINDOW_FIELDS = {"minutes": ("uint32", 1),
                  "key": ("bytes", 2),
                  "kinds": ("uint32", 3),
                  "audio_from": ("uint32", 4),
-                 "audio_to": ("uint32", 5)}
-KINDS = {"BLE_FILES_KIND_LOG": 1, "BLE_FILES_KIND_ACCEL": 2, "BLE_FILES_KIND_AUDIO": 4}
+                 "audio_to": ("uint32", 5),
+                 # 2026-11-26: a software update through the window
+                 "image_len": ("uint32", 6),
+                 "image_sha256": ("bytes", 7),
+                 "image_build": ("uint32", 8),
+                 "image_sig": ("bytes", 9)}
+KINDS = {"BLE_FILES_KIND_LOG": 1, "BLE_FILES_KIND_ACCEL": 2, "BLE_FILES_KIND_AUDIO": 4,
+         "BLE_FILES_KIND_UPDATE": 8}
+# old: KINDS = {"BLE_FILES_KIND_LOG": 1, "BLE_FILES_KIND_ACCEL": 2, "BLE_FILES_KIND_AUDIO": 4}
 AUDIO_SPAN_MAX_S = 86400
 # 2026-11-16 (coordinator): the takes that OVERLAP the range are served, a
 # start up to the longest take (hourly rotation) before audio_from.
 TAKE_MAX_S = 3600
 DETAILS = {"BLE_REFUSED_NO_KEY": 1, "BLE_REFUSED_RADIO": 2, "BLE_REFUSED_NO_CARD": 3,
-           "BLE_REFUSED_BATTERY": 4, "BLE_REFUSED_UPDATING": 5, "BLE_REFUSED_RANGE": 6}
+           "BLE_REFUSED_BATTERY": 4, "BLE_REFUSED_UPDATING": 5, "BLE_REFUSED_RANGE": 6,
+           # 2026-11-26: a window with the update kind
+           "BLE_REFUSED_IMAGE_LEN": 8, "BLE_REFUSED_IMAGE_HASH": 9, "BLE_REFUSED_IMAGE_BUILD": 10,
+           "BLE_REFUSED_NO_RELEASE_KEY": 11, "BLE_REFUSED_UPDATE_BATTERY": 12,
+           "BLE_REFUSED_WINDOW_OPEN": 13, "BLE_REFUSED_UPDATE_CARRIER": 14}
 ECHO_CMD_RESULT = ("uint32", 17)
 CMD_BLE_WINDOW = 27
 CMD_LOCATE_NOW = 28
@@ -72,6 +83,18 @@ def window_cmd(kinds=0, audio_from=0, audio_to=0, minutes=30):
     win = encode([(w["minutes"][1], minutes), (w["key"][1], b"\xa5" * 16),
                   (w["kinds"][1], kinds), (w["audio_from"][1], audio_from),
                   (w["audio_to"][1], audio_to)])
+    return encode([(d["command"][1], CMD_BLE_WINDOW), (d["ble_window"][1], win)])
+
+
+def update_cmd(image_len=670612, image_build=640, kinds=8, minutes=30):
+    """The same for a software update (2026-11-26): kinds bit 3 and the four
+    image fields, a SHA-256 and a signature with no zero byte."""
+    d = message_fields("downlink.proto", "DownlinkPacket")
+    w = message_fields("downlink.proto", "BleWindow")
+    win = encode([(w["minutes"][1], minutes), (w["key"][1], b"\xa5" * 16),
+                  (w["kinds"][1], kinds), (w["image_len"][1], image_len),
+                  (w["image_sha256"][1], b"\x5a" * 32), (w["image_build"][1], image_build),
+                  (w["image_sig"][1], b"\xc3" * 64)])
     return encode([(d["command"][1], CMD_BLE_WINDOW), (d["ble_window"][1], win)])
 
 
@@ -131,6 +154,17 @@ class WireSizes(unittest.TestCase):
         self.assertLessEqual(len(window_cmd(kinds=U32, audio_from=U32, audio_to=U32)),
                              b.COMMAND_MAX_BODY)
 
+    def test_update_window_fits_a_signed_frame(self):
+        # 2026-11-26: 134 B for an image of 0.67 MB; every uint32 at its
+        # largest still fits a 0x44 frame's body (226). Far over LoRaWAN's
+        # 33 B RX2 floor: an update is ordered over the direct radio.
+        self.assertEqual(len(update_cmd()), 134)
+        worst = len(update_cmd(image_len=U32, image_build=U32, kinds=U32))
+        self.assertEqual(worst, 143)
+        self.assertLessEqual(worst, b.COMMAND_MAX_BODY)
+        self.assertEqual((b.BLE_UPDATE_IMAGE_MIN, b.BLE_UPDATE_IMAGE_MAX, b.BLE_UPDATE_MIN_BATTERY_PCT),
+                         (1024, 2048000, 50))
+
     def test_status_echo_with_cmd_result_fits_one_read(self):
         e = message_fields("ble.proto", "CfgEchoPacket")
         worst = echo_packet(beacon_key=report_worst(wake=True), mag_cal=mag_cal_worst())
@@ -152,7 +186,12 @@ class GeneratedC(unittest.TestCase):
         fl = c_fieldlist("downlink.pb.h", "BLE_WINDOW_FIELDLIST")
         for name, (_, num) in WINDOW_FIELDS.items():
             self.assertRegex(fl, r"\b%s,\s+%d\)" % (name, num))
-        self.assertRegex(read("downlink.pb.h"), r"#define BLE_WINDOW_SIZE\s+42\b")
+        # old: BLE_WINDOW_SIZE 42 (before the image fields, 2026-11-26)
+        self.assertRegex(read("downlink.pb.h"), r"#define BLE_WINDOW_SIZE\s+154\b")
+        self.assertRegex(read("downlink.pb.h"), r"#define DOWNLINK_PACKET_SIZE\s+1030\b")
+        for f in ("uint32_t image_len;", "pb_byte_t image_sha256[32];", "uint32_t image_build;",
+                  "pb_byte_t image_sig[64];"):
+            self.assertIn(f, s)
 
     def test_ble_header(self):
         self.assertIn("uint32_t cmd_result;", c_struct("ble.pb.h", "cfg_echo_packet"))

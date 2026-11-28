@@ -251,6 +251,15 @@ opened window answers 1 accepted with detail = the minutes granted;
 `../bulk/README.md`). Since 2026-11-16 result 12 is also how
 `CMD_CARD_SUMMARY` says the card cannot answer: detail 3 no readable card,
 7 the card's day index is still being built (ask again later).
+Since 2026-11-26 a window may also take a software update (`ble_window.kinds`
+bit 3 with `image_len`, `image_sha256`, `image_build`, `image_sig`;
+downlink.proto), and result 12 has its refusals: detail 8 the image length
+is outside 1024..2048000, 9 the image's SHA-256 or its release signature is
+absent, 10 the image's build is not above the collar's own, 11 the collar
+has no release public key, 12 battery below 50 %, 13 a window is open
+already, 14 the command did not come in a signed direct-radio frame (an
+update is never taken over LoRaWAN or the Bluetooth tunnel; over LoRaWAN
+there is no ACK, the collar only logs it).
 For `CMD_CARD_SUMMARY`, the detail of result 1 is the number of reply frames
 that follow (1..4), each a report frame carrying `card_summary`
 (`../reference/CARD_SUMMARY_V1.md`).

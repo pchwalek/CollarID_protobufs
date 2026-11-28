@@ -75,6 +75,9 @@ length, with its own result (a missing file, a bad path).
 | 0x06 CANCEL | none | result |
 | 0x07 BYE | none | result; a window opened by radio command closes about 1.5 s later (a magnet session goes on) |
 | 0x08 INFO | none | result, battery_pct u8, battery_mv u16, floor_pct u8, window_left_s u32 (9 B; added 2026-11-16, below) |
+| 0x09 IMG_BEGIN | image length u32, flags u8 (bit 0 restart) | result, next u32 (5 B; added 2026-11-26, "An image towards the collar") |
+| 0x0A IMG_DATA | offset u32, 1..228 image bytes | result, next u32 (5 B) |
+| 0x0B IMG_END | none | result, next u32 (5 B) |
 
 - **DATA** (op 0xC5, the READ's seq): offset u64, then the bytes (at most the
   HELLO's "data bytes per frame": 2048, or 512 while the collar is busy).
@@ -129,6 +132,102 @@ Results: 0 OK, 1 BAD_REQUEST, 2 AUTH_REQUIRED, 3 BAD_MAC, 4 AUTH_FAILED,
 5 NOT_FOUND, 6 IO_ERROR, 7 BUSY, 8 BAD_PATH, 9 CANCELLED, 10 NOT_A_DIR,
 11 NO_CARD, 12 UNKNOWN_OP, 13 NOT_NEEDED (AUTH where no key is needed),
 14 IS_A_DIR.
+The IMG requests add (2026-11-26): 15 IMG_NOT_BEGUN, 16 IMG_OFFSET,
+17 IMG_LENGTH, 18 IMG_FLASH, 19 IMG_HASH, 20 IMG_SIGNATURE, 21 IMG_BATTERY,
+22 IMG_BUILD, 23 IMG_VECTORS, 24 IMG_TRIES, 25 IMG_DONE.
+
+## An image towards the collar
+
+Added 2026-11-26 (collarID_thread `docs/DESIGN_remote_update.md`). A window
+opened by a `CMD_BLE_WINDOW` whose `ble_window.kinds` has bit 3 (8,
+`BLE_FILES_KIND_UPDATE`) also takes one image of the collar's main software.
+The command names it: `image_len`, `image_sha256`, `image_build`,
+`image_sig` (`downlink.proto`). The key holder can deliver that image or
+nothing: the collar installs what it stored only if its SHA-256 is the
+command's, it starts like an image (a stack pointer in RAM, a reset vector in
+flash), its own `FWBUILD:<n>:` stamp is `image_build`, and the release
+signature verifies (ECDSA P-256 under the public key compiled into the
+collar, over SHA-256(image | image_build as 4 bytes little-endian);
+`image_sig` is r|s, 32 bytes each, big-endian).
+
+In any other window (a magnet session, a window without bit 3, an older
+collar) the three requests answer `UNKNOWN_OP` (12) alone, as every op the
+collar does not know: nothing changes.
+
+Requests and answers are framed, authenticated and counted exactly as the
+others (HELLO, AUTH, then the MAC on every request). All three answers are
+`result u8, next u32 LE`: `next` is the number of image bytes the collar
+holds, which is the offset the next IMG_DATA must carry. Errors found before
+the op is looked at (length, MAC, authentication, `BUSY` while a READ runs,
+a payload of the wrong size: `BAD_REQUEST`) answer the result alone.
+
+- **IMG_BEGIN** `image_len u32 LE, flags u8` (5 B; flags bits 1..7 zero).
+  `image_len` must be the command's (else `IMG_LENGTH`). With no image begun
+  the collar erases the spare half of its flash and answers OK, next 0. With
+  one begun it answers OK and `next` as it stands (a client that reconnects
+  goes on from there; the image survives a disconnection, not the window),
+  unless flags bit 0 (restart) is set: then what is stored is discarded and
+  the image begins at 0. A window erases at most 3 times; an IMG_BEGIN that
+  would need a fourth answers `IMG_TRIES` and changes nothing (what is
+  stored stays and may still be completed; a new command opens a new
+  window). `IMG_FLASH`: the erase failed.
+- **IMG_DATA** `offset u32 LE, bytes` (1..228 bytes: a 244 B request less the
+  header 4, the offset 4 and the MAC 8). `offset` must equal `next`, else
+  `IMG_OFFSET` and `next` says where the collar is (nothing is written: a
+  piece sent twice, or one whose answer was lost, is told apart this way; go
+  on from `next`). Bytes past `image_len`: `IMG_LENGTH`, nothing written.
+  OK: stored and read back, `next` advanced. `IMG_FLASH`: a write failed, the
+  image is discarded (IMG_BEGIN again). One request at a time; the answer to
+  each is the go-ahead for the next.
+- **IMG_END** (no payload). Before the last byte: `IMG_LENGTH`, the image
+  stays and may be completed. Otherwise the collar checks the stored image,
+  in this order: `IMG_HASH`, `IMG_VECTORS`, `IMG_BUILD`, `IMG_SIGNATURE`. Any of them discards the image (`next` 0);
+  the collar's running software is untouched and the window goes on. OK
+  (`next` = `image_len`): the image is verified. About 1.5 s after the
+  answer has gone the collar ends its recordings, saves its log, swaps to
+  the new image and restarts; the connection drops. The answer takes as long
+  as hashing the whole image on the collar: wait **180 s** for it (other
+  answers: the usual few seconds).
+- `IMG_BATTERY` (21) is reserved and never sent: the battery is judged when
+  the command arrives (50 %, refusal 12) and, during the window, only by
+  the window's own floor. A level that sags under the transfer does not
+  cost a finished image.
+- **A begun image does not wait.** It is discarded 60 s after the last
+  IMG_BEGIN or IMG_DATA the collar took (a refused request does not count),
+  and 30 min after the IMG_BEGIN that erased, whatever arrives; the
+  requests then answer `IMG_NOT_BEGUN`, and IMG_BEGIN starts again while
+  tries last. Send the pieces without pausing; while an image is begun the
+  collar holds off its own sleep.
+- **A release command wins.** If the collar is ordered to release
+  (drop-off) while an update window is open, the window closes and its
+  image, begun or verified, is discarded; the connection drops. Order the
+  update again later.
+- After a verified image every IMG request answers `IMG_DONE` (25).
+- `IMG_NOT_BEGUN` (15): IMG_DATA or IMG_END with no image begun, or after
+  one was discarded.
+- The window's own rules hold throughout: it stays open while requests keep
+  coming (2 min past the last, two hours at most), and closes at the
+  collar's resume battery level. A window that closes, or a new command that
+  replaces it, discards an unfinished image.
+- That the update took is not answered here: the collar's next report
+  carries the new build (`fw_build`). A new image is kept only if, on its
+  first start, the collar's LoRa radio and its Bluetooth radio both answer;
+  otherwise the collar goes back to the software it had, by itself.
+
+Sequence: HELLO, AUTH, IMG_BEGIN, IMG_DATA from `next` in pieces of up to
+228 B until `next` = `image_len`, IMG_END. `bulk_v1.Client.send_image` is
+the reference; the `image` transcript in `vectors.json` has every answer
+above but `IMG_FLASH`, which needs a collar's hardware, with a stand-in
+signature its collar accepts.
+
+The command is refused (ACK result 12, no window) with detail 8 `image_len`
+outside 1024..2048000, 9 `image_sha256` or `image_sig` absent, 10
+`image_build` not above the collar's own build, 11 the collar has no release
+public key, 12 battery below 50 %, 13 a window is open already, 14 the
+command did not come in a signed direct-radio frame (`../beacon/README.md`).
+Detail 14 is checked first: an update is ordered only by a signed
+direct-radio command, never over LoRaWAN, whose network server could
+otherwise open an update window with a key of its own choosing.
 
 ## What a window serves
 
@@ -154,8 +253,10 @@ serves the previous day's folder (its 23:30 take) and its `mic.anc.csv`.
 Folders on the way: `/` always; `/accelerometer` and
 `/accelerometer_recovery` with bit 1; `/audio`, `/audio/YYYY`,
 `/audio/YYYY/MM` and `/audio/YYYY/MM/DD` for the years, months and days the
-widened window touches, and `/audio_recovery`, with bit 2. Bits above 2 are
-reserved (a window with only those serves `/`, empty).
+widened window touches, and `/audio_recovery`, with bit 2. Bit 3 is the
+update kind (2026-11-26, "An image towards the collar"): it serves no file.
+Bits above 3 are reserved (a window with only bits 3 and up serves `/`,
+empty).
 
 - LIST of a folder shows only what the window serves (the cookie counts
   only those entries, so every page is full but the last).
